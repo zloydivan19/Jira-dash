@@ -322,7 +322,7 @@ export default function App() {
         position: 'fixed', bottom: '10px', right: '14px',
         textAlign: 'right', pointerEvents: 'none', zIndex: 10,
       }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: theme.textMuted }}>v1.0</div>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: theme.textMuted }}>v1.4.0</div>
         <div style={{ fontSize: '12px', color: theme.textMuted, opacity: 0.7 }}>by PM Fenix Team</div>
       </div>
     </div>
