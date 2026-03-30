@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import StatusBadge from './StatusBadge.jsx';
+import { useTheme } from '../contexts/ThemeContext.jsx';
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
@@ -48,7 +49,7 @@ function compareValues(a, b, col) {
 }
 
 /** Filter dropdown rendered via portal — never clipped by table overflow */
-function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRect }) {
+function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRect, theme }) {
   const ref = useRef(null);
 
   const uniqueValues = useMemo(() => {
@@ -81,8 +82,8 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
       ref={ref}
       style={{
         position: 'fixed', top, left, zIndex: 9999,
-        background: '#141720', border: '1px solid #2a3050',
-        borderRadius: '7px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        background: theme.bgDropdown, border: `1px solid ${theme.border}`,
+        borderRadius: '7px', boxShadow: theme.id === 'dark' ? '0 8px 32px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.15)',
         minWidth: '180px', maxWidth: '260px', padding: '4px 0',
       }}
     >
@@ -90,11 +91,11 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
         onClick={() => onChange(col.id, [])}
         style={{
           padding: '6px 12px', fontSize: '12px', cursor: 'pointer',
-          color: selected.length === 0 ? '#4f8ef7' : '#8892aa',
-          borderBottom: '1px solid #1f2535',
+          color: selected.length === 0 ? theme.accent : theme.textSecondary,
+          borderBottom: `1px solid ${theme.borderLight}`,
           fontWeight: selected.length === 0 ? 600 : 400,
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = '#1a2040')}
+        onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgDropdownHov)}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       >
         Показать все
@@ -103,12 +104,12 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
         {uniqueValues.map((val) => (
           <label
             key={val}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', color: '#e2e8f4' }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#1a2040')}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', color: theme.textPrimary }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgDropdownHov)}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <input type="checkbox" checked={selected.includes(val)} onChange={() => toggle(val)}
-              style={{ accentColor: '#4f8ef7', cursor: 'pointer', flexShrink: 0 }} />
+              style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val}</span>
           </label>
         ))}
@@ -119,6 +120,7 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
 }
 
 export default function DashboardTable({ issues, allIssues, columns = [], columnFilters = {}, onFilterChange }) {
+  const { theme } = useTheme();
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [openFilter, setOpenFilter] = useState(null);
@@ -165,8 +167,10 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
   };
 
   if (!issues || issues.length === 0) {
-    return <div style={{ textAlign: 'center', padding: '48px', color: '#8892aa' }}>Нет данных для отображения</div>;
+    return <div style={{ textAlign: 'center', padding: '48px', color: theme.textSecondary }}>Нет данных для отображения</div>;
   }
+
+  const tdBase = { padding: '8px 10px', color: theme.textPrimary, verticalAlign: 'top', overflow: 'hidden' };
 
   return (
     <div style={{ overflow: 'auto', width: '100%', height: '100%' }}>
@@ -182,10 +186,11 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
               return (
                 <th key={col.id} style={{
                   padding: '8px 8px 8px 10px', textAlign: 'left',
-                  background: '#1a1f30', color: isFiltered ? '#4f8ef7' : '#8892aa',
+                  background: theme.bgThead,
+                  color: isFiltered ? theme.accent : theme.textSecondary,
                   fontWeight: 600, fontSize: '11px', textTransform: 'uppercase',
                   letterSpacing: '0.06em', userSelect: 'none',
-                  borderBottom: `2px solid ${isFiltered ? '#4f8ef7' : '#2a3050'}`,
+                  borderBottom: `2px solid ${isFiltered ? theme.borderActive : theme.border}`,
                   position: 'sticky', top: 0, overflow: 'hidden',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -196,15 +201,15 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                     <span
                       onClick={(e) => handleFilterClick(e, col.id)}
                       title="Фильтр"
-                      style={{ cursor: 'pointer', fontSize: '12px', color: isFiltered ? '#4f8ef7' : '#3a4560', padding: '1px 2px', borderRadius: '3px', background: isOpen ? '#2a3050' : 'transparent', flexShrink: 0 }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = '#4f8ef7')}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = isFiltered ? '#4f8ef7' : '#3a4560')}
+                      style={{ cursor: 'pointer', fontSize: '12px', color: isFiltered ? theme.accent : theme.filterIconDim, padding: '1px 2px', borderRadius: '3px', background: isOpen ? theme.border : 'transparent', flexShrink: 0 }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = theme.accent)}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = isFiltered ? theme.accent : theme.filterIconDim)}
                     >▾</span>
                     <div
                       onMouseDown={(e) => startResize(e, col.id)}
-                      style={{ width: '5px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: '2px solid #2a3050', marginRight: '-8px' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.borderRightColor = '#4f8ef7')}
-                      onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = '#2a3050')}
+                      style={{ width: '5px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: `2px solid ${theme.border}`, marginRight: '-8px' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderRightColor = theme.accent)}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = theme.border)}
                     />
                   </div>
                   {isOpen && filterAnchor && (
@@ -214,6 +219,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                       onChange={onFilterChange}
                       onClose={() => { setOpenFilter(null); setFilterAnchor(null); }}
                       anchorRect={filterAnchor}
+                      theme={theme}
                     />
                   )}
                 </th>
@@ -225,15 +231,15 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
           {sorted.map((row, idx) => (
             <tr
               key={row.issueKey || idx}
-              style={{ background: idx % 2 === 0 ? '#0d0f12' : '#111420', borderBottom: '1px solid #1a2030' }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#1a2040')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? '#0d0f12' : '#111420')}
+              style={{ background: idx % 2 === 0 ? theme.bgRowEven : theme.bgRowOdd, borderBottom: `1px solid ${theme.borderRow}` }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? theme.bgRowEven : theme.bgRowOdd)}
             >
               {allColumns.map((col) => {
                 if (col.type === 'key') return (
                   <td key={col.id} style={tdBase}>
                     <a href={row.issueUrl} target="_blank" rel="noreferrer"
-                      style={{ color: '#4f8ef7', textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' }}
+                      style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' }}
                       onMouseEnter={(e) => (e.target.style.textDecoration = 'underline')}
                       onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
                     >{row.issueKey}</a>
@@ -260,5 +266,3 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
     </div>
   );
 }
-
-const tdBase = { padding: '8px 10px', color: '#e2e8f4', verticalAlign: 'top', overflow: 'hidden' };

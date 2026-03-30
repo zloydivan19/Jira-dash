@@ -5,21 +5,16 @@
 * { box-sizing: border-box; }
 body { background: #0d0f12; color: #e2e8f4; font-family: 'IBM Plex Sans', sans-serif; margin: 0; }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: #141720;
-}
-::-webkit-scrollbar-thumb {
-  background: #3a4060;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #4f8ef7;
-}
+/* Custom scrollbar — dark theme (default) */
+::-webkit-scrollbar { width: 8px; height: 10px; }
+::-webkit-scrollbar-track { background: #141720; }
+::-webkit-scrollbar-thumb { background: #3a4060; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #4f8ef7; }
+
+/* Scrollbar overrides for CSI theme */
+body.theme-csi ::-webkit-scrollbar-track { background: #e8edeb; }
+body.theme-csi ::-webkit-scrollbar-thumb { background: #b0c4c0; border-radius: 4px; }
+body.theme-csi ::-webkit-scrollbar-thumb:hover { background: #1976d2; }
 
 /* Smooth transitions */
 * {
