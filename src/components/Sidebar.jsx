@@ -51,6 +51,10 @@ export default function Sidebar({
 
   const [loadingIssues, setLoadingIssues] = useState(false);
 
+  // Saved views
+  const [savingView, setSavingView] = useState(false); // показать input для имени
+  const [viewName, setViewName] = useState('');
+
   // Bugs tab state
   const [loadingBugs, setLoadingBugs] = useState(false);
   const [engineerSearch, setEngineerSearch] = useState('');
@@ -103,7 +107,16 @@ export default function Sidebar({
   const applyClientFilter = () => {
     if (!selectedClients.length) return;
     const inList = selectedClients.map((c) => `"${c}"`).join(', ');
-    onSettingsChange({ jql: `cf[12606] = currentUser() AND cf[12601] in (${inList}) ORDER BY created DESC` });
+    const base = settings.jql || 'cf[12606] is not EMPTY';
+    // remove existing cf[12601] condition if any
+    const stripped = base.replace(/\s+AND\s+cf\[12601\]\s+in\s*\([^)]*\)/gi, '').trim();
+    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
+    if (orderMatch) {
+      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
+      onSettingsChange({ jql: `${before} AND cf[12601] in (${inList})${orderMatch[1]}` });
+    } else {
+      onSettingsChange({ jql: `${stripped} AND cf[12601] in (${inList})` });
+    }
   };
 
   // ── CR tab: reporters (авторы CR) ──
@@ -138,7 +151,15 @@ export default function Sidebar({
   const applyCrReporterFilter = () => {
     if (!selectedCrReporters.length) return;
     const inList = selectedCrReporters.map((id) => `"${id}"`).join(', ');
-    onSettingsChange({ jql: `reporter in (${inList}) ORDER BY created DESC` });
+    const base = settings.jql || 'cf[12606] is not EMPTY';
+    const stripped = base.replace(/\s+AND\s+reporter\s+in\s*\([^)]*\)/gi, '').trim();
+    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
+    if (orderMatch) {
+      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
+      onSettingsChange({ jql: `${before} AND reporter in (${inList})${orderMatch[1]}` });
+    } else {
+      onSettingsChange({ jql: `${stripped} AND reporter in (${inList})` });
+    }
   };
 
   // Inject CR reporter into template JQL
@@ -188,15 +209,14 @@ export default function Sidebar({
 
   const applyManagerFilter = () => {
     if (!selectedManagers.length) return;
-    const replacement = selectedManagers.length === 1
-      ? `"${selectedManagers[0]}"`
-      : `in (${selectedManagers.map((id) => `"${id}"`).join(', ')})`;
-    const cur = settings.jql || '';
-    if (cur.includes('currentUser()')) {
-      onSettingsChange({ jql: cur.replace(/=\s*currentUser\(\)/g, `= ${replacement}`) });
-    } else {
-      onSettingsChange({ jql: `cf[12606] in (${selectedManagers.map((id) => `"${id}"`).join(', ')}) ORDER BY updated DESC` });
-    }
+    const inList = selectedManagers.map((id) => `"${id}"`).join(', ');
+    const cur = settings.jql || 'cf[12606] is not EMPTY ORDER BY updated DESC';
+    // Replace any existing cf[12606] condition with the selected managers
+    const replaced = cur
+      .replace(/cf\[12606\]\s*=\s*currentUser\(\)/gi, `cf[12606] in (${inList})`)
+      .replace(/cf\[12606\]\s+is\s+not\s+EMPTY/gi, `cf[12606] in (${inList})`)
+      .replace(/cf\[12606\]\s+in\s*\([^)]*\)/gi, `cf[12606] in (${inList})`);
+    onSettingsChange({ jql: replaced });
   };
 
   // ── Bugs tab: engineers ──
@@ -231,7 +251,15 @@ export default function Sidebar({
   const applyEngineerFilter = () => {
     if (!selectedEngineers.length) return;
     const inList = selectedEngineers.map((id) => `"${id}"`).join(', ');
-    onSettingsChange({ jqlBugs: `project in (${DEV_PROJECTS}) AND assignee in (${inList}) ORDER BY created DESC` });
+    const base = settings.jqlBugs || `project in (${DEV_PROJECTS})`;
+    const stripped = base.replace(/\s+AND\s+assignee\s+in\s*\([^)]*\)/gi, '').replace(/\s+AND\s+assignee\s+is\s+not\s+EMPTY/gi, '').trim();
+    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
+    if (orderMatch) {
+      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
+      onSettingsChange({ jqlBugs: `${before} AND assignee in (${inList})${orderMatch[1]}` });
+    } else {
+      onSettingsChange({ jqlBugs: `${stripped} AND assignee in (${inList})` });
+    }
   };
 
   // ── Bugs tab: reporters ──
@@ -266,7 +294,15 @@ export default function Sidebar({
   const applyReporterFilter = () => {
     if (!selectedReporters.length) return;
     const inList = selectedReporters.map((id) => `"${id}"`).join(', ');
-    onSettingsChange({ jqlBugs: `project in (${DEV_PROJECTS}) AND reporter in (${inList}) ORDER BY created DESC` });
+    const base = settings.jqlBugs || `project in (${DEV_PROJECTS})`;
+    const stripped = base.replace(/\s+AND\s+reporter\s+in\s*\([^)]*\)/gi, '').trim();
+    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
+    if (orderMatch) {
+      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
+      onSettingsChange({ jqlBugs: `${before} AND reporter in (${inList})${orderMatch[1]}` });
+    } else {
+      onSettingsChange({ jqlBugs: `${stripped} AND reporter in (${inList})` });
+    }
   };
 
   // Inject reporter filter into a template JQL before ORDER BY
@@ -305,6 +341,45 @@ export default function Sidebar({
     setLoadingIssues(true);
     await onLoadCR(settings.jql, columns);
     setLoadingIssues(false);
+  };
+
+  // ── Saved views ──
+  const views = settings.views || [];
+
+  const handleSaveView = () => {
+    const name = viewName.trim();
+    if (!name) return;
+    const isCR = activeTab === 'queries';
+    const view = {
+      id: Date.now(),
+      name,
+      tab: activeTab,
+      jql: isCR ? settings.jql : settings.jqlBugs,
+      columns: isCR ? columns : columnsBugs,
+    };
+    onSettingsChange({ views: [...views, view] });
+    setViewName('');
+    setSavingView(false);
+    addToast(`Запрос "${name}" сохранён`, 'success');
+  };
+
+  const handleDeleteView = (id) => {
+    onSettingsChange({ views: views.filter((v) => v.id !== id) });
+  };
+
+  const handleLoadView = async (view) => {
+    onTabChange(view.tab);
+    if (view.tab === 'queries') {
+      onSettingsChange({ jql: view.jql, columns: view.columns });
+      setLoadingIssues(true);
+      await onLoadCR(view.jql, view.columns);
+      setLoadingIssues(false);
+    } else {
+      onSettingsChange({ jqlBugs: view.jql, columnsBugs: view.columns });
+      setLoadingBugs(true);
+      await onLoadBugs(view.jql, view.columns);
+      setLoadingBugs(false);
+    }
   };
 
   const handleLoadBugs = async () => {
@@ -627,9 +702,52 @@ export default function Sidebar({
               onClick={handleLoadIssues} disabled={loadingIssues}>
               {loadingIssues ? 'Загружаем...' : 'Загрузить задачи'}
             </button>
+            <div style={{ marginTop: '8px' }}>
+              {savingView ? (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input autoFocus value={viewName} onChange={(e) => setViewName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveView(); if (e.key === 'Escape') { setSavingView(false); setViewName(''); } }}
+                    placeholder="Название запроса..." style={{ ...inputStyle, flex: 1, fontSize: '12px', padding: '5px 8px' }}
+                    onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                    onBlur={(e) => (e.target.style.borderColor = theme.border)} />
+                  <button onClick={handleSaveView} style={{ padding: '5px 10px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '5px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>✓</button>
+                  <button onClick={() => { setSavingView(false); setViewName(''); }} style={{ padding: '5px 8px', background: theme.bgInput, border: `1px solid ${theme.border}`, borderRadius: '5px', fontSize: '12px', color: theme.textSecondary, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                </div>
+              ) : (
+                <button onClick={() => setSavingView(true)}
+                  style={{ width: '100%', padding: '6px', background: 'transparent', border: `1px dashed ${theme.border}`, borderRadius: '6px', color: theme.textSecondary, fontSize: '12px', cursor: 'pointer' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}>
+                  + Сохранить текущий запрос
+                </button>
+              )}
+            </div>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
+            {views.filter((v) => v.tab === 'queries').length > 0 && (
+              <div style={sec}>
+                <label style={labelStyle}>Мои запросы</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {views.filter((v) => v.tab === 'queries').map((view) => (
+                    <div key={view.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 8px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}>
+                      <span style={{ fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: theme.textPrimary, cursor: 'pointer', fontWeight: 500 }}
+                        onClick={() => handleLoadView(view)} title={view.jql}>{view.name}</span>
+                      <button onClick={() => handleLoadView(view)}
+                        style={{ flexShrink: 0, padding: '2px 8px', fontSize: '11px', fontWeight: 600, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                        ▶
+                      </button>
+                      <button onClick={() => handleDeleteView(view.id)}
+                        style={{ flexShrink: 0, background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = theme.error)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = theme.textMuted)}>×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={sec}>
               <label style={labelStyle}>Шаблоны запросов</label>
               {selectedCrReporters.length > 0 && (
@@ -689,9 +807,52 @@ export default function Sidebar({
               onClick={handleLoadBugs} disabled={loadingBugs}>
               {loadingBugs ? 'Загружаем...' : 'Загрузить задачи'}
             </button>
+            <div style={{ marginTop: '8px' }}>
+              {savingView && activeTab === 'bugs' ? (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input autoFocus value={viewName} onChange={(e) => setViewName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveView(); if (e.key === 'Escape') { setSavingView(false); setViewName(''); } }}
+                    placeholder="Название запроса..." style={{ ...inputStyle, flex: 1, fontSize: '12px', padding: '5px 8px' }}
+                    onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                    onBlur={(e) => (e.target.style.borderColor = theme.border)} />
+                  <button onClick={handleSaveView} style={{ padding: '5px 10px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '5px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>✓</button>
+                  <button onClick={() => { setSavingView(false); setViewName(''); }} style={{ padding: '5px 8px', background: theme.bgInput, border: `1px solid ${theme.border}`, borderRadius: '5px', fontSize: '12px', color: theme.textSecondary, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                </div>
+              ) : (
+                <button onClick={() => setSavingView(true)}
+                  style={{ width: '100%', padding: '6px', background: 'transparent', border: `1px dashed ${theme.border}`, borderRadius: '6px', color: theme.textSecondary, fontSize: '12px', cursor: 'pointer' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}>
+                  + Сохранить текущий запрос
+                </button>
+              )}
+            </div>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
+            {views.filter((v) => v.tab === 'bugs').length > 0 && (
+              <div style={sec}>
+                <label style={labelStyle}>Мои запросы</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {views.filter((v) => v.tab === 'bugs').map((view) => (
+                    <div key={view.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 8px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}>
+                      <span style={{ fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: theme.textPrimary, cursor: 'pointer', fontWeight: 500 }}
+                        onClick={() => handleLoadView(view)} title={view.jql}>{view.name}</span>
+                      <button onClick={() => handleLoadView(view)}
+                        style={{ flexShrink: 0, padding: '2px 8px', fontSize: '11px', fontWeight: 600, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                        ▶
+                      </button>
+                      <button onClick={() => handleDeleteView(view.id)}
+                        style={{ flexShrink: 0, background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = theme.error)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = theme.textMuted)}>×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={sec}>
               <label style={labelStyle}>Шаблоны запросов</label>
               {selectedReporters.length > 0 && (

@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = {
   maxResults: 0,
   columns: [],
   columnsBugs: [],
+  views: [],
 };
 
 function loadSettings() {
