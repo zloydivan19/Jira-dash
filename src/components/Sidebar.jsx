@@ -3,13 +3,16 @@ import axios from 'axios';
 import { detectFieldType } from '../utils/fieldExtractor.js';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 
+const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
+
 export default function Sidebar({
-  settings, onSettingsChange, onLoadIssues, onFetchFields, onFetchMyself,
-  userInfo, jiraFields, addToast, columns, onColumnsChange,
+  settings, onSettingsChange, onLoadCR, onLoadBugs, onFetchFields, onFetchMyself,
+  userInfo, jiraFields, addToast,
+  columns, onColumnsChange, columnsBugs, onColumnsBugsChange,
+  activeTab, onTabChange, sidebarOpen, onToggleSidebar,
 }) {
   const { theme } = useTheme();
 
-  // Computed styles from theme
   const inputStyle = {
     width: '100%', background: theme.bgInput, border: `1px solid ${theme.border}`,
     borderRadius: '6px', color: theme.textPrimary, fontSize: '13px',
@@ -26,11 +29,11 @@ export default function Sidebar({
   const sec = { marginBottom: '16px' };
   const divider = { height: '1px', background: theme.borderLight, margin: '14px 0' };
 
-  const [activeTab, setActiveTab] = useState('connection');
   const [connectStatus, setConnectStatus] = useState(null);
   const [connectMsg, setConnectMsg] = useState('');
   const [showToken, setShowToken] = useState(false);
 
+  // CR Queries tab state
   const [clientSearch, setClientSearch] = useState('');
   const [clientOptions, setClientOptions] = useState([]);
   const [selectedClients, setSelectedClients] = useState([]);
@@ -41,9 +44,28 @@ export default function Sidebar({
   const [selectedManagers, setSelectedManagers] = useState([]);
   const [managersLoading, setManagersLoading] = useState(false);
 
+  const [crReporterSearch, setCrReporterSearch] = useState('');
+  const [crReporterOptions, setCrReporterOptions] = useState([]);
+  const [selectedCrReporters, setSelectedCrReporters] = useState([]);
+  const [crReportersLoading, setCrReportersLoading] = useState(false);
+
+  const [loadingIssues, setLoadingIssues] = useState(false);
+
+  // Bugs tab state
+  const [loadingBugs, setLoadingBugs] = useState(false);
+  const [engineerSearch, setEngineerSearch] = useState('');
+  const [engineerOptions, setEngineerOptions] = useState([]);
+  const [selectedEngineers, setSelectedEngineers] = useState([]);
+  const [engineersLoading, setEngineersLoading] = useState(false);
+
+  const [reporterSearch, setReporterSearch] = useState('');
+  const [reporterOptions, setReporterOptions] = useState([]);
+  const [selectedReporters, setSelectedReporters] = useState([]);
+  const [reportersLoading, setReportersLoading] = useState(false);
+
+  // Fields tab state
   const [fieldsLoading, setFieldsLoading] = useState(false);
   const [fieldSearch, setFieldSearch] = useState('');
-  const [loadingIssues, setLoadingIssues] = useState(false);
 
   const credHeaders = () => ({
     'x-jira-url':   settings.jiraUrl   || '',
@@ -51,6 +73,7 @@ export default function Sidebar({
     'x-jira-token': settings.jiraToken || '',
   });
 
+  // ── CR tab: clients ──
   const loadClients = async () => {
     setClientsLoading(true);
     try {
@@ -77,6 +100,64 @@ export default function Sidebar({
 
   const toggleClient = (val) => setSelectedClients((p) => p.includes(val) ? p.filter((v) => v !== val) : [...p, val]);
 
+  const applyClientFilter = () => {
+    if (!selectedClients.length) return;
+    const inList = selectedClients.map((c) => `"${c}"`).join(', ');
+    onSettingsChange({ jql: `cf[12606] = currentUser() AND cf[12601] in (${inList}) ORDER BY created DESC` });
+  };
+
+  // ── CR tab: reporters (авторы CR) ──
+  const loadCrReporters = async () => {
+    setCrReportersLoading(true);
+    try {
+      const seen = new Map();
+      let nextPageToken = null;
+      let isLast = false;
+      while (!isLast) {
+        const params = { jql: 'cf[12606] is not EMPTY', maxResults: 100, fields: 'reporter' };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
+        (res.data?.issues || []).forEach((issue) => {
+          const raw = issue.fields?.reporter;
+          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
+        });
+        nextPageToken = res.data?.nextPageToken || null;
+        isLast = res.data?.isLast ?? true;
+        if (!nextPageToken) break;
+      }
+      setCrReporterOptions(
+        Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
+      );
+    } catch { addToast('Не удалось загрузить авторов', 'error'); }
+    setCrReportersLoading(false);
+  };
+
+  const toggleCrReporter = (id) => setSelectedCrReporters((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
+
+  const applyCrReporterFilter = () => {
+    if (!selectedCrReporters.length) return;
+    const inList = selectedCrReporters.map((id) => `"${id}"`).join(', ');
+    onSettingsChange({ jql: `reporter in (${inList}) ORDER BY created DESC` });
+  };
+
+  // Inject CR reporter into template JQL
+  const applyCRTemplate = (jql) => {
+    if (!selectedCrReporters.length) {
+      onSettingsChange({ jql });
+      return;
+    }
+    const inList = selectedCrReporters.map((id) => `"${id}"`).join(', ');
+    const orderMatch = jql.match(/(\s+ORDER BY.*)$/i);
+    if (orderMatch) {
+      const base = jql.slice(0, jql.length - orderMatch[1].length);
+      onSettingsChange({ jql: `${base} AND reporter in (${inList})${orderMatch[1]}` });
+    } else {
+      onSettingsChange({ jql: `${jql} AND reporter in (${inList})` });
+    }
+  };
+
+  // ── CR tab: managers ──
   const loadManagers = async () => {
     setManagersLoading(true);
     try {
@@ -118,12 +199,93 @@ export default function Sidebar({
     }
   };
 
-  const applyClientFilter = () => {
-    if (!selectedClients.length) return;
-    const inList = selectedClients.map((c) => `"${c}"`).join(', ');
-    onSettingsChange({ jql: `cf[12606] = currentUser() AND cf[12601] in (${inList}) ORDER BY created DESC` });
+  // ── Bugs tab: engineers ──
+  const loadEngineers = async () => {
+    setEngineersLoading(true);
+    try {
+      const seen = new Map();
+      let nextPageToken = null;
+      let isLast = false;
+      while (!isLast) {
+        const params = { jql: `project in (${DEV_PROJECTS}) AND assignee is not EMPTY`, maxResults: 100, fields: 'assignee' };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
+        (res.data?.issues || []).forEach((issue) => {
+          const raw = issue.fields?.assignee;
+          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
+        });
+        nextPageToken = res.data?.nextPageToken || null;
+        isLast = res.data?.isLast ?? true;
+        if (!nextPageToken) break;
+      }
+      setEngineerOptions(
+        Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
+      );
+    } catch { addToast('Не удалось загрузить исполнителей', 'error'); }
+    setEngineersLoading(false);
   };
 
+  const toggleEngineer = (id) => setSelectedEngineers((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
+
+  const applyEngineerFilter = () => {
+    if (!selectedEngineers.length) return;
+    const inList = selectedEngineers.map((id) => `"${id}"`).join(', ');
+    onSettingsChange({ jqlBugs: `project in (${DEV_PROJECTS}) AND assignee in (${inList}) ORDER BY created DESC` });
+  };
+
+  // ── Bugs tab: reporters ──
+  const loadReporters = async () => {
+    setReportersLoading(true);
+    try {
+      const seen = new Map();
+      let nextPageToken = null;
+      let isLast = false;
+      while (!isLast) {
+        const params = { jql: `project in (${DEV_PROJECTS})`, maxResults: 100, fields: 'reporter' };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
+        (res.data?.issues || []).forEach((issue) => {
+          const raw = issue.fields?.reporter;
+          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
+        });
+        nextPageToken = res.data?.nextPageToken || null;
+        isLast = res.data?.isLast ?? true;
+        if (!nextPageToken) break;
+      }
+      setReporterOptions(
+        Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
+      );
+    } catch { addToast('Не удалось загрузить авторов', 'error'); }
+    setReportersLoading(false);
+  };
+
+  const toggleReporter = (id) => setSelectedReporters((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
+
+  const applyReporterFilter = () => {
+    if (!selectedReporters.length) return;
+    const inList = selectedReporters.map((id) => `"${id}"`).join(', ');
+    onSettingsChange({ jqlBugs: `project in (${DEV_PROJECTS}) AND reporter in (${inList}) ORDER BY created DESC` });
+  };
+
+  // Inject reporter filter into a template JQL before ORDER BY
+  const applyBugsTemplate = (jql) => {
+    if (!selectedReporters.length) {
+      onSettingsChange({ jqlBugs: jql });
+      return;
+    }
+    const inList = selectedReporters.map((id) => `"${id}"`).join(', ');
+    const orderMatch = jql.match(/(\s+ORDER BY.*)$/i);
+    if (orderMatch) {
+      const base = jql.slice(0, jql.length - orderMatch[1].length);
+      onSettingsChange({ jqlBugs: `${base} AND reporter in (${inList})${orderMatch[1]}` });
+    } else {
+      onSettingsChange({ jqlBugs: `${jql} AND reporter in (${inList})` });
+    }
+  };
+
+  // ── Handlers ──
   const handleCheckConnection = async () => {
     setConnectStatus('loading'); setConnectMsg('');
     const result = await onFetchMyself();
@@ -141,20 +303,31 @@ export default function Sidebar({
 
   const handleLoadIssues = async () => {
     setLoadingIssues(true);
-    await onLoadIssues(settings.jql, columns);
+    await onLoadCR(settings.jql, columns);
     setLoadingIssues(false);
   };
 
-  const isAdded = (id) => columns.some((c) => c.id === id);
+  const handleLoadBugs = async () => {
+    setLoadingBugs(true);
+    await onLoadBugs(settings.jqlBugs, columnsBugs);
+    setLoadingBugs(false);
+  };
+
+  // ── Fields tab ──
+  const [fieldsContext, setFieldsContext] = useState('cr'); // 'cr' | 'bugs'
+  const activeColumns = fieldsContext === 'cr' ? columns : columnsBugs;
+  const activeOnColumnsChange = fieldsContext === 'cr' ? onColumnsChange : onColumnsBugsChange;
+
+  const isAdded = (id) => activeColumns.some((c) => c.id === id);
   const handleAddColumn = (field) => {
     if (isAdded(field.id)) return;
-    onColumnsChange([...columns, { id: field.id, label: field.name, type: detectFieldType(field) }]);
+    activeOnColumnsChange([...activeColumns, { id: field.id, label: field.name, type: detectFieldType(field) }]);
   };
-  const handleRemoveColumn = (id) => onColumnsChange(columns.filter((c) => c.id !== id));
+  const handleRemoveColumn = (id) => activeOnColumnsChange(activeColumns.filter((c) => c.id !== id));
   const handleMoveColumn = (idx, dir) => {
-    const next = [...columns]; const t = idx + dir;
+    const next = [...activeColumns]; const t = idx + dir;
     if (t < 0 || t >= next.length) return;
-    [next[idx], next[t]] = [next[t], next[idx]]; onColumnsChange(next);
+    [next[idx], next[t]] = [next[t], next[idx]]; activeOnColumnsChange(next);
   };
   const handleCopyField = async (id) => {
     try { await navigator.clipboard.writeText(id); addToast(`Скопировано: ${id}`, 'success'); }
@@ -167,15 +340,29 @@ export default function Sidebar({
     return jiraFields.filter((f) => f.id?.toLowerCase().includes(q) || f.name?.toLowerCase().includes(q));
   }, [jiraFields, fieldSearch]);
 
+  // ── Styles ──
+  const TABS = [
+    { id: 'connection', label: 'Вход' },
+    { id: 'queries',    label: 'CR Запросы' },
+    { id: 'bugs',       label: 'Задачи/Ошибки' },
+    { id: 'fields',     label: 'Поля' },
+  ];
+
   const tabBtn = (tab) => ({
-    flex: 1, padding: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
-    letterSpacing: '0.04em', transition: 'all 0.15s ease', border: 'none',
+    flex: 1, padding: '7px 4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600,
+    letterSpacing: '0.03em', transition: 'all 0.15s ease', border: 'none',
+    whiteSpace: 'normal', lineHeight: '1.3', textAlign: 'center',
     background: activeTab === tab ? theme.tabActiveBg : 'transparent',
     color: activeTab === tab ? theme.tabActiveText : theme.tabInactiveText,
     borderBottom: activeTab === tab ? 'none' : theme.tabBorder,
   });
 
-  // Shared small button style (load clients/managers/fields)
+  const switchBtn = (val, current) => ({
+    flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', border: 'none',
+    borderRadius: '4px', background: val === current ? theme.accent : theme.bgInput,
+    color: val === current ? theme.accentText : theme.textSecondary,
+  });
+
   const loadBtn = {
     padding: '4px 8px', background: theme.id === 'csi' ? '#e8f0f8' : '#1a2e40',
     border: `1px solid ${theme.id === 'csi' ? '#bed0e8' : '#2a4060'}`,
@@ -188,22 +375,140 @@ export default function Sidebar({
     cursor: 'pointer', borderRadius: '4px', fontSize: '12px', color: theme.textPrimary,
   };
 
-  const TEMPLATES = [
+  // ── Templates ──
+  const CR_TEMPLATES = [
     { group: 'Мои задачи' },
     { label: 'Все мои задачи',             desc: 'Все задачи где вы PM',                    jql: 'cf[12606] = currentUser() ORDER BY created DESC' },
     { label: 'Мои открытые задачи',        desc: 'Только незакрытые',                       jql: 'cf[12606] = currentUser() AND statusCategory != Done ORDER BY updated DESC' },
-    { label: 'Задачи в работе',            desc: 'Статус In Progress',                      jql: 'cf[12606] = currentUser() AND statusCategory = "In Progress" ORDER BY updated DESC' },
+    { label: 'Задачи в работе',            desc: 'In Progress + "CR в майке" + Приоритезированы', jql: 'cf[12606] = currentUser() AND (statusCategory = "In Progress" OR status in ("CR в майке", "Приоритезированы")) ORDER BY updated DESC' },
     { label: 'Ожидают оценки',             desc: 'На модерации или оценке',                 jql: 'cf[12606] = currentUser() AND status in ("Awaiting Moderation", "На оценку") ORDER BY created DESC' },
     { label: 'Созданы за 30 дней',         desc: 'Новые задачи за последний месяц',         jql: 'cf[12606] = currentUser() AND created >= -30d ORDER BY created DESC' },
     { label: 'Без аналитика',              desc: 'Нет назначенного аналитика',              jql: 'cf[12606] = currentUser() AND assignee is EMPTY AND statusCategory != Done ORDER BY created DESC' },
     { label: 'Без спецификации',           desc: 'Поле спецификации не заполнено',          jql: 'cf[12606] = currentUser() AND cf[12603] is EMPTY AND statusCategory != Done ORDER BY created DESC' },
     { label: 'Высокий приоритет',          desc: 'Priority High или Highest, открытые',     jql: 'cf[12606] = currentUser() AND priority in (High, Highest) AND statusCategory != Done ORDER BY priority DESC, created DESC' },
+    { group: 'Complex Project' },
+    { label: 'Все CP задачи',              desc: 'Тип Complex Project, все',                jql: 'issuetype = "Complex Project" ORDER BY created DESC' },
+    { label: 'CP в работе',               desc: 'Complex Project, незакрытые',             jql: 'issuetype = "Complex Project" AND statusCategory != Done ORDER BY updated DESC' },
+    { label: 'Мои CP задачи',             desc: 'Complex Project где вы PM',               jql: 'issuetype = "Complex Project" AND cf[12606] = currentUser() ORDER BY created DESC' },
+    { label: 'CP созданы за 30 дней',     desc: 'Новые Complex Project за месяц',          jql: 'issuetype = "Complex Project" AND created >= -30d ORDER BY created DESC' },
     { group: 'Обзор (все PM)' },
     { label: 'Все открытые задачи',        desc: 'По всем менеджерам, без фильтра',         jql: 'cf[12606] is not EMPTY AND statusCategory != Done ORDER BY updated DESC' },
     { label: 'Без назначенного PM',        desc: 'Поле менеджера не заполнено',             jql: 'cf[12606] is EMPTY AND statusCategory != Done ORDER BY created DESC' },
     { label: 'Созданы за 7 дней (все PM)', desc: 'Новые задачи за неделю у всех',           jql: 'cf[12606] is not EMPTY AND created >= -7d ORDER BY created DESC' },
     { label: 'Зависшие задачи',            desc: 'Не обновлялись 30+ дней, открытые',       jql: 'cf[12606] is not EMPTY AND updated <= -30d AND statusCategory != Done ORDER BY updated ASC' },
   ];
+
+  const BUGS_TEMPLATES = [
+    { group: 'Ошибки' },
+    { label: 'Все ошибки',           desc: 'Все команды, все ошибки',                         jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug ORDER BY created DESC` },
+    { label: 'Открытые ошибки',      desc: 'Незакрытые, все команды',                          jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND statusCategory != Done ORDER BY updated DESC` },
+    { label: 'Ошибки за 7 дней',     desc: 'Созданы за последнюю неделю',                      jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND created >= -7d ORDER BY created DESC` },
+    { label: 'Ошибки за 30 дней',    desc: 'Созданы за последний месяц',                       jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND created >= -30d ORDER BY created DESC` },
+    { label: 'Критические ошибки',   desc: 'Блокер/Критический/Серьезный, открытые',           jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND priority in (Blocker, Critical, Major, "Project Blocker") AND statusCategory != Done ORDER BY priority DESC, created DESC` },
+    { group: 'Истории' },
+    { label: 'Все истории',          desc: 'Все команды, тип История',                         jql: `project in (${DEV_PROJECTS}) AND issuetype = Story ORDER BY created DESC` },
+    { label: 'Открытые истории',     desc: 'Незакрытые, все команды',                          jql: `project in (${DEV_PROJECTS}) AND issuetype = Story AND statusCategory != Done ORDER BY updated DESC` },
+    { label: 'Истории в работе',     desc: 'Статус In Progress',                               jql: `project in (${DEV_PROJECTS}) AND issuetype = Story AND statusCategory = "In Progress" ORDER BY updated DESC` },
+    { group: 'Все типы задач' },
+    { label: 'Все задачи в работе',  desc: 'Любой статус кроме закрытых, все команды',         jql: `project in (${DEV_PROJECTS}) AND statusCategory != Done ORDER BY updated DESC` },
+    { label: 'Все открытые задачи',  desc: 'Любой тип, все команды (включая закрытые)',         jql: `project in (${DEV_PROJECTS}) ORDER BY updated DESC` },
+    { label: 'Без исполнителя',      desc: 'Assignee пустой, открытые',                        jql: `project in (${DEV_PROJECTS}) AND assignee is EMPTY AND statusCategory != Done ORDER BY created DESC` },
+    { label: 'Задачи за 7 дней',     desc: 'Созданы за неделю, все типы',                      jql: `project in (${DEV_PROJECTS}) AND created >= -7d ORDER BY created DESC` },
+    { group: 'По командам' },
+    { label: 'SRTZ',  desc: 'Все задачи команды SRTZ',  jql: 'project = SRTZ ORDER BY created DESC' },
+    { label: 'SRTB',  desc: 'Все задачи команды SRTB',  jql: 'project = SRTB ORDER BY created DESC' },
+    { label: 'SRTS',  desc: 'Все задачи команды SRTS',  jql: 'project = SRTS ORDER BY created DESC' },
+    { label: 'SR',    desc: 'Все задачи команды SR',    jql: 'project = SR ORDER BY created DESC' },
+    { label: 'HW',    desc: 'Все задачи команды HW',    jql: 'project = HW ORDER BY created DESC' },
+    { label: 'SCOC',  desc: 'Все задачи команды SCOC',  jql: 'project = SCOC ORDER BY created DESC' },
+    { label: 'SCOD',  desc: 'Все задачи команды SCOD',  jql: 'project = SCOD ORDER BY created DESC' },
+    { label: 'SET10FAQ', desc: 'Задачи тех. писателей', jql: 'project = SET10FAQ ORDER BY created DESC' },
+  ];
+
+  const renderTemplates = (templates, jqlKey, onSelect) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+      {templates.map((t, i) => t.group ? (
+        <div key={i} style={{ fontSize: '10px', fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '6px 2px 2px' }}>{t.group}</div>
+      ) : (
+        <button key={t.label} onClick={() => onSelect ? onSelect(t.jql) : onSettingsChange({ [jqlKey]: t.jql })} title={t.desc}
+          style={{ width: '100%', textAlign: 'left', padding: '6px 8px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '5px', color: theme.textPrimary, fontSize: '12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '1px' }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}>
+          <span style={{ fontWeight: 500 }}>{t.label}</span>
+          <span style={{ color: theme.textSecondary, fontSize: '11px' }}>{t.desc}</span>
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, searchPlaceholder }) => (
+    <div style={{ ...sec, border: `1px solid ${theme.borderLight}`, borderRadius: '5px', background: theme.bgInput, overflow: 'hidden' }}>
+      <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+        <div>
+          <div style={{ fontSize: '12px', color: theme.textPrimary, fontWeight: 500 }}>{title}</div>
+          <div style={{ fontSize: '11px', color: theme.textSecondary }}>{subtitle}</div>
+        </div>
+        <button onClick={onLoad} disabled={loading} style={loadBtn}>{loading ? '...' : '↻ Загрузить'}</button>
+      </div>
+      {options.length > 0 && (
+        <div style={{ borderTop: `1px solid ${theme.borderLight}` }}>
+          <div style={{ padding: '6px 8px' }}>
+            <input type="text" value={searchVal} onChange={(e) => onSearch(e.target.value)}
+              placeholder={searchPlaceholder} style={{ ...inputStyle, fontSize: '11px', padding: '4px 8px' }}
+              onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+              onBlur={(e) => (e.target.style.borderColor = theme.border)} />
+          </div>
+          <div style={{ maxHeight: '160px', overflowY: 'auto', padding: '0 4px 4px' }}>
+            {options
+              .filter((o) => !searchVal || (typeof o === 'string' ? o : o.displayName).toLowerCase().includes(searchVal.toLowerCase()))
+              .map((o) => {
+                const val = typeof o === 'string' ? o : o.accountId;
+                const label = typeof o === 'string' ? o : o.displayName;
+                return (
+                  <label key={val} style={checkboxRow}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                    <input type="checkbox" checked={selected.includes(val)} onChange={() => onToggle(val)} style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={label}>{label}</span>
+                  </label>
+                );
+              })}
+          </div>
+          {selected.length > 0 && (
+            <div style={{ padding: '6px 8px', borderTop: `1px solid ${theme.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <span style={{ fontSize: '11px', color: theme.textSecondary }}>Выбрано: {selected.length}</span>
+              <button onClick={onApply} style={{ padding: '4px 12px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Применить →</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  if (!sidebarOpen) {
+    return (
+      <div style={{
+        width: '44px', minWidth: '44px', height: '100vh',
+        background: theme.bgSidebar, borderRight: `1px solid ${theme.borderLight}`,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        paddingTop: '10px', flexShrink: 0,
+      }}>
+        <button
+          onClick={onToggleSidebar}
+          title="Открыть панель"
+          style={{
+            width: '32px', height: '32px', borderRadius: '8px',
+            background: theme.bgCard, border: `1px solid ${theme.border}`,
+            cursor: 'pointer', color: theme.textSecondary, fontSize: '14px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; e.currentTarget.style.background = theme.bgRowHover; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; e.currentTarget.style.background = theme.bgCard; }}
+        >›</button>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -221,16 +526,28 @@ export default function Sidebar({
           ) : (
             <div style={{ width: '28px', height: '28px', background: theme.accent, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: theme.accentText }}>J</div>
           )}
-          <span style={{ fontSize: '15px', fontWeight: 700, color: theme.textPrimary }}>Jira Dashboard</span>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: theme.textPrimary, flex: 1 }}>Jira PM Radar</span>
+          <button
+            onClick={onToggleSidebar}
+            title="Скрыть панель"
+            style={{
+              width: '28px', height: '28px', borderRadius: '6px',
+              background: theme.bgCard, border: `1px solid ${theme.border}`,
+              cursor: 'pointer', color: theme.textSecondary, fontSize: '14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; e.currentTarget.style.background = theme.bgRowHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; e.currentTarget.style.background = theme.bgCard; }}
+          >‹</button>
         </div>
         {userInfo && <div style={{ fontSize: '11px', color: theme.textSecondary, marginTop: '2px' }}>{userInfo.displayName || userInfo.emailAddress}</div>}
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${theme.borderLight}` }}>
-        {['connection', 'queries', 'fields'].map((tab, i) => (
-          <button key={tab} style={tabBtn(tab)} onClick={() => setActiveTab(tab)}>
-            {['Вход', 'Запросы', 'Поля'][i]}
+        {TABS.map((tab) => (
+          <button key={tab.id} style={tabBtn(tab.id)} onClick={() => onTabChange(tab.id)} title={tab.label}>
+            {tab.label}
           </button>
         ))}
       </div>
@@ -289,13 +606,12 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* ── Queries tab ── */}
+      {/* ── CR Queries tab ── */}
       {activeTab === 'queries' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Fixed: JQL + load */}
           <div style={{ padding: '14px', flexShrink: 0, borderBottom: `1px solid ${theme.borderLight}` }}>
             <div style={sec}>
-              <label style={labelStyle}>JQL-запрос</label>
+              <label style={labelStyle}>JQL-запрос (CR)</label>
               <textarea value={settings.jql} onChange={(e) => onSettingsChange({ jql: e.target.value })}
                 placeholder="project = MY_PROJECT ORDER BY created DESC" rows={4}
                 style={{ ...inputStyle, resize: 'vertical', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px', lineHeight: '1.5' }}
@@ -308,99 +624,96 @@ export default function Sidebar({
             </button>
           </div>
 
-          {/* Scrollable: templates + clients + managers */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
-            {/* Templates */}
             <div style={sec}>
               <label style={labelStyle}>Шаблоны запросов</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                {TEMPLATES.map((t, i) => t.group ? (
-                  <div key={i} style={{ fontSize: '10px', fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '6px 2px 2px' }}>{t.group}</div>
-                ) : (
-                  <button key={t.label} onClick={() => onSettingsChange({ jql: t.jql })} title={t.desc}
-                    style={{ width: '100%', textAlign: 'left', padding: '6px 8px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '5px', color: theme.textPrimary, fontSize: '12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '1px' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}>
-                    <span style={{ fontWeight: 500 }}>{t.label}</span>
-                    <span style={{ color: theme.textSecondary, fontSize: '11px' }}>{t.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Client multi-select */}
-            <div style={{ ...sec, border: `1px solid ${theme.borderLight}`, borderRadius: '5px', background: theme.bgInput, overflow: 'hidden' }}>
-              <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: theme.textPrimary, fontWeight: 500 }}>Задачи по клиентам</div>
-                  <div style={{ fontSize: '11px', color: theme.textSecondary }}>Мультивыбор из загруженного списка</div>
-                </div>
-                <button onClick={loadClients} disabled={clientsLoading} style={loadBtn}>{clientsLoading ? '...' : '↻ Загрузить'}</button>
-              </div>
-              {clientOptions.length > 0 && (
-                <div style={{ borderTop: `1px solid ${theme.borderLight}` }}>
-                  <div style={{ padding: '6px 8px' }}>
-                    <input type="text" value={clientSearch} onChange={(e) => setClientSearch(e.target.value)}
-                      placeholder="Поиск клиента..." style={{ ...inputStyle, fontSize: '11px', padding: '4px 8px' }}
-                      onFocus={(e) => (e.target.style.borderColor = theme.accent)}
-                      onBlur={(e) => (e.target.style.borderColor = theme.border)} />
-                  </div>
-                  <div style={{ maxHeight: '160px', overflowY: 'auto', padding: '0 4px 4px' }}>
-                    {clientOptions.filter((c) => !clientSearch || c.toLowerCase().includes(clientSearch.toLowerCase())).map((c) => (
-                      <label key={c} style={checkboxRow}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-                        <input type="checkbox" checked={selectedClients.includes(c)} onChange={() => toggleClient(c)} style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c}>{c}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {selectedClients.length > 0 && (
-                    <div style={{ padding: '6px 8px', borderTop: `1px solid ${theme.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <span style={{ fontSize: '11px', color: theme.textSecondary }}>Выбрано: {selectedClients.length}</span>
-                      <button onClick={applyClientFilter} style={{ padding: '4px 12px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Применить →</button>
-                    </div>
-                  )}
+              {selectedCrReporters.length > 0 && (
+                <div style={{ marginBottom: '6px', padding: '5px 8px', background: theme.id === 'csi' ? '#e8f0f8' : '#1a2e40', borderRadius: '4px', fontSize: '11px', color: theme.accent }}>
+                  ✓ Автор будет добавлен к шаблону ({selectedCrReporters.length} выбрано)
                 </div>
               )}
+              {renderTemplates(CR_TEMPLATES, 'jql', applyCRTemplate)}
             </div>
 
-            {/* Manager multi-select */}
-            <div style={{ border: `1px solid ${theme.borderLight}`, borderRadius: '5px', background: theme.bgInput, overflow: 'hidden' }}>
-              <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: theme.textPrimary, fontWeight: 500 }}>Задачи по менеджерам</div>
-                  <div style={{ fontSize: '11px', color: theme.textSecondary }}>Все задачи выбранных PM</div>
-                </div>
-                <button onClick={loadManagers} disabled={managersLoading} style={loadBtn}>{managersLoading ? '...' : '↻ Загрузить'}</button>
-              </div>
-              {managerOptions.length > 0 && (
-                <div style={{ borderTop: `1px solid ${theme.borderLight}` }}>
-                  <div style={{ padding: '6px 8px' }}>
-                    <input type="text" value={managerSearch} onChange={(e) => setManagerSearch(e.target.value)}
-                      placeholder="Поиск менеджера..." style={{ ...inputStyle, fontSize: '11px', padding: '4px 8px' }}
-                      onFocus={(e) => (e.target.style.borderColor = theme.accent)}
-                      onBlur={(e) => (e.target.style.borderColor = theme.border)} />
-                  </div>
-                  <div style={{ maxHeight: '160px', overflowY: 'auto', padding: '0 4px 4px' }}>
-                    {managerOptions.filter((m) => !managerSearch || m.displayName.toLowerCase().includes(managerSearch.toLowerCase())).map((m) => (
-                      <label key={m.accountId} style={checkboxRow}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-                        <input type="checkbox" checked={selectedManagers.includes(m.accountId)} onChange={() => toggleManager(m.accountId)} style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.displayName}>{m.displayName}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {selectedManagers.length > 0 && (
-                    <div style={{ padding: '6px 8px', borderTop: `1px solid ${theme.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <span style={{ fontSize: '11px', color: theme.textSecondary }}>Выбрано: {selectedManagers.length}</span>
-                      <button onClick={applyManagerFilter} style={{ padding: '4px 12px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Применить →</button>
-                    </div>
-                  )}
+            {renderMultiSelect({
+              title: 'По автору задачи', subtitle: 'Кто создал CR (reporter)',
+              options: crReporterOptions, selected: selectedCrReporters,
+              onLoad: loadCrReporters, loading: crReportersLoading,
+              searchVal: crReporterSearch, onSearch: setCrReporterSearch,
+              onToggle: toggleCrReporter, onApply: applyCrReporterFilter,
+              searchPlaceholder: 'Поиск автора...',
+            })}
+
+            {renderMultiSelect({
+              title: 'Задачи по клиентам', subtitle: 'Мультивыбор из загруженного списка',
+              options: clientOptions, selected: selectedClients,
+              onLoad: loadClients, loading: clientsLoading,
+              searchVal: clientSearch, onSearch: setClientSearch,
+              onToggle: toggleClient, onApply: applyClientFilter,
+              searchPlaceholder: 'Поиск клиента...',
+            })}
+
+            {renderMultiSelect({
+              title: 'Задачи по менеджерам', subtitle: 'Все задачи выбранных PM',
+              options: managerOptions, selected: selectedManagers,
+              onLoad: loadManagers, loading: managersLoading,
+              searchVal: managerSearch, onSearch: setManagerSearch,
+              onToggle: toggleManager, onApply: applyManagerFilter,
+              searchPlaceholder: 'Поиск менеджера...',
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bugs / Tasks tab ── */}
+      {activeTab === 'bugs' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '14px', flexShrink: 0, borderBottom: `1px solid ${theme.borderLight}` }}>
+            <div style={{ marginBottom: '6px', fontSize: '10px', color: theme.textMuted }}>
+              Команды: {DEV_PROJECTS}
+            </div>
+            <div style={sec}>
+              <label style={labelStyle}>JQL-запрос (Задачи/Ошибки)</label>
+              <textarea value={settings.jqlBugs || ''} onChange={(e) => onSettingsChange({ jqlBugs: e.target.value })}
+                placeholder={`project in (${DEV_PROJECTS}) AND issuetype = Ошибка ORDER BY created DESC`} rows={4}
+                style={{ ...inputStyle, resize: 'vertical', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px', lineHeight: '1.5' }}
+                onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                onBlur={(e) => (e.target.style.borderColor = theme.border)} />
+            </div>
+            <button style={{ ...btnPrimary, background: loadingBugs ? theme.border : theme.accent, color: loadingBugs ? theme.textSecondary : theme.accentText }}
+              onClick={handleLoadBugs} disabled={loadingBugs}>
+              {loadingBugs ? 'Загружаем...' : 'Загрузить задачи'}
+            </button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
+            <div style={sec}>
+              <label style={labelStyle}>Шаблоны запросов</label>
+              {selectedReporters.length > 0 && (
+                <div style={{ marginBottom: '6px', padding: '5px 8px', background: theme.id === 'csi' ? '#e8f0f8' : '#1a2e40', borderRadius: '4px', fontSize: '11px', color: theme.accent }}>
+                  ✓ Автор будет добавлен к шаблону ({selectedReporters.length} выбрано)
                 </div>
               )}
+              {renderTemplates(BUGS_TEMPLATES, 'jqlBugs', applyBugsTemplate)}
             </div>
+
+            {renderMultiSelect({
+              title: 'По автору задачи', subtitle: 'Кто создал задачу (reporter)',
+              options: reporterOptions, selected: selectedReporters,
+              onLoad: loadReporters, loading: reportersLoading,
+              searchVal: reporterSearch, onSearch: setReporterSearch,
+              onToggle: toggleReporter, onApply: applyReporterFilter,
+              searchPlaceholder: 'Поиск автора...',
+            })}
+
+            {renderMultiSelect({
+              title: 'По исполнителю', subtitle: 'Инженеры из команд разработки',
+              options: engineerOptions, selected: selectedEngineers,
+              onLoad: loadEngineers, loading: engineersLoading,
+              searchVal: engineerSearch, onSearch: setEngineerSearch,
+              onToggle: toggleEngineer, onApply: applyEngineerFilter,
+              searchPlaceholder: 'Поиск исполнителя...',
+            })}
           </div>
         </div>
       )}
@@ -408,6 +721,11 @@ export default function Sidebar({
       {/* ── Fields tab ── */}
       {activeTab === 'fields' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
+          {/* Context switcher */}
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '12px', background: theme.bgPage, borderRadius: '6px', padding: '3px' }}>
+            <button style={switchBtn('cr', fieldsContext)} onClick={() => setFieldsContext('cr')}>CR Запросы</button>
+            <button style={switchBtn('bugs', fieldsContext)} onClick={() => setFieldsContext('bugs')}>Задачи/Ошибки</button>
+          </div>
           <div style={sec}>
             <button style={{ ...btnPrimary, background: fieldsLoading ? theme.border : theme.accent, color: fieldsLoading ? theme.textSecondary : theme.accentText }}
               onClick={handleFetchFields} disabled={fieldsLoading}>
@@ -448,23 +766,23 @@ export default function Sidebar({
             </div>
           )}
 
-          {columns.length > 0 && (
+          {activeColumns.length > 0 && (
             <>
               <div style={divider} />
               <div>
-                <label style={labelStyle}>Активные колонки ({columns.length})</label>
+                <label style={labelStyle}>Активные колонки ({activeColumns.length})</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {columns.map((col, idx) => (
+                  {activeColumns.map((col, idx) => (
                     <div key={col.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 8px', background: theme.bgInput, borderRadius: '5px', border: `1px solid ${theme.borderLight}` }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
                         <button onClick={() => handleMoveColumn(idx, -1)} disabled={idx === 0} title="Вверх"
                           style={{ background: 'transparent', border: 'none', color: idx === 0 ? theme.border : theme.textSecondary, cursor: idx === 0 ? 'default' : 'pointer', fontSize: '9px', padding: '1px 3px', lineHeight: 1 }}
                           onMouseEnter={(e) => idx !== 0 && (e.currentTarget.style.color = theme.textPrimary)}
                           onMouseLeave={(e) => (e.currentTarget.style.color = idx === 0 ? theme.border : theme.textSecondary)}>▲</button>
-                        <button onClick={() => handleMoveColumn(idx, 1)} disabled={idx === columns.length - 1} title="Вниз"
-                          style={{ background: 'transparent', border: 'none', color: idx === columns.length - 1 ? theme.border : theme.textSecondary, cursor: idx === columns.length - 1 ? 'default' : 'pointer', fontSize: '9px', padding: '1px 3px', lineHeight: 1 }}
-                          onMouseEnter={(e) => idx !== columns.length - 1 && (e.currentTarget.style.color = theme.textPrimary)}
-                          onMouseLeave={(e) => (e.currentTarget.style.color = idx === columns.length - 1 ? theme.border : theme.textSecondary)}>▼</button>
+                        <button onClick={() => handleMoveColumn(idx, 1)} disabled={idx === activeColumns.length - 1} title="Вниз"
+                          style={{ background: 'transparent', border: 'none', color: idx === activeColumns.length - 1 ? theme.border : theme.textSecondary, cursor: idx === activeColumns.length - 1 ? 'default' : 'pointer', fontSize: '9px', padding: '1px 3px', lineHeight: 1 }}
+                          onMouseEnter={(e) => idx !== activeColumns.length - 1 && (e.currentTarget.style.color = theme.textPrimary)}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = idx === activeColumns.length - 1 ? theme.border : theme.textSecondary)}>▼</button>
                       </div>
                       <div style={{ flex: 1, overflow: 'hidden' }}>
                         <div style={{ fontSize: '12px', color: theme.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.label}</div>

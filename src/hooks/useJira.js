@@ -2,9 +2,24 @@ import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { extractIssueData } from '../utils/fieldExtractor.js';
 
-export function useJira() {
-  const [status, setStatus] = useState('idle');
-  const [issues, setIssues] = useState([]);
+function sessionSave(key, data) {
+  if (!key) return;
+  try { sessionStorage.setItem(key, JSON.stringify(data)); } catch {}
+}
+
+function sessionLoad(key) {
+  if (!key) return null;
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export function useJira(storageKey = null) {
+  const saved = sessionLoad(storageKey);
+
+  const [status, setStatus] = useState(saved?.status || 'idle');
+  const [issues, setIssues] = useState(saved?.issues || []);
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [jiraFields, setJiraFields] = useState([]);
@@ -19,10 +34,7 @@ export function useJira() {
 
   const fetchMyself = useCallback(async (credentials) => {
     try {
-      const res = await axios.get('/api/jira/myself', {
-        headers: credHeaders(credentials),
-        timeout: 15000,
-      });
+      const res = await axios.get('/api/jira/myself', { headers: credHeaders(credentials), timeout: 15000 });
       setUserInfo(res.data);
       return { success: true, data: res.data };
     } catch (err) {
@@ -33,10 +45,7 @@ export function useJira() {
 
   const fetchFields = useCallback(async (credentials) => {
     try {
-      const res = await axios.get('/api/jira/fields', {
-        headers: credHeaders(credentials),
-        timeout: 15000,
-      });
+      const res = await axios.get('/api/jira/fields', { headers: credHeaders(credentials), timeout: 15000 });
       const fields = Array.isArray(res.data) ? res.data : [];
       setJiraFields(fields);
       return { success: true, data: fields };
@@ -52,7 +61,6 @@ export function useJira() {
       return;
     }
 
-    // Auto-detect issue keys like CR-123, PROJ-456
     const issueKeyPattern = /^[\s,;]*([A-Z]+-\d+[\s,;]*)+$/i;
     if (issueKeyPattern.test(jql.trim())) {
       const keys = jql.trim().match(/[A-Z]+-\d+/gi).join(', ');
@@ -83,9 +91,7 @@ export function useJira() {
         if (nextPageToken) params.nextPageToken = nextPageToken;
 
         const res = await axios.get('/api/jira/search', {
-          params,
-          headers: credHeaders(credentials),
-          timeout: 30000,
+          params, headers: credHeaders(credentials), timeout: 30000,
         });
         const page = res.data?.issues || [];
         allRaw.push(...page);
@@ -97,8 +103,10 @@ export function useJira() {
       }
 
       const extracted = allRaw.map((issue) => extractIssueData(issue, columns, credentials.jiraUrl));
+      const nextStatus = extracted.length === 0 ? 'empty' : 'success';
       setIssues(extracted);
-      setStatus(extracted.length === 0 ? 'empty' : 'success');
+      setStatus(nextStatus);
+      sessionSave(storageKey, { issues: extracted, status: nextStatus });
     } catch (err) {
       const message = err.response?.data?.details
         ? `${err.response.data.error}: ${err.response.data.details}`
@@ -107,7 +115,7 @@ export function useJira() {
       setStatus('error');
       setIssues([]);
     }
-  }, []);
+  }, [storageKey]);
 
   return { status, issues, error, userInfo, jiraFields, fetchMyself, fetchFields, fetchIssues };
 }

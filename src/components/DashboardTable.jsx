@@ -61,6 +61,11 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
   }, [allIssues, col.id]);
 
+  // When no filter active — all items are considered selected
+  const [localSelected, setLocalSelected] = useState(() =>
+    selected.length === 0 ? [...uniqueValues] : [...selected]
+  );
+
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
     document.addEventListener('mousedown', handler);
@@ -68,14 +73,37 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
   }, [onClose]);
 
   const toggle = (val) => {
-    const next = selected.includes(val) ? selected.filter((v) => v !== val) : [...selected, val];
-    onChange(col.id, next);
+    const next = localSelected.includes(val)
+      ? localSelected.filter((v) => v !== val)
+      : [...localSelected, val];
+    setLocalSelected(next);
+    // All checked or none checked → clear filter (show all)
+    onChange(col.id, next.length === 0 || next.length === uniqueValues.length ? [] : next);
   };
 
-  const dropHeight = Math.min(uniqueValues.length * 29 + 40, 300);
+  const selectAll = () => {
+    setLocalSelected([...uniqueValues]);
+    onChange(col.id, []);
+  };
+
+  const deselectAll = () => {
+    setLocalSelected([]);
+    onChange(col.id, []);
+  };
+
+  const allChecked = localSelected.length === uniqueValues.length;
+  const noneChecked = localSelected.length === 0;
+
+  const dropHeight = Math.min(uniqueValues.length * 29 + 56, 340);
   const spaceBelow = window.innerHeight - anchorRect.bottom;
   const top = spaceBelow > dropHeight + 8 ? anchorRect.bottom + 2 : anchorRect.top - dropHeight - 2;
   const left = Math.min(anchorRect.left, window.innerWidth - 220);
+
+  const btnStyle = (active) => ({
+    flex: 1, padding: '6px 8px', fontSize: '11px', cursor: 'pointer', textAlign: 'center',
+    color: active ? theme.accent : theme.textSecondary,
+    fontWeight: active ? 600 : 400, background: 'transparent', border: 'none',
+  });
 
   return createPortal(
     <div
@@ -84,23 +112,24 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
         position: 'fixed', top, left, zIndex: 9999,
         background: theme.bgDropdown, border: `1px solid ${theme.border}`,
         borderRadius: '7px', boxShadow: theme.id === 'dark' ? '0 8px 32px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.15)',
-        minWidth: '180px', maxWidth: '260px', padding: '4px 0',
+        minWidth: '180px', maxWidth: '260px', overflow: 'hidden',
       }}
     >
-      <div
-        onClick={() => onChange(col.id, [])}
-        style={{
-          padding: '6px 12px', fontSize: '12px', cursor: 'pointer',
-          color: selected.length === 0 ? theme.accent : theme.textSecondary,
-          borderBottom: `1px solid ${theme.borderLight}`,
-          fontWeight: selected.length === 0 ? 600 : 400,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgDropdownHov)}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-      >
-        Показать все
+      {/* Выбрать все / Снять все */}
+      <div style={{ display: 'flex', borderBottom: `1px solid ${theme.borderLight}` }}>
+        <button style={btnStyle(allChecked)} onClick={selectAll}
+          onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgDropdownHov)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+          Выбрать все
+        </button>
+        <div style={{ width: '1px', background: theme.borderLight, flexShrink: 0 }} />
+        <button style={btnStyle(noneChecked)} onClick={deselectAll}
+          onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgDropdownHov)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+          Снять все
+        </button>
       </div>
-      <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+      <div style={{ maxHeight: '270px', overflowY: 'auto' }}>
         {uniqueValues.map((val) => (
           <label
             key={val}
@@ -108,7 +137,7 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
             onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgDropdownHov)}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <input type="checkbox" checked={selected.includes(val)} onChange={() => toggle(val)}
+            <input type="checkbox" checked={localSelected.includes(val)} onChange={() => toggle(val)}
               style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val}</span>
           </label>
@@ -125,7 +154,9 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
   const [sortDir, setSortDir] = useState('asc');
   const [openFilter, setOpenFilter] = useState(null);
   const [filterAnchor, setFilterAnchor] = useState(null);
-  const [colWidths, setColWidths] = useState({});
+  const [colWidths, setColWidths] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jira_dash_col_widths') || '{}'); } catch { return {}; }
+  });
 
   const allColumns = useMemo(() => [
     ...FIXED_COLUMNS,
@@ -154,7 +185,11 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
     e.stopPropagation();
     const startX = e.clientX;
     const startW = colWidths[colId] ?? allColumns.find((c) => c.id === colId)?.defaultWidth ?? 160;
-    const onMove = (ev) => setColWidths((prev) => ({ ...prev, [colId]: Math.max(60, startW + ev.clientX - startX) }));
+    const onMove = (ev) => setColWidths((prev) => {
+      const next = { ...prev, [colId]: Math.max(60, startW + ev.clientX - startX) };
+      try { localStorage.setItem('jira_dash_col_widths', JSON.stringify(next)); } catch {}
+      return next;
+    });
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);

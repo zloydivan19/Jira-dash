@@ -14,14 +14,9 @@ function escapeCell(value) {
   return str;
 }
 
-/**
- * Downloads issues as CSV with dynamic columns.
- * @param {Array} rows    - Extracted issue objects
- * @param {Array} columns - User columns [{ id, label, type }]
- */
 export function downloadCSV(rows, columns = []) {
   const fixedCols = [
-    { id: 'issueKey', label: 'Ключ',    type: 'text' },
+    { id: 'issueKey', label: 'Ключ',    type: 'key'  },
     { id: 'summary',  label: 'Итог',    type: 'text' },
     { id: 'status',   label: 'Статус',  type: 'text' },
     { id: 'created',  label: 'Создано', type: 'date' },
@@ -32,6 +27,9 @@ export function downloadCSV(rows, columns = []) {
 
   const dataRows = rows.map((row) =>
     allCols.map((col) => {
+      if (col.id === 'issueKey') {
+        return escapeCell(row.issueUrl || row.issueKey || '');
+      }
       const v = row[col.id];
       return escapeCell(col.type === 'date' ? formatDate(v) : v);
     }).join(';')

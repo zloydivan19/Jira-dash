@@ -7,8 +7,10 @@ const DEFAULT_SETTINGS = {
   jiraEmail: '',
   jiraToken: '',
   jql: '',
+  jqlBugs: '',
   maxResults: 0,
   columns: [],
+  columnsBugs: [],
 };
 
 function loadSettings() {
