@@ -67,6 +67,11 @@ export default function Sidebar({
   const [selectedReporters, setSelectedReporters] = useState([]);
   const [reportersLoading, setReportersLoading] = useState(false);
 
+  const [bugsClientSearch, setBugsClientSearch] = useState('');
+  const [bugsClientOptions, setBugsClientOptions] = useState([]);
+  const [selectedBugsClients, setSelectedBugsClients] = useState([]);
+  const [bugsClientsLoading, setBugsClientsLoading] = useState(false);
+
   // Fields tab state
   const [fieldsLoading, setFieldsLoading] = useState(false);
   const [fieldSearch, setFieldSearch] = useState('');
@@ -80,6 +85,7 @@ export default function Sidebar({
   // ── CR tab: clients ──
   const loadClients = async () => {
     setClientsLoading(true);
+    addToast('Загрузка может занять около минуты...', 'info');
     try {
       const allClients = new Set();
       let nextPageToken = null;
@@ -97,7 +103,9 @@ export default function Sidebar({
         isLast = res.data?.isLast ?? true;
         if (!nextPageToken) break;
       }
-      setClientOptions(Array.from(allClients).sort((a, b) => a.localeCompare(b, 'ru')));
+      const list = Array.from(allClients).sort((a, b) => a.localeCompare(b, 'ru'));
+      setClientOptions(list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить клиентов', 'error'); }
     setClientsLoading(false);
   };
@@ -122,6 +130,7 @@ export default function Sidebar({
   // ── CR tab: reporters (авторы CR) ──
   const loadCrReporters = async () => {
     setCrReportersLoading(true);
+    addToast('Загрузка может занять около минуты...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
@@ -138,10 +147,10 @@ export default function Sidebar({
         isLast = res.data?.isLast ?? true;
         if (!nextPageToken) break;
       }
-      setCrReporterOptions(
-        Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
-          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
-      );
+      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
+      setCrReporterOptions(list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить авторов', 'error'); }
     setCrReportersLoading(false);
   };
@@ -181,6 +190,7 @@ export default function Sidebar({
   // ── CR tab: managers ──
   const loadManagers = async () => {
     setManagersLoading(true);
+    addToast('Загрузка может занять около минуты...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
@@ -197,10 +207,10 @@ export default function Sidebar({
         isLast = res.data?.isLast ?? true;
         if (!nextPageToken) break;
       }
-      setManagerOptions(
-        Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
-          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
-      );
+      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
+      setManagerOptions(list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить менеджеров', 'error'); }
     setManagersLoading(false);
   };
@@ -222,6 +232,7 @@ export default function Sidebar({
   // ── Bugs tab: engineers ──
   const loadEngineers = async () => {
     setEngineersLoading(true);
+    addToast('Загрузка может занять около минуты...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
@@ -238,10 +249,10 @@ export default function Sidebar({
         isLast = res.data?.isLast ?? true;
         if (!nextPageToken) break;
       }
-      setEngineerOptions(
-        Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
-          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
-      );
+      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
+      setEngineerOptions(list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить исполнителей', 'error'); }
     setEngineersLoading(false);
   };
@@ -265,6 +276,7 @@ export default function Sidebar({
   // ── Bugs tab: reporters ──
   const loadReporters = async () => {
     setReportersLoading(true);
+    addToast('Загрузка может занять около минуты...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
@@ -281,12 +293,56 @@ export default function Sidebar({
         isLast = res.data?.isLast ?? true;
         if (!nextPageToken) break;
       }
-      setReporterOptions(
-        Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
-          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
-      );
+      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
+      setReporterOptions(list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить авторов', 'error'); }
     setReportersLoading(false);
+  };
+
+  // ── Bugs tab: clients ──
+  const loadBugsClients = async () => {
+    setBugsClientsLoading(true);
+    addToast('Загрузка может занять около минуты...', 'info');
+    try {
+      const allClients = new Set();
+      let nextPageToken = null;
+      let isLast = false;
+      while (!isLast) {
+        const params = { jql: `project in (${DEV_PROJECTS}) AND cf[12601] is not EMPTY`, maxResults: 100, fields: 'customfield_12601' };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
+        (res.data?.issues || []).forEach((issue) => {
+          const raw = issue.fields?.customfield_12601;
+          if (Array.isArray(raw)) raw.forEach((v) => v && allClients.add(String(v)));
+          else if (raw) allClients.add(String(raw));
+        });
+        nextPageToken = res.data?.nextPageToken || null;
+        isLast = res.data?.isLast ?? true;
+        if (!nextPageToken) break;
+      }
+      const list = Array.from(allClients).sort((a, b) => a.localeCompare(b, 'ru'));
+      setBugsClientOptions(list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
+    } catch { addToast('Не удалось загрузить клиентов', 'error'); }
+    setBugsClientsLoading(false);
+  };
+
+  const toggleBugsClient = (val) => setSelectedBugsClients((p) => p.includes(val) ? p.filter((v) => v !== val) : [...p, val]);
+
+  const applyBugsClientFilter = () => {
+    if (!selectedBugsClients.length) return;
+    const inList = selectedBugsClients.map((c) => `"${c}"`).join(', ');
+    const base = settings.jqlBugs || `project in (${DEV_PROJECTS})`;
+    const stripped = base.replace(/\s+AND\s+cf\[12601\]\s+in\s*\([^)]*\)/gi, '').trim();
+    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
+    if (orderMatch) {
+      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
+      onSettingsChange({ jqlBugs: `${before} AND cf[12601] in (${inList})${orderMatch[1]}` });
+    } else {
+      onSettingsChange({ jqlBugs: `${stripped} AND cf[12601] in (${inList})` });
+    }
   };
 
   const toggleReporter = (id) => setSelectedReporters((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
@@ -528,7 +584,10 @@ export default function Sidebar({
           <div style={{ fontSize: '12px', color: theme.textPrimary, fontWeight: 500 }}>{title}</div>
           <div style={{ fontSize: '11px', color: theme.textSecondary }}>{subtitle}</div>
         </div>
-        <button onClick={onLoad} disabled={loading} style={loadBtn}>{loading ? '...' : '↻ Загрузить'}</button>
+        <button onClick={onLoad} disabled={loading} style={{ ...loadBtn, opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+          <span style={{ display: 'inline-block', animation: loading ? 'jira-spin 0.8s linear infinite' : 'none', marginRight: '3px' }}>↻</span>
+          {loading ? 'Загрузка...' : 'Загрузить'}
+        </button>
       </div>
       {options.length > 0 && (
         <div style={{ borderTop: `1px solid ${theme.borderLight}` }}>
@@ -567,12 +626,14 @@ export default function Sidebar({
 
   if (!sidebarOpen) {
     return (
-      <div style={{
-        width: '44px', minWidth: '44px', height: '100vh',
-        background: theme.bgSidebar, borderRight: `1px solid ${theme.borderLight}`,
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        paddingTop: '10px', flexShrink: 0,
-      }}>
+      <>
+        <style>{`@keyframes jira-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        <div style={{
+          width: '44px', minWidth: '44px', height: '100vh',
+          background: theme.bgSidebar, borderRight: `1px solid ${theme.borderLight}`,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          paddingTop: '10px', flexShrink: 0,
+        }}>
         <button
           onClick={onToggleSidebar}
           title="Открыть панель"
@@ -586,13 +647,16 @@ export default function Sidebar({
           onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; e.currentTarget.style.background = theme.bgRowHover; }}
           onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; e.currentTarget.style.background = theme.bgCard; }}
         >›</button>
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div style={{
-      width: '300px', minWidth: '300px', height: '100vh',
+    <>
+      <style>{`@keyframes jira-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <div style={{
+        width: '300px', minWidth: '300px', height: '100vh',
       background: theme.bgSidebar, borderRight: `1px solid ${theme.borderLight}`,
       display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0,
       boxShadow: theme.id === 'csi' ? '2px 0 8px rgba(0,0,0,0.06)' : 'none',
@@ -880,6 +944,15 @@ export default function Sidebar({
               onToggle: toggleEngineer, onApply: applyEngineerFilter,
               searchPlaceholder: 'Поиск исполнителя...',
             })}
+
+            {renderMultiSelect({
+              title: 'Задачи по клиентам', subtitle: 'Мультивыбор из загруженного списка',
+              options: bugsClientOptions, selected: selectedBugsClients,
+              onLoad: loadBugsClients, loading: bugsClientsLoading,
+              searchVal: bugsClientSearch, onSearch: setBugsClientSearch,
+              onToggle: toggleBugsClient, onApply: applyBugsClientFilter,
+              searchPlaceholder: 'Поиск клиента...',
+            })}
           </div>
         </div>
       )}
@@ -967,5 +1040,6 @@ export default function Sidebar({
         </div>
       )}
     </div>
+    </>
   );
 }
