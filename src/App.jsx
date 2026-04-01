@@ -122,6 +122,14 @@ export default function App() {
     await bugsJira.fetchIssues(jql, 0, cols, credentials);
   }, [bugsJira.fetchIssues, settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
 
+  const handleRefreshCR = useCallback(async () => {
+    await crJira.fetchIssues(settings.jql, 0, columns, credentials);
+  }, [crJira.fetchIssues, settings.jql, settings.jiraUrl, settings.jiraEmail, settings.jiraToken, columns]);
+
+  const handleRefreshBugs = useCallback(async () => {
+    await bugsJira.fetchIssues(settings.jqlBugs, 0, columnsBugs, credentials);
+  }, [bugsJira.fetchIssues, settings.jqlBugs, settings.jiraUrl, settings.jiraEmail, settings.jiraToken, columnsBugs]);
+
   const handleFetchMyself = useCallback(async () => {
     return await fetchMyself(credentials);
   }, [fetchMyself, settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
@@ -255,6 +263,24 @@ export default function App() {
           </div>
 
           <div style={{ flex: 1 }} />
+
+          {currentIssues.length > 0 && (
+            <button
+              onClick={isCRActive ? handleRefreshCR : handleRefreshBugs}
+              disabled={currentStatus === 'loading'}
+              title="Обновить данные, не сбрасывая фильтры таблицы"
+              style={{
+                padding: '7px 14px', border: `1px solid ${theme.border}`, borderRadius: '6px',
+                background: theme.bgCard, color: theme.textSecondary, fontSize: '13px',
+                fontWeight: 600, cursor: currentStatus === 'loading' ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px', opacity: currentStatus === 'loading' ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => { if (currentStatus !== 'loading') { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}
+            >
+              ↻ Обновить
+            </button>
+          )}
 
           <button
             onClick={handleExportCSV}
