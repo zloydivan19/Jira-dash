@@ -10,6 +10,8 @@ export default function Sidebar({
   userInfo, jiraFields, addToast,
   columns, onColumnsChange, columnsBugs, onColumnsBugsChange,
   activeTab, onTabChange, sidebarOpen, onToggleSidebar,
+  onLoadEval, evalLoading, evalManagerFilter, onEvalManagerFilterChange, evalHasData,
+  columnsEval, onColumnsEvalChange,
 }) {
   const { theme } = useTheme();
 
@@ -43,6 +45,9 @@ export default function Sidebar({
   const [managerOptions, setManagerOptions] = useState([]);
   const [selectedManagers, setSelectedManagers] = useState([]);
   const [managersLoading, setManagersLoading] = useState(false);
+
+  // Eval tab: separate manager selection
+  const [evalSelectedManagers, setEvalSelectedManagers] = useState([]);
 
   const [crReporterSearch, setCrReporterSearch] = useState('');
   const [crReporterOptions, setCrReporterOptions] = useState([]);
@@ -405,18 +410,15 @@ export default function Sidebar({
   const handleSaveView = () => {
     const name = viewName.trim();
     if (!name) return;
+    const isEval = activeTab === 'eval';
     const isCR = activeTab === 'queries';
-    const view = {
-      id: Date.now(),
-      name,
-      tab: activeTab,
-      jql: isCR ? settings.jql : settings.jqlBugs,
-      columns: isCR ? columns : columnsBugs,
-    };
+    const view = isEval
+      ? { id: Date.now(), name, tab: 'eval', managers: evalSelectedManagers }
+      : { id: Date.now(), name, tab: activeTab, jql: isCR ? settings.jql : settings.jqlBugs, columns: isCR ? columns : columnsBugs };
     onSettingsChange({ views: [...views, view] });
     setViewName('');
     setSavingView(false);
-    addToast(`Запрос "${name}" сохранён`, 'success');
+    addToast(`Вид "${name}" сохранён`, 'success');
   };
 
   const handleDeleteView = (id) => {
@@ -425,6 +427,14 @@ export default function Sidebar({
 
   const handleLoadView = async (view) => {
     onTabChange(view.tab);
+    if (view.tab === 'eval') {
+      const managers = view.managers || [];
+      setEvalSelectedManagers(managers);
+      const mgr = managers.length === 0 ? 'currentUser()' : managers;
+      onEvalManagerFilterChange(mgr);
+      onLoadEval(mgr);
+      return;
+    }
     if (view.tab === 'queries') {
       onSettingsChange({ jql: view.jql, columns: view.columns });
       setLoadingIssues(true);
@@ -445,9 +455,9 @@ export default function Sidebar({
   };
 
   // ── Fields tab ──
-  const [fieldsContext, setFieldsContext] = useState('cr'); // 'cr' | 'bugs'
-  const activeColumns = fieldsContext === 'cr' ? columns : columnsBugs;
-  const activeOnColumnsChange = fieldsContext === 'cr' ? onColumnsChange : onColumnsBugsChange;
+  const [fieldsContext, setFieldsContext] = useState('cr'); // 'cr' | 'bugs' | 'eval'
+  const activeColumns = fieldsContext === 'cr' ? columns : fieldsContext === 'bugs' ? columnsBugs : (columnsEval || []);
+  const activeOnColumnsChange = fieldsContext === 'cr' ? onColumnsChange : fieldsContext === 'bugs' ? onColumnsBugsChange : onColumnsEvalChange;
 
   const isAdded = (id) => activeColumns.some((c) => c.id === id);
   const handleAddColumn = (field) => {
@@ -476,6 +486,7 @@ export default function Sidebar({
     { id: 'connection', label: 'Вход' },
     { id: 'queries',    label: 'CR Запросы' },
     { id: 'bugs',       label: 'Задачи/Ошибки' },
+    { id: 'eval',       label: 'Контроль оценки' },
     { id: 'fields',     label: 'Поля' },
   ];
 
@@ -577,52 +588,66 @@ export default function Sidebar({
     </div>
   );
 
-  const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, searchPlaceholder }) => (
-    <div style={{ ...sec, border: `1px solid ${theme.borderLight}`, borderRadius: '5px', background: theme.bgInput, overflow: 'hidden' }}>
-      <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-        <div>
-          <div style={{ fontSize: '12px', color: theme.textPrimary, fontWeight: 500 }}>{title}</div>
-          <div style={{ fontSize: '11px', color: theme.textSecondary }}>{subtitle}</div>
+  const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, searchPlaceholder }) => {
+    const allIds = options.map((o) => typeof o === 'string' ? o : o.accountId);
+    const allSelected = allIds.length > 0 && allIds.every((id) => selected.includes(id));
+    return (
+      <div style={{ ...sec, border: `1px solid ${theme.borderLight}`, borderRadius: '5px', background: theme.bgInput, overflow: 'hidden' }}>
+        <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+          <div>
+            <div style={{ fontSize: '12px', color: theme.textPrimary, fontWeight: 500 }}>{title}</div>
+            <div style={{ fontSize: '11px', color: theme.textSecondary }}>{subtitle}</div>
+          </div>
+          <button onClick={onLoad} disabled={loading} style={{ ...loadBtn, opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+            <span style={{ display: 'inline-block', animation: loading ? 'jira-spin 0.8s linear infinite' : 'none', marginRight: '3px' }}>↻</span>
+            {loading ? 'Загрузка...' : 'Загрузить'}
+          </button>
         </div>
-        <button onClick={onLoad} disabled={loading} style={{ ...loadBtn, opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
-          <span style={{ display: 'inline-block', animation: loading ? 'jira-spin 0.8s linear infinite' : 'none', marginRight: '3px' }}>↻</span>
-          {loading ? 'Загрузка...' : 'Загрузить'}
-        </button>
-      </div>
-      {options.length > 0 && (
-        <div style={{ borderTop: `1px solid ${theme.borderLight}` }}>
-          <div style={{ padding: '6px 8px' }}>
-            <input type="text" value={searchVal} onChange={(e) => onSearch(e.target.value)}
-              placeholder={searchPlaceholder} style={{ ...inputStyle, fontSize: '11px', padding: '4px 8px' }}
-              onFocus={(e) => (e.target.style.borderColor = theme.accent)}
-              onBlur={(e) => (e.target.style.borderColor = theme.border)} />
-          </div>
-          <div style={{ maxHeight: '160px', overflowY: 'auto', padding: '0 4px 4px' }}>
-            {options
-              .filter((o) => !searchVal || (typeof o === 'string' ? o : o.displayName).toLowerCase().includes(searchVal.toLowerCase()))
-              .map((o) => {
-                const val = typeof o === 'string' ? o : o.accountId;
-                const label = typeof o === 'string' ? o : o.displayName;
-                return (
-                  <label key={val} style={checkboxRow}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-                    <input type="checkbox" checked={selected.includes(val)} onChange={() => onToggle(val)} style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={label}>{label}</span>
-                  </label>
-                );
-              })}
-          </div>
-          {selected.length > 0 && (
-            <div style={{ padding: '6px 8px', borderTop: `1px solid ${theme.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-              <span style={{ fontSize: '11px', color: theme.textSecondary }}>Выбрано: {selected.length}</span>
-              <button onClick={onApply} style={{ padding: '4px 12px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Применить →</button>
+        {options.length > 0 && (
+          <div style={{ borderTop: `1px solid ${theme.borderLight}` }}>
+            <div style={{ padding: '6px 8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input type="text" value={searchVal} onChange={(e) => onSearch(e.target.value)}
+                placeholder={searchPlaceholder} style={{ ...inputStyle, fontSize: '11px', padding: '4px 8px', flex: 1 }}
+                onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                onBlur={(e) => (e.target.style.borderColor = theme.border)} />
+              <button onClick={() => allIds.forEach((id) => { if (!selected.includes(id)) onToggle(id); })}
+                title="Выбрать всех"
+                style={{ padding: '3px 7px', fontSize: '11px', border: `1px solid ${theme.border}`, borderRadius: '4px', background: theme.bgPage, color: theme.textSecondary, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                ✓ Все
+              </button>
+              <button onClick={() => allIds.forEach((id) => { if (selected.includes(id)) onToggle(id); })}
+                title="Снять все"
+                style={{ padding: '3px 7px', fontSize: '11px', border: `1px solid ${theme.border}`, borderRadius: '4px', background: theme.bgPage, color: theme.textSecondary, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                ✕
+              </button>
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+            <div style={{ maxHeight: '160px', overflowY: 'auto', padding: '0 4px 4px' }}>
+              {options
+                .filter((o) => !searchVal || (typeof o === 'string' ? o : o.displayName).toLowerCase().includes(searchVal.toLowerCase()))
+                .map((o) => {
+                  const val = typeof o === 'string' ? o : o.accountId;
+                  const label = typeof o === 'string' ? o : o.displayName;
+                  return (
+                    <label key={val} style={checkboxRow}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                      <input type="checkbox" checked={selected.includes(val)} onChange={() => onToggle(val)} style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={label}>{label}</span>
+                    </label>
+                  );
+                })}
+            </div>
+            {selected.length > 0 && (
+              <div style={{ padding: '6px 8px', borderTop: `1px solid ${theme.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <span style={{ fontSize: '11px', color: theme.textSecondary }}>Выбрано: {selected.length}</span>
+                <button onClick={onApply} style={{ padding: '4px 12px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Применить →</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (!sidebarOpen) {
     return (
@@ -958,12 +983,133 @@ export default function Sidebar({
       )}
 
       {/* ── Fields tab ── */}
+      {activeTab === 'eval' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '14px', flexShrink: 0, borderBottom: `1px solid ${theme.borderLight}` }}>
+            <div style={{ fontSize: '12px', color: theme.textSecondary, marginBottom: '10px', lineHeight: '1.5' }}>
+              Отслеживает задачи в процессе оценки. SLA: 3 р.д. на модерацию, 10 р.д. суммарно.
+            </div>
+
+            {/* Quick filter: my tasks */}
+            <div style={{ marginBottom: '8px' }}>
+              <button
+                onClick={() => { setEvalSelectedManagers([]); onEvalManagerFilterChange('currentUser()'); }}
+                style={{
+                  width: '100%', padding: '5px 8px', fontSize: '11px', fontWeight: 600,
+                  border: `1px solid ${evalManagerFilter === 'currentUser()' ? theme.accent : theme.border}`,
+                  borderRadius: '4px', cursor: 'pointer',
+                  background: evalManagerFilter === 'currentUser()' ? (theme.id === 'csi' ? '#e8f0f8' : '#1a2e40') : theme.bgInput,
+                  color: evalManagerFilter === 'currentUser()' ? theme.accent : theme.textSecondary,
+                }}
+              >
+                ★ Только мои задачи
+              </button>
+            </div>
+
+            {/* Manager selector */}
+            {renderMultiSelect({
+              title: 'Выбрать менеджера',
+              subtitle: 'Мультивыбор PM, или оставьте пустым (= я)',
+              options: managerOptions,
+              selected: evalSelectedManagers,
+              onLoad: loadManagers,
+              loading: managersLoading,
+              searchVal: managerSearch,
+              onSearch: setManagerSearch,
+              onToggle: (id) => setEvalSelectedManagers((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]),
+              onApply: () => onEvalManagerFilterChange(evalSelectedManagers.length === 0 ? 'currentUser()' : evalSelectedManagers),
+              searchPlaceholder: 'Поиск менеджера...',
+            })}
+
+            <button
+              onClick={() => onLoadEval()}
+              disabled={evalLoading}
+              style={{
+                width: '100%', padding: '8px 12px', border: 'none', borderRadius: '6px',
+                fontSize: '13px', fontWeight: 600, cursor: evalLoading ? 'not-allowed' : 'pointer',
+                background: evalLoading ? theme.border : theme.accent,
+                color: evalLoading ? theme.textSecondary : theme.accentText,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              }}
+            >
+              <span style={{ display: 'inline-block', animation: evalLoading ? 'jira-spin 0.8s linear infinite' : 'none' }}>↻</span>
+              {evalLoading ? 'Загружаем...' : 'Загрузить задачи'}
+            </button>
+
+            {/* Save current view */}
+            {evalHasData && (
+              <div style={{ marginTop: '8px' }}>
+                {savingView && activeTab === 'eval' ? (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input autoFocus value={viewName} onChange={(e) => setViewName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveView(); if (e.key === 'Escape') { setSavingView(false); setViewName(''); } }}
+                      placeholder="Название вида..." style={{ ...inputStyle, flex: 1, fontSize: '12px', padding: '5px 8px' }}
+                      onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                      onBlur={(e) => (e.target.style.borderColor = theme.border)} />
+                    <button onClick={handleSaveView} style={{ padding: '5px 10px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '5px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>✓</button>
+                    <button onClick={() => { setSavingView(false); setViewName(''); }} style={{ padding: '5px 8px', background: theme.bgInput, border: `1px solid ${theme.border}`, borderRadius: '5px', fontSize: '12px', color: theme.textSecondary, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setSavingView(true)}
+                    style={{ width: '100%', padding: '5px 8px', background: 'transparent', border: `1px dashed ${theme.border}`, borderRadius: '5px', fontSize: '12px', color: theme.textSecondary, cursor: 'pointer', textAlign: 'center' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}>
+                    + Сохранить этот вид
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
+            {/* Saved eval views */}
+            {views.filter((v) => v.tab === 'eval').length > 0 && (
+              <div style={{ ...sec }}>
+                <label style={labelStyle}>Сохранённые виды</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {views.filter((v) => v.tab === 'eval').map((view) => (
+                    <div key={view.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 8px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}>
+                      <span style={{ fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: theme.textPrimary, cursor: 'pointer', fontWeight: 500 }}
+                        onClick={() => handleLoadView(view)}
+                        title={(view.managers || []).length === 0 ? 'Только мои задачи' : `${(view.managers || []).length} менеджер(а)`}>
+                        {view.name}
+                      </span>
+                      <button onClick={() => handleLoadView(view)}
+                        style={{ flexShrink: 0, padding: '2px 8px', fontSize: '11px', fontWeight: 600, background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                        ▶
+                      </button>
+                      <button onClick={() => handleDeleteView(view.id)}
+                        style={{ flexShrink: 0, background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = theme.error)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = theme.textMuted)}>×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ fontSize: '11px', color: theme.textMuted, lineHeight: '1.6' }}>
+              <div style={{ fontWeight: 700, color: theme.textSecondary, marginBottom: '6px' }}>Цветовые индикаторы (р.д. с начала):</div>
+              <div>🟢 ≤ 5 р.д. — всё по плану</div>
+              <div>🟡 6–8 р.д. — скоро дедлайн</div>
+              <div>🔴 {'>'} 8 р.д. — SLA нарушен</div>
+              <div style={{ marginTop: '6px' }}>🔵 CR в майке — оценена</div>
+              <div>⚫ Pause / Отложено — на паузе</div>
+              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: `1px solid ${theme.borderLight}`, color: theme.textMuted }}>
+                Для модерации (Awaiting Moderation): отдельный счётчик ≤2 🟢, 3 🟡, {'>'} 3 🔴
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'fields' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
           {/* Context switcher */}
           <div style={{ display: 'flex', gap: '4px', marginBottom: '12px', background: theme.bgPage, borderRadius: '6px', padding: '3px' }}>
             <button style={switchBtn('cr', fieldsContext)} onClick={() => setFieldsContext('cr')}>CR Запросы</button>
             <button style={switchBtn('bugs', fieldsContext)} onClick={() => setFieldsContext('bugs')}>Задачи/Ошибки</button>
+            <button style={switchBtn('eval', fieldsContext)} onClick={() => setFieldsContext('eval')}>Контроль оценки</button>
           </div>
           <div style={sec}>
             <button style={{ ...btnPrimary, background: fieldsLoading ? theme.border : theme.accent, color: fieldsLoading ? theme.textSecondary : theme.accentText }}

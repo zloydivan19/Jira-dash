@@ -100,6 +100,28 @@ app.get('/api/jira/myself', async (req, res) => {
   }
 });
 
+// GET /api/jira/changelog
+app.get('/api/jira/changelog', async (req, res) => {
+  const { url, auth } = getCredentials(req);
+  const { issueKey } = req.query;
+  if (!issueKey) return res.status(400).json({ error: 'issueKey required' });
+  try {
+    const response = await axios.get(`${url}/rest/api/3/issue/${issueKey}/changelog?maxResults=100`, {
+      headers: { Authorization: auth, Accept: 'application/json' },
+      timeout: 15000,
+    });
+    res.json(response.data);
+  } catch (err) {
+    console.error('[changelog] error:', err.response?.status, JSON.stringify(err.response?.data));
+    if (err.response) {
+      if (err.response.status === 401) return res.status(401).json({ error: 'Неверные credentials' });
+      return res.status(err.response.status).json({ error: err.response.data?.message || 'Jira API error' });
+    }
+    if (err.code === 'ECONNABORTED') return res.status(504).json({ error: 'Timeout' });
+    res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Jira proxy server running on http://localhost:${PORT}`);
 });

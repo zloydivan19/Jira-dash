@@ -29,7 +29,12 @@ export const handler = async (event) => {
   }
 
   const auth = 'Basic ' + Buffer.from(`${jiraEmail}:${jiraToken}`).toString('base64');
-  const endpoint = event.path.split('/').pop(); // 'search' | 'fields' | 'myself'
+  const rawPath = event.path || '';
+  const endpoint = rawPath.includes('changelog') ? 'changelog'
+    : rawPath.includes('search')   ? 'search'
+    : rawPath.includes('fields')   ? 'fields'
+    : rawPath.includes('myself')   ? 'myself'
+    : rawPath.split('/').pop();
 
   try {
     let response;
@@ -56,6 +61,14 @@ export const handler = async (event) => {
 
     } else if (endpoint === 'myself') {
       response = await axios.get(`${jiraUrl}/rest/api/3/myself`, {
+        headers: { Authorization: auth, Accept: 'application/json' },
+        timeout: 15000,
+      });
+
+    } else if (endpoint === 'changelog') {
+      const { issueKey } = event.queryStringParameters || {};
+      if (!issueKey) return json(400, { error: 'issueKey required' });
+      response = await axios.get(`${jiraUrl}/rest/api/3/issue/${issueKey}/changelog?maxResults=100`, {
         headers: { Authorization: auth, Accept: 'application/json' },
         timeout: 15000,
       });

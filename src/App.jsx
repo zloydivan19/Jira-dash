@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useSettings } from './hooks/useSettings.js';
 import { useJira } from './hooks/useJira.js';
+import { useEvaluation } from './hooks/useEvaluation.js';
 import { downloadCSV } from './utils/csvExport.js';
 import { useTheme } from './contexts/ThemeContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DashboardTable from './components/DashboardTable.jsx';
+import EvaluationTab from './components/EvaluationTab.jsx';
 import Toast from './components/Toast.jsx';
 
 let toastIdCounter = 0;
@@ -74,6 +76,7 @@ export default function App() {
   // Two independent Jira data stores
   const crJira = useJira('jira_session_cr');
   const bugsJira = useJira('jira_session_bugs');
+  const evaluation = useEvaluation();
 
   const { userInfo, jiraFields, fetchMyself, fetchFields } = crJira;
 
@@ -101,6 +104,7 @@ export default function App() {
 
   const columns = settings.columns || [];
   const columnsBugs = settings.columnsBugs || [];
+  const columnsEval = settings.columnsEval || [];
 
   const handleColumnsChange = useCallback((newColumns) => {
     updateSettings({ columns: newColumns });
@@ -111,6 +115,10 @@ export default function App() {
     updateSettings({ columnsBugs: newColumns });
     if (bugsJira.status === 'success') setColumnsDirtyBugs(true);
   }, [updateSettings, bugsJira.status]);
+
+  const handleColumnsEvalChange = useCallback((newColumns) => {
+    updateSettings({ columnsEval: newColumns });
+  }, [updateSettings]);
 
   const credentials = { jiraUrl: settings.jiraUrl, jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken };
 
@@ -164,8 +172,18 @@ export default function App() {
     });
   }, []);
 
+  const [evalManagerFilter, setEvalManagerFilter] = useState('currentUser()');
+
+  const handleLoadEval = useCallback((managersOverride) => {
+    const managers = (typeof managersOverride === 'string' || Array.isArray(managersOverride))
+      ? managersOverride
+      : evalManagerFilter;
+    evaluation.load(settings, managers);
+  }, [evaluation.load, evalManagerFilter, settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
+
   // Which data to show based on active tab
   const isDataTab = activeTab === 'queries' || activeTab === 'bugs';
+  const isEvalTab = activeTab === 'eval';
   const isCRActive = activeTab === 'queries';
   const isBugsActive = activeTab === 'bugs';
 
@@ -236,6 +254,13 @@ export default function App() {
         onTabChange={(tab) => { setActiveTab(tab); localStorage.setItem('jira_dash_active_tab', tab); }}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => { const next = !v; localStorage.setItem('jira_dash_sidebar', next ? 'open' : 'closed'); return next; })}
+        onLoadEval={handleLoadEval}
+        evalLoading={evaluation.loadingIssues || evaluation.loadingChangelogs}
+        evalManagerFilter={evalManagerFilter}
+        onEvalManagerFilterChange={setEvalManagerFilter}
+        evalHasData={evaluation.issues.length > 0}
+        columnsEval={columnsEval}
+        onColumnsEvalChange={handleColumnsEvalChange}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -338,7 +363,18 @@ export default function App() {
 
         {/* Content area */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          {showTable ? (
+          {isEvalTab ? (
+            <EvaluationTab
+              issues={evaluation.issues}
+              slaMap={evaluation.slaMap}
+              loadingIssues={evaluation.loadingIssues}
+              loadingChangelogs={evaluation.loadingChangelogs}
+              error={evaluation.error}
+              onLoad={handleLoadEval}
+              settings={settings}
+              extraColumns={columnsEval}
+            />
+          ) : showTable ? (
             <DashboardTable
               issues={filteredIssues}
               allIssues={currentIssues}
