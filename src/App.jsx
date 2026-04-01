@@ -81,8 +81,12 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('jira_dash_active_tab') || 'connection');
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('jira_dash_sidebar') !== 'closed');
-  const [columnFiltersCR, setColumnFiltersCR] = useState({});
-  const [columnFiltersBugs, setColumnFiltersBugs] = useState({});
+  const [columnFiltersCR, setColumnFiltersCR] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('jira_col_filters_cr')) || {}; } catch { return {}; }
+  });
+  const [columnFiltersBugs, setColumnFiltersBugs] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('jira_col_filters_bugs')) || {}; } catch { return {}; }
+  });
   const [columnsDirtyCR, setColumnsDirtyCR] = useState(false);
   const [columnsDirtyBugs, setColumnsDirtyBugs] = useState(false);
 
@@ -113,12 +117,14 @@ export default function App() {
   const handleLoadCR = useCallback(async (jql, cols) => {
     setColumnsDirtyCR(false);
     setColumnFiltersCR({});
+    sessionStorage.removeItem('jira_col_filters_cr');
     await crJira.fetchIssues(jql, 0, cols, credentials);
   }, [crJira.fetchIssues, settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
 
   const handleLoadBugs = useCallback(async (jql, cols) => {
     setColumnsDirtyBugs(false);
     setColumnFiltersBugs({});
+    sessionStorage.removeItem('jira_col_filters_bugs');
     await bugsJira.fetchIssues(jql, 0, cols, credentials);
   }, [bugsJira.fetchIssues, settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
 
@@ -140,15 +146,21 @@ export default function App() {
 
   const handleFilterChangeCR = useCallback((key, selectedValues) => {
     setColumnFiltersCR((prev) => {
-      if (!selectedValues || selectedValues.length === 0) { const next = { ...prev }; delete next[key]; return next; }
-      return { ...prev, [key]: selectedValues };
+      const next = !selectedValues || selectedValues.length === 0
+        ? (({ [key]: _, ...rest }) => rest)(prev)
+        : { ...prev, [key]: selectedValues };
+      sessionStorage.setItem('jira_col_filters_cr', JSON.stringify(next));
+      return next;
     });
   }, []);
 
   const handleFilterChangeBugs = useCallback((key, selectedValues) => {
     setColumnFiltersBugs((prev) => {
-      if (!selectedValues || selectedValues.length === 0) { const next = { ...prev }; delete next[key]; return next; }
-      return { ...prev, [key]: selectedValues };
+      const next = !selectedValues || selectedValues.length === 0
+        ? (({ [key]: _, ...rest }) => rest)(prev)
+        : { ...prev, [key]: selectedValues };
+      sessionStorage.setItem('jira_col_filters_bugs', JSON.stringify(next));
+      return next;
     });
   }, []);
 
