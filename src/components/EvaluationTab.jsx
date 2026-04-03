@@ -236,6 +236,7 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
                       </span>
                       <span
                         onClick={(e) => onFilterClick(e, col.id)}
+                        onMouseDown={(e) => e.stopPropagation()}
                         title="Фильтр"
                         style={{ cursor: 'pointer', fontSize: '12px', color: isFiltered ? theme.accent : (theme.filterIconDim || theme.textMuted), padding: '1px 2px', borderRadius: '3px', background: openFilterCol === col.id ? theme.border : 'transparent', flexShrink: 0 }}
                         onMouseEnter={(e) => (e.currentTarget.style.color = theme.accent)}
@@ -373,9 +374,10 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
 
   const handleFilterClick = useCallback((e, colId) => {
     e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
     setOpenFilterCol((prev) => {
       if (prev === colId) { setFilterAnchor(null); return null; }
-      setFilterAnchor(e.currentTarget.getBoundingClientRect());
+      setFilterAnchor(rect);
       return colId;
     });
   }, []);
