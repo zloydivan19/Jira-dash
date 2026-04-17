@@ -101,16 +101,30 @@ app.get('/api/jira/myself', async (req, res) => {
 });
 
 // GET /api/jira/changelog
+// Собирает все страницы changelog и возвращает полный список entries.
 app.get('/api/jira/changelog', async (req, res) => {
   const { url, auth } = getCredentials(req);
   const { issueKey } = req.query;
   if (!issueKey) return res.status(400).json({ error: 'issueKey required' });
+
   try {
-    const response = await axios.get(`${url}/rest/api/3/issue/${issueKey}/changelog?maxResults=100`, {
-      headers: { Authorization: auth, Accept: 'application/json' },
-      timeout: 15000,
-    });
-    res.json(response.data);
+    const allValues = [];
+    let startAt = 0;
+    const PAGE = 100;
+
+    while (true) {
+      const response = await axios.get(
+        `${url}/rest/api/3/issue/${issueKey}/changelog?maxResults=${PAGE}&startAt=${startAt}`,
+        { headers: { Authorization: auth, Accept: 'application/json' }, timeout: 15000 }
+      );
+      const data = response.data;
+      allValues.push(...(data.values || []));
+
+      if (data.isLast || !data.values?.length || allValues.length >= (data.total ?? Infinity)) break;
+      startAt += PAGE;
+    }
+
+    res.json({ values: allValues, total: allValues.length, isLast: true });
   } catch (err) {
     console.error('[changelog] error:', err.response?.status, JSON.stringify(err.response?.data));
     if (err.response) {
