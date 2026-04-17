@@ -153,12 +153,38 @@ function parseStatusHistory(changelog) {
 }
 
 // SLA rules:
-//   Start  — first transition to "Awaiting Moderation"
-//   Active — time in ACTIVE_STATUSES only (Pause / Отложено excluded)
-//   End    — "CR в майке" or today (for still-open tasks)
+//   Start  — см. логику ниже (зависит от наличия предыдущих циклов)
+//   Active — время в ACTIVE_STATUSES только (Pause / Отложено не считаются)
+//   End    — сегодня (задача ещё в оценке)
+//
+// Логика определения slaStart:
+//   1. Если задача уже проходила "CR в майке" (завершила цикл оценки):
+//      slaStart = дата первого входа в активный статус ПОСЛЕ последнего CR в майке
+//      → это начало текущего (нового) цикла оценки
+//   2. Если "CR в майке" не было:
+//      slaStart = дата первого перехода в "Awaiting Moderation"
+//      Если такого перехода нет (задача создана сразу в AM):
+//      slaStart = дата создания задачи
 function calcSLA(statusHistory, issueCreated) {
-  const firstAm = statusHistory.find((e) => e.to === 'awaiting moderation');
-  const slaStart = firstAm?.created ?? (issueCreated ? new Date(issueCreated) : null);
+  let slaStart = null;
+
+  // Шаг 1: ищем последний CR в майке
+  const lastCrInMaike = [...statusHistory].reverse().find((e) => e.to === 'cr в майке');
+
+  if (lastCrInMaike) {
+    // Задача завершала цикл — берём первый вход в активный статус после CR в майке
+    const reentry = statusHistory.find(
+      (e) => e.created > lastCrInMaike.created && ACTIVE_STATUSES.includes(e.to)
+    );
+    if (reentry) slaStart = reentry.created;
+  }
+
+  // Шаг 2 (fallback): первый переход в AM или дата создания
+  if (!slaStart) {
+    const firstAm = statusHistory.find((e) => e.to === 'awaiting moderation');
+    slaStart = firstAm?.created ?? (issueCreated ? new Date(issueCreated) : null);
+  }
+
   if (!slaStart) return null;
 
   const now = new Date();
