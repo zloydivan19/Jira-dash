@@ -332,7 +332,6 @@ function buildViolationsSheet(violations, today, jiraUrl) {
 const S2_COLS = [
   { label: 'Исполнитель',         w: 26 },
   { label: 'Команда',             w: 22 },
-  { label: 'Менеджер',            w: 26 },
   { label: 'Нарушений',           w: 14 },
   { label: 'Макс. SLA (р.д.)',    w: 17 },
   { label: 'Среднее SLA (р.д.)',  w: 19 },
@@ -357,17 +356,15 @@ function buildSummarySheet(violations, today) {
   violations.forEach(({ issue, sla }) => {
     const assignee = extractField(issue.fields?.assignee);
     const team     = extractField(issue.fields?.customfield_12800);
-    const mgr      = extractField(issue.fields?.customfield_12606);
 
     if (!byAssignee.has(assignee)) {
-      byAssignee.set(assignee, { count: 0, maxSLA: 0, sumSLA: 0, teams: {}, managers: {} });
+      byAssignee.set(assignee, { count: 0, maxSLA: 0, sumSLA: 0, teams: {} });
     }
     const a = byAssignee.get(assignee);
     a.count++;
     a.maxSLA = Math.max(a.maxSLA, sla.totalActiveDays);
     a.sumSLA += sla.totalActiveDays;
-    a.teams[team]      = (a.teams[team]      || 0) + 1;
-    a.managers[mgr]    = (a.managers[mgr]    || 0) + 1;
+    a.teams[team] = (a.teams[team] || 0) + 1;
   });
 
   // Pick most frequent team / manager per assignee
@@ -378,7 +375,6 @@ function buildSummarySheet(violations, today) {
     .map(([assignee, a]) => ({
       assignee,
       team:   mostFrequent(a.teams),
-      mgr:    mostFrequent(a.managers),
       count:  a.count,
       maxSLA: a.maxSLA,
       avgSLA: Math.round(a.sumSLA / a.count),
@@ -403,14 +399,13 @@ function buildSummarySheet(violations, today) {
   rows.push(S2_COLS.map((c) => summaryHdrCell(c.label)));
 
   // Rows 4+ — data
-  summary.forEach(({ assignee, team, mgr, count, maxSLA, avgSLA }, idx) => {
+  summary.forEach(({ assignee, team, count, maxSLA, avgSLA }, idx) => {
     const bg = idx % 2 === 0 ? C.white : C.stripe;
     const countColor = count  >= 5  ? C.redText    : '111827';
     const maxColor   = maxSLA >= 20 ? C.redText    : maxSLA >= 15 ? C.orangeText : '111827';
     rows.push([
       dataCell(assignee, bg, { bold: true }),
       dataCell(team,     bg),
-      dataCell(mgr,      bg),
       dataCell(count,    bg, { align: 'center', bold: true, fgColor: countColor }),
       dataCell(maxSLA,   bg, { align: 'center', fgColor: maxColor }),
       dataCell(avgSLA,   bg, { align: 'center' }),
