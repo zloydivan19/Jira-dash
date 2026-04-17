@@ -418,10 +418,10 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
     try {
       const result = await exportSLAViolations(settings, (msg) => setExportLabel(msg));
       if (result.count === 0) {
-        setExportLabel('Нет нарушений');
+        setExportLabel(`Нет нарушений / ${result.total} на оценке`);
         setTimeout(() => setExportLabel('Экспорт SLA нарушений'), 3000);
       } else {
-        setExportLabel(`Готово: ${result.count} задач`);
+        setExportLabel(`${result.count} нарушений / ${result.total} на оценке`);
         setTimeout(() => setExportLabel('Экспорт SLA нарушений'), 4000);
       }
     } catch (err) {

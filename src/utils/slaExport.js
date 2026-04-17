@@ -469,7 +469,6 @@ export async function exportSLAViolations(settings, onProgress) {
   const violations = [];
 
   for (let i = 0; i < allIssues.length; i += BATCH) {
-    onProgress?.(`Вычисление SLA: ${Math.min(i + BATCH, allIssues.length)} / ${allIssues.length}`);
     const batch = allIssues.slice(i, i + BATCH);
 
     const results = await Promise.all(
@@ -486,6 +485,7 @@ export async function exportSLAViolations(settings, onProgress) {
     );
 
     violations.push(...results.filter(Boolean));
+    onProgress?.(`Вычисление SLA: ${Math.min(i + BATCH, allIssues.length)} / ${allIssues.length} · нарушений: ${violations.length}`);
   }
 
   if (violations.length === 0) return { count: 0 };
@@ -514,5 +514,5 @@ export async function exportSLAViolations(settings, onProgress) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  return { count: violations.length };
+  return { count: violations.length, total: allIssues.length };
 }
