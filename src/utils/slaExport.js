@@ -227,7 +227,8 @@ const S1_COLS = [
 ];
 const S1_N = S1_COLS.length;  // 11
 
-function buildViolationsSheet(violations, today) {
+function buildViolationsSheet(violations, today, jiraUrl) {
+  const jiraBase = (jiraUrl || '').replace(/\/$/, '');
   const rows = [];
 
   // Row 0 — report title
@@ -259,7 +260,7 @@ function buildViolationsSheet(violations, today) {
                       '5B7A00';
 
     rows.push([
-      dataCell(issue.key,                                     bg, { align: 'center', bold: true, fgColor: C.blueText }),
+      { ...dataCell(issue.key, bg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${issue.key}` } },
       dataCell(issue.fields?.summary || '—',                  bg),
       dataCell(extractField(issue.fields?.customfield_12606), bg),
       dataCell(statusName,                                    bg),
@@ -450,7 +451,7 @@ export async function exportSLAViolations(settings, onProgress) {
   const today = fmtDate(new Date());
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, buildViolationsSheet(violations, today), 'SLA Нарушения');
+  XLSX.utils.book_append_sheet(wb, buildViolationsSheet(violations, today, settings.jiraUrl), 'SLA Нарушения');
   XLSX.utils.book_append_sheet(wb, buildSummarySheet(violations, today),    'Сводка');
 
   // 4. Browser-safe download
