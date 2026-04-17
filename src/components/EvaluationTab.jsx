@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import { exportSLAViolations } from '../utils/slaExport.js';
 
 const GROUP_CONFIG = [
   { id: 'active', label: 'В процессе',                  statuses: ['awaiting moderation', 'на оценку', 'уточнение требований'], description: 'Задачи идут по процессу, таймер SLA активен' },
@@ -358,6 +359,8 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
   });
   const [openFilterCol,  setOpenFilterCol]  = useState(null);
   const [filterAnchor,   setFilterAnchor]   = useState(null);
+  const [exporting,      setExporting]      = useState(false);
+  const [exportLabel,    setExportLabel]    = useState('Экспорт SLA нарушений');
 
   const handleSort = useCallback((col) => {
     setSortCol((prev) => {
@@ -407,6 +410,28 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }, [colWidths, allColumns]);
+
+  const handleExportSLA = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportLabel('Загрузка задач...');
+    try {
+      const result = await exportSLAViolations(settings, (msg) => setExportLabel(msg));
+      if (result.count === 0) {
+        setExportLabel('Нет нарушений');
+        setTimeout(() => setExportLabel('Экспорт SLA нарушений'), 3000);
+      } else {
+        setExportLabel(`Готово: ${result.count} задач`);
+        setTimeout(() => setExportLabel('Экспорт SLA нарушений'), 4000);
+      }
+    } catch (err) {
+      setExportLabel('Ошибка экспорта');
+      setTimeout(() => setExportLabel('Экспорт SLA нарушений'), 4000);
+      console.error('[SLA export]', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, settings]);
 
   // Apply filters
   const filteredIssues = useMemo(() => {
@@ -481,6 +506,41 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
             </div>
           ))}
         </div>
+
+        {/* SLA violations export */}
+        <button
+          onClick={handleExportSLA}
+          disabled={exporting}
+          title={
+            'Выгрузить в Excel все задачи всех менеджеров, у которых SLA на оценке превысил 10 рабочих дней.\n' +
+            'Учитывается только активное время (Awaiting Moderation, На оценку, Уточнение требований).\n' +
+            'Файл: SLA_CR_ГГГГ-ММ-ДД.xlsx'
+          }
+          style={{
+            marginLeft: '8px',
+            padding: '6px 14px',
+            background: exporting ? (theme.id === 'dark' ? '#1a2a1a' : '#f0fdf4') : (theme.id === 'dark' ? '#14290e' : '#dcfce7'),
+            color: exporting ? (theme.id === 'dark' ? '#4ade80' : '#166534') : (theme.id === 'dark' ? '#4ade80' : '#15803d'),
+            border: `1px solid ${exporting ? (theme.id === 'dark' ? '#2d5a2d' : '#86efac') : (theme.id === 'dark' ? '#22c55e' : '#22c55e')}`,
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: exporting ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            opacity: exporting ? 0.75 : 1,
+            transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={(e) => { if (!exporting) e.currentTarget.style.opacity = '0.85'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = exporting ? '0.75' : '1'; }}
+        >
+          {exporting
+            ? <span style={{ width: '11px', height: '11px', borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', display: 'inline-block', animation: 'jira-spin 0.7s linear infinite', flexShrink: 0 }} />
+            : '↓'}
+          {exportLabel}
+        </button>
       </div>
 
       {/* Content */}
