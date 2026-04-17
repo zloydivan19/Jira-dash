@@ -68,10 +68,21 @@ export const handler = async (event) => {
     } else if (endpoint === 'changelog') {
       const { issueKey } = event.queryStringParameters || {};
       if (!issueKey) return json(400, { error: 'issueKey required' });
-      response = await axios.get(`${jiraUrl}/rest/api/3/issue/${issueKey}/changelog?maxResults=100`, {
-        headers: { Authorization: auth, Accept: 'application/json' },
-        timeout: 15000,
-      });
+
+      // Paginate through all changelog pages
+      const allValues = [];
+      let startAt = 0;
+      const PAGE = 100;
+      while (true) {
+        const page = await axios.get(
+          `${jiraUrl}/rest/api/3/issue/${issueKey}/changelog?maxResults=${PAGE}&startAt=${startAt}`,
+          { headers: { Authorization: auth, Accept: 'application/json' }, timeout: 15000 }
+        );
+        allValues.push(...(page.data.values || []));
+        if (page.data.isLast || !page.data.values?.length || allValues.length >= (page.data.total ?? Infinity)) break;
+        startAt += PAGE;
+      }
+      return json(200, { values: allValues, total: allValues.length, isLast: true });
 
     } else {
       return json(404, { error: 'Unknown endpoint' });
