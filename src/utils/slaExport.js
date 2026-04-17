@@ -242,6 +242,8 @@ const S1_COLS = [
   { label: 'Ключ',                      w: 13  },
   { label: 'Название',                   w: 48  },
   { label: 'Менеджер',                   w: 22  },
+  { label: 'Исполнитель',                w: 22  },
+  { label: 'Teams',                      w: 20  },
   { label: 'Статус',                     w: 26  },
   { label: 'Флаг\nУточнения',            w: 14  },
   { label: 'В тек. статусе\n(р.д.)',     w: 16  },
@@ -251,7 +253,7 @@ const S1_COLS = [
   { label: 'Клиент',                     w: 24  },
   { label: 'SLA старт',                  w: 13  },
 ];
-const S1_N = S1_COLS.length;  // 11
+const S1_N = S1_COLS.length;  // 13
 
 function buildViolationsSheet(violations, today, jiraUrl) {
   const jiraBase = (jiraUrl || '').replace(/\/$/, '');
@@ -289,6 +291,8 @@ function buildViolationsSheet(violations, today, jiraUrl) {
       { ...dataCell(issue.key, bg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${issue.key}` } },
       dataCell(issue.fields?.summary || '—',                  bg),
       dataCell(extractField(issue.fields?.customfield_12606), bg),
+      dataCell(extractField(issue.fields?.assignee),          bg),
+      dataCell(extractField(issue.fields?.customfield_12800), bg),
       dataCell(statusName,                                    bg),
       dataCell(isUточн ? '⚠ Уточнение' : '—',               bg, { align: 'center', fgColor: isUточн ? C.purpleText : C.grayText }),
       dataCell(sla.daysInCurrentStatus,                       bg, { align: 'right' }),
@@ -326,7 +330,9 @@ function buildViolationsSheet(violations, today, jiraUrl) {
 // ── Sheet 2: manager summary ──────────────────────────────────────────────────
 
 const S2_COLS = [
-  { label: 'Менеджер',            w: 28 },
+  { label: 'Исполнитель',         w: 26 },
+  { label: 'Команда',             w: 22 },
+  { label: 'Менеджер',            w: 26 },
   { label: 'Нарушений',           w: 14 },
   { label: 'Макс. SLA (р.д.)',    w: 17 },
   { label: 'Среднее SLA (р.д.)',  w: 19 },
@@ -346,29 +352,47 @@ function summaryHdrCell(value) {
 }
 
 function buildSummarySheet(violations, today) {
-  // Aggregate by manager
-  const byMgr = new Map();
+  // Aggregate by assignee; track team and manager (most common per assignee)
+  const byAssignee = new Map();
   violations.forEach(({ issue, sla }) => {
-    const mgr = extractField(issue.fields?.customfield_12606);
-    if (!byMgr.has(mgr)) byMgr.set(mgr, { count: 0, maxSLA: 0, sumSLA: 0 });
-    const m = byMgr.get(mgr);
-    m.count++;
-    m.maxSLA = Math.max(m.maxSLA, sla.totalActiveDays);
-    m.sumSLA += sla.totalActiveDays;
+    const assignee = extractField(issue.fields?.assignee);
+    const team     = extractField(issue.fields?.customfield_12800);
+    const mgr      = extractField(issue.fields?.customfield_12606);
+
+    if (!byAssignee.has(assignee)) {
+      byAssignee.set(assignee, { count: 0, maxSLA: 0, sumSLA: 0, teams: {}, managers: {} });
+    }
+    const a = byAssignee.get(assignee);
+    a.count++;
+    a.maxSLA = Math.max(a.maxSLA, sla.totalActiveDays);
+    a.sumSLA += sla.totalActiveDays;
+    a.teams[team]      = (a.teams[team]      || 0) + 1;
+    a.managers[mgr]    = (a.managers[mgr]    || 0) + 1;
   });
 
-  const summary = Array.from(byMgr.entries())
-    .map(([mgr, m]) => ({ mgr, count: m.count, maxSLA: m.maxSLA, avgSLA: Math.round(m.sumSLA / m.count) }))
+  // Pick most frequent team / manager per assignee
+  const mostFrequent = (freq) =>
+    Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+  const summary = Array.from(byAssignee.entries())
+    .map(([assignee, a]) => ({
+      assignee,
+      team:   mostFrequent(a.teams),
+      mgr:    mostFrequent(a.managers),
+      count:  a.count,
+      maxSLA: a.maxSLA,
+      avgSLA: Math.round(a.sumSLA / a.count),
+    }))
     .sort((a, b) => b.count - a.count || b.maxSLA - a.maxSLA);
 
   const rows = [];
 
   // Row 0 — title
-  rows.push([titleCell('Сводка по менеджерам — нарушения SLA'), ...Array(S2_N - 1).fill(blankCell())]);
+  rows.push([titleCell('Сводка по исполнителям — нарушения SLA'), ...Array(S2_N - 1).fill(blankCell())]);
 
   // Row 1 — meta
   rows.push([
-    metaCell(`Дата: ${today}   |   Порог: ${SLA_THRESHOLD} р.д.   |   Всего нарушений: ${violations.length}   |   Менеджеров с нарушениями: ${summary.length}`),
+    metaCell(`Дата: ${today}   |   Порог: ${SLA_THRESHOLD} р.д.   |   Всего нарушений: ${violations.length}   |   Исполнителей с нарушениями: ${summary.length}`),
     ...Array(S2_N - 1).fill(blankCell()),
   ]);
 
@@ -379,15 +403,17 @@ function buildSummarySheet(violations, today) {
   rows.push(S2_COLS.map((c) => summaryHdrCell(c.label)));
 
   // Rows 4+ — data
-  summary.forEach(({ mgr, count, maxSLA, avgSLA }, idx) => {
+  summary.forEach(({ assignee, team, mgr, count, maxSLA, avgSLA }, idx) => {
     const bg = idx % 2 === 0 ? C.white : C.stripe;
-    const countColor  = count  >= 5  ? C.redText    : '111827';
-    const maxColor    = maxSLA >= 20 ? C.redText    : maxSLA >= 15 ? C.orangeText : '111827';
+    const countColor = count  >= 5  ? C.redText    : '111827';
+    const maxColor   = maxSLA >= 20 ? C.redText    : maxSLA >= 15 ? C.orangeText : '111827';
     rows.push([
-      dataCell(mgr,    bg, { bold: true }),
-      dataCell(count,  bg, { align: 'center', bold: true, fgColor: countColor }),
-      dataCell(maxSLA, bg, { align: 'center', fgColor: maxColor }),
-      dataCell(avgSLA, bg, { align: 'center' }),
+      dataCell(assignee, bg, { bold: true }),
+      dataCell(team,     bg),
+      dataCell(mgr,      bg),
+      dataCell(count,    bg, { align: 'center', bold: true, fgColor: countColor }),
+      dataCell(maxSLA,   bg, { align: 'center', fgColor: maxColor }),
+      dataCell(avgSLA,   bg, { align: 'center' }),
     ]);
   });
 
@@ -430,7 +456,7 @@ export async function exportSLAViolations(settings, onProgress) {
     const params = {
       jql:        EXPORT_JQL,
       maxResults: 100,
-      fields:     'summary,status,created,customfield_12601,customfield_12606,customfield_13999',
+      fields:     'summary,status,created,assignee,customfield_12601,customfield_12606,customfield_12800,customfield_13999',
     };
     if (nextPageToken) params.nextPageToken = nextPageToken;
 
