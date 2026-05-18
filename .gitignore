@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.local
+
+# Mac-only scripts (not for git)
+start.sh
+setup-mac.sh

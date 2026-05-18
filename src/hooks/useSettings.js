@@ -11,7 +11,17 @@ const DEFAULT_SETTINGS = {
   maxResults: 0,
   columns: [],
   columnsBugs: [],
+  columnsBugControl: [],
   views: [],
+  // Bug Control tab
+  bugControlReportersMode: 'me',        // 'me' | 'list'
+  bugControlReporters: [],              // [{ accountId, displayName }]
+  bugControlClients: [],                // string[] of client display values
+  bugControlProjects: '',               // 'SRTZ,SRTB,SR'
+  bugControlIssueType: 'Bug',
+  bugControlIncludeClosed: false,
+  bugControlJql: '',                    // manually edited JQL
+  bugControlJqlAuto: true,              // auto-generation enabled
 };
 
 function loadSettings() {
@@ -36,8 +46,9 @@ function saveSettings(settings) {
 export function useSettings() {
   const [settings, setSettings] = useState(loadSettings);
 
-  const updateSettings = useCallback((updates) => {
+  const updateSettings = useCallback((updatesOrFn) => {
     setSettings((prev) => {
+      const updates = typeof updatesOrFn === 'function' ? updatesOrFn(prev) : updatesOrFn;
       const next = { ...prev, ...updates };
       saveSettings(next);
       return next;

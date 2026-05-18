@@ -1,9 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { detectFieldType } from '../utils/fieldExtractor.js';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 
 const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
+
+// Cache helpers for picker lists (managers / reporters / clients / etc.).
+// Persists in sessionStorage so refreshing the page keeps the picker list available.
+function readCache(key) {
+  try { const v = sessionStorage.getItem(key); return v ? JSON.parse(v) : []; } catch { return []; }
+}
+function writeCache(key, value) {
+  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
 
 export default function Sidebar({
   settings, onSettingsChange, onLoadCR, onLoadBugs, onFetchFields, onFetchMyself,
@@ -12,6 +21,8 @@ export default function Sidebar({
   activeTab, onTabChange, sidebarOpen, onToggleSidebar,
   onLoadEval, evalLoading, evalManagerFilter, onEvalManagerFilterChange, evalHasData,
   columnsEval, onColumnsEvalChange,
+  columnsBugControl, onColumnsBugControlChange,
+  onLoadBugControl, bugControlLoading, bugControlHasData, bugControlSummary,
 }) {
   const { theme } = useTheme();
 
@@ -37,12 +48,12 @@ export default function Sidebar({
 
   // CR Queries tab state
   const [clientSearch, setClientSearch] = useState('');
-  const [clientOptions, setClientOptions] = useState([]);
+  const [clientOptions, setClientOptions] = useState(() => readCache('pick_clients_cr'));
   const [selectedClients, setSelectedClients] = useState([]);
   const [clientsLoading, setClientsLoading] = useState(false);
 
   const [managerSearch, setManagerSearch] = useState('');
-  const [managerOptions, setManagerOptions] = useState([]);
+  const [managerOptions, setManagerOptions] = useState(() => readCache('pick_managers'));
   const [selectedManagers, setSelectedManagers] = useState([]);
   const [managersLoading, setManagersLoading] = useState(false);
 
@@ -50,7 +61,7 @@ export default function Sidebar({
   const [evalSelectedManagers, setEvalSelectedManagers] = useState([]);
 
   const [crReporterSearch, setCrReporterSearch] = useState('');
-  const [crReporterOptions, setCrReporterOptions] = useState([]);
+  const [crReporterOptions, setCrReporterOptions] = useState(() => readCache('pick_cr_reporters'));
   const [selectedCrReporters, setSelectedCrReporters] = useState([]);
   const [crReportersLoading, setCrReportersLoading] = useState(false);
 
@@ -63,23 +74,49 @@ export default function Sidebar({
   // Bugs tab state
   const [loadingBugs, setLoadingBugs] = useState(false);
   const [engineerSearch, setEngineerSearch] = useState('');
-  const [engineerOptions, setEngineerOptions] = useState([]);
+  const [engineerOptions, setEngineerOptions] = useState(() => readCache('pick_engineers'));
   const [selectedEngineers, setSelectedEngineers] = useState([]);
   const [engineersLoading, setEngineersLoading] = useState(false);
 
   const [reporterSearch, setReporterSearch] = useState('');
-  const [reporterOptions, setReporterOptions] = useState([]);
+  const [reporterOptions, setReporterOptions] = useState(() => readCache('pick_bugs_reporters'));
   const [selectedReporters, setSelectedReporters] = useState([]);
   const [reportersLoading, setReportersLoading] = useState(false);
 
+  const [bugControlReporterOptions, setBugControlReporterOptions] = useState(() => readCache('pick_bug_control_reporters'));
+  const [bugControlReportersLoading, setBugControlReportersLoading] = useState(false);
+  const [bugControlReporterSearch, setBugControlReporterSearch] = useState('');
+
+  const [bugControlClientOptions, setBugControlClientOptions] = useState(() => readCache('pick_bug_control_clients'));
+  const [bugControlClientsLoading, setBugControlClientsLoading] = useState(false);
+  const [bugControlClientSearch, setBugControlClientSearch] = useState('');
+
   const [bugsClientSearch, setBugsClientSearch] = useState('');
-  const [bugsClientOptions, setBugsClientOptions] = useState([]);
+  const [bugsClientOptions, setBugsClientOptions] = useState(() => readCache('pick_bugs_clients'));
   const [selectedBugsClients, setSelectedBugsClients] = useState([]);
   const [bugsClientsLoading, setBugsClientsLoading] = useState(false);
 
   // Fields tab state
   const [fieldsLoading, setFieldsLoading] = useState(false);
   const [fieldSearch, setFieldSearch] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'bugControl') return;
+    if (!settings.bugControlJqlAuto) return;
+    const generated = buildBugControlJql(settings);
+    if (generated !== settings.bugControlJql) {
+      onSettingsChange({ bugControlJql: generated });
+    }
+  }, [
+    activeTab,
+    settings.bugControlJqlAuto,
+    settings.bugControlReportersMode,
+    settings.bugControlReporters,
+    settings.bugControlClients,
+    settings.bugControlProjects,
+    settings.bugControlIssueType,
+    settings.bugControlIncludeClosed,
+  ]);
 
   const credHeaders = () => ({
     'x-jira-url':   settings.jiraUrl   || '',
@@ -90,13 +127,13 @@ export default function Sidebar({
   // ── CR tab: clients ──
   const loadClients = async () => {
     setClientsLoading(true);
-    addToast('Загрузка может занять около минуты...', 'info');
+    addToast('Загрузка списка...', 'info');
     try {
       const allClients = new Set();
       let nextPageToken = null;
       let isLast = false;
       while (!isLast) {
-        const params = { jql: 'cf[12606] = currentUser()', maxResults: 100, fields: 'customfield_12601' };
+        const params = { jql: 'cf[12606] = currentUser()', maxResults: 1000, fields: 'customfield_12601' };
         if (nextPageToken) params.nextPageToken = nextPageToken;
         const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
         (res.data?.issues || []).forEach((issue) => {
@@ -110,6 +147,7 @@ export default function Sidebar({
       }
       const list = Array.from(allClients).sort((a, b) => a.localeCompare(b, 'ru'));
       setClientOptions(list);
+      writeCache('pick_clients_cr', list);
       addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить клиентов', 'error'); }
     setClientsLoading(false);
@@ -135,13 +173,13 @@ export default function Sidebar({
   // ── CR tab: reporters (авторы CR) ──
   const loadCrReporters = async () => {
     setCrReportersLoading(true);
-    addToast('Загрузка может занять около минуты...', 'info');
+    addToast('Загрузка списка...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
       let isLast = false;
       while (!isLast) {
-        const params = { jql: 'cf[12606] is not EMPTY', maxResults: 100, fields: 'reporter' };
+        const params = { jql: 'cf[12606] is not EMPTY', maxResults: 1000, fields: 'reporter' };
         if (nextPageToken) params.nextPageToken = nextPageToken;
         const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
         (res.data?.issues || []).forEach((issue) => {
@@ -155,6 +193,7 @@ export default function Sidebar({
       const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
         .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
       setCrReporterOptions(list);
+      writeCache('pick_cr_reporters', list);
       addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить авторов', 'error'); }
     setCrReportersLoading(false);
@@ -195,13 +234,13 @@ export default function Sidebar({
   // ── CR tab: managers ──
   const loadManagers = async () => {
     setManagersLoading(true);
-    addToast('Загрузка может занять около минуты...', 'info');
+    addToast('Загрузка списка...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
       let isLast = false;
       while (!isLast) {
-        const params = { jql: 'cf[12606] is not EMPTY', maxResults: 100, fields: 'customfield_12606' };
+        const params = { jql: 'cf[12606] is not EMPTY', maxResults: 1000, fields: 'customfield_12606' };
         if (nextPageToken) params.nextPageToken = nextPageToken;
         const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
         (res.data?.issues || []).forEach((issue) => {
@@ -215,6 +254,7 @@ export default function Sidebar({
       const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
         .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
       setManagerOptions(list);
+      writeCache('pick_managers', list);
       addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить менеджеров', 'error'); }
     setManagersLoading(false);
@@ -237,13 +277,13 @@ export default function Sidebar({
   // ── Bugs tab: engineers ──
   const loadEngineers = async () => {
     setEngineersLoading(true);
-    addToast('Загрузка может занять около минуты...', 'info');
+    addToast('Загрузка списка...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
       let isLast = false;
       while (!isLast) {
-        const params = { jql: `project in (${DEV_PROJECTS}) AND assignee is not EMPTY`, maxResults: 100, fields: 'assignee' };
+        const params = { jql: `project in (${DEV_PROJECTS}) AND assignee is not EMPTY`, maxResults: 1000, fields: 'assignee' };
         if (nextPageToken) params.nextPageToken = nextPageToken;
         const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
         (res.data?.issues || []).forEach((issue) => {
@@ -257,6 +297,7 @@ export default function Sidebar({
       const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
         .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
       setEngineerOptions(list);
+      writeCache('pick_engineers', list);
       addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить исполнителей', 'error'); }
     setEngineersLoading(false);
@@ -281,13 +322,13 @@ export default function Sidebar({
   // ── Bugs tab: reporters ──
   const loadReporters = async () => {
     setReportersLoading(true);
-    addToast('Загрузка может занять около минуты...', 'info');
+    addToast('Загрузка списка...', 'info');
     try {
       const seen = new Map();
       let nextPageToken = null;
       let isLast = false;
       while (!isLast) {
-        const params = { jql: `project in (${DEV_PROJECTS})`, maxResults: 100, fields: 'reporter' };
+        const params = { jql: `project in (${DEV_PROJECTS}) AND reporter is not EMPTY`, maxResults: 1000, fields: 'reporter' };
         if (nextPageToken) params.nextPageToken = nextPageToken;
         const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
         (res.data?.issues || []).forEach((issue) => {
@@ -298,24 +339,129 @@ export default function Sidebar({
         isLast = res.data?.isLast ?? true;
         if (!nextPageToken) break;
       }
-      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
+      const list = Array.from(seen.entries())
+        .map(([accountId, displayName]) => ({ accountId, displayName }))
         .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
       setReporterOptions(list);
+      writeCache('pick_bugs_reporters', list);
       addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить авторов', 'error'); }
     setReportersLoading(false);
   };
 
+  // ── Bug Control tab: reporters ──
+  const loadBugControlReporters = async () => {
+    setBugControlReportersLoading(true);
+    addToast('Загрузка списка...', 'info');
+    try {
+      const seen = new Map();
+      let nextPageToken = null;
+      let isLast = false;
+
+      const projects = (settings.bugControlProjects || '').split(',').map(s => s.trim()).filter(Boolean);
+      const projClause = projects.length ? `project in (${projects.join(', ')}) AND ` : '';
+      const issueType = (settings.bugControlIssueType || 'Bug').trim();
+      const typeClause = issueType ? `issuetype = "${issueType}" AND ` : '';
+
+      const jql = `${projClause}${typeClause}reporter is not EMPTY`;
+
+      while (!isLast) {
+        const params = { jql, maxResults: 1000, fields: 'reporter' };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
+        (res.data?.issues || []).forEach((issue) => {
+          const raw = issue.fields?.reporter;
+          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
+        });
+        nextPageToken = res.data?.nextPageToken || null;
+        isLast = res.data?.isLast ?? true;
+        if (!nextPageToken) break;
+      }
+      const list = Array.from(seen.entries())
+        .map(([accountId, displayName]) => ({ accountId, displayName }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
+      setBugControlReporterOptions(list);
+      writeCache('pick_bug_control_reporters', list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
+    } catch { addToast('Не удалось загрузить reporter\'ов', 'error'); }
+    setBugControlReportersLoading(false);
+  };
+
+  // ── Bug Control tab: clients ──
+  const loadBugControlClients = async () => {
+    setBugControlClientsLoading(true);
+    addToast('Загрузка списка...', 'info');
+    try {
+      const seen = new Set();
+      let nextPageToken = null;
+      let isLast = false;
+
+      const projects = (settings.bugControlProjects || '').split(',').map(s => s.trim()).filter(Boolean);
+      const projClause = projects.length ? `project in (${projects.join(', ')}) AND ` : '';
+      const issueType = (settings.bugControlIssueType || 'Bug').trim();
+      const typeClause = issueType ? `issuetype = "${issueType}" AND ` : '';
+
+      const jql = `${projClause}${typeClause}cf[12601] is not EMPTY`;
+
+      const extract = (v) => typeof v === 'object' && v !== null ? (v.value ?? v.name ?? null) : (v != null ? String(v) : null);
+
+      while (!isLast) {
+        const params = { jql, maxResults: 1000, fields: 'customfield_12601' };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
+        (res.data?.issues || []).forEach((issue) => {
+          const raw = issue.fields?.customfield_12601;
+          if (Array.isArray(raw)) raw.forEach((v) => { const x = extract(v); if (x) seen.add(x); });
+          else { const x = extract(raw); if (x) seen.add(x); }
+        });
+        nextPageToken = res.data?.nextPageToken || null;
+        isLast = res.data?.isLast ?? true;
+        if (!nextPageToken) break;
+      }
+      const list = Array.from(seen).sort((a, b) => a.localeCompare(b, 'ru'));
+      setBugControlClientOptions(list);
+      writeCache('pick_bug_control_clients', list);
+      addToast(`✓ Загружено ${list.length}`, 'success');
+    } catch { addToast('Не удалось загрузить клиентов', 'error'); }
+    setBugControlClientsLoading(false);
+  };
+
+  function buildBugControlJql(s) {
+    const parts = [];
+
+    const projects = (s.bugControlProjects || '').split(',').map(p => p.trim()).filter(Boolean);
+    if (projects.length) parts.push(`project in (${projects.join(', ')})`);
+
+    const issueType = (s.bugControlIssueType || '').trim();
+    if (issueType) parts.push(`issuetype = "${issueType}"`);
+
+    if (!s.bugControlIncludeClosed) parts.push('statusCategory != Done');
+
+    const clients = s.bugControlClients || [];
+    if (clients.length) {
+      // When clients are selected — filter ONLY by client (reporter condition is dropped)
+      const inList = clients.map((c) => `"${c}"`).join(', ');
+      parts.push(`cf[12601] in (${inList})`);
+    } else if (s.bugControlReportersMode === 'me' || !(s.bugControlReporters || []).length) {
+      parts.push('reporter = currentUser()');
+    } else {
+      const ids = s.bugControlReporters.map((r) => `"${r.accountId}"`).join(', ');
+      parts.push(`reporter in (${ids})`);
+    }
+
+    return parts.join(' AND ') + ' ORDER BY updated DESC';
+  }
+
   // ── Bugs tab: clients ──
   const loadBugsClients = async () => {
     setBugsClientsLoading(true);
-    addToast('Загрузка может занять около минуты...', 'info');
+    addToast('Загрузка списка...', 'info');
     try {
       const allClients = new Set();
       let nextPageToken = null;
       let isLast = false;
       while (!isLast) {
-        const params = { jql: `project in (${DEV_PROJECTS}) AND cf[12601] is not EMPTY`, maxResults: 100, fields: 'customfield_12601' };
+        const params = { jql: `project in (${DEV_PROJECTS}) AND cf[12601] is not EMPTY`, maxResults: 1000, fields: 'customfield_12601' };
         if (nextPageToken) params.nextPageToken = nextPageToken;
         const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
         (res.data?.issues || []).forEach((issue) => {
@@ -329,6 +475,7 @@ export default function Sidebar({
       }
       const list = Array.from(allClients).sort((a, b) => a.localeCompare(b, 'ru'));
       setBugsClientOptions(list);
+      writeCache('pick_bugs_clients', list);
       addToast(`✓ Загружено ${list.length}`, 'success');
     } catch { addToast('Не удалось загрузить клиентов', 'error'); }
     setBugsClientsLoading(false);
@@ -455,9 +602,17 @@ export default function Sidebar({
   };
 
   // ── Fields tab ──
-  const [fieldsContext, setFieldsContext] = useState('cr'); // 'cr' | 'bugs' | 'eval'
-  const activeColumns = fieldsContext === 'cr' ? columns : fieldsContext === 'bugs' ? columnsBugs : (columnsEval || []);
-  const activeOnColumnsChange = fieldsContext === 'cr' ? onColumnsChange : fieldsContext === 'bugs' ? onColumnsBugsChange : onColumnsEvalChange;
+  const [fieldsContext, setFieldsContext] = useState('cr'); // 'cr' | 'bugs' | 'eval' | 'bugControl'
+  const activeColumns =
+    fieldsContext === 'cr' ? columns :
+    fieldsContext === 'bugs' ? columnsBugs :
+    fieldsContext === 'eval' ? (columnsEval || []) :
+    (columnsBugControl || []);
+  const activeOnColumnsChange =
+    fieldsContext === 'cr' ? onColumnsChange :
+    fieldsContext === 'bugs' ? onColumnsBugsChange :
+    fieldsContext === 'eval' ? onColumnsEvalChange :
+    onColumnsBugControlChange;
 
   const isAdded = (id) => activeColumns.some((c) => c.id === id);
   const handleAddColumn = (field) => {
@@ -487,6 +642,7 @@ export default function Sidebar({
     { id: 'queries',    label: 'CR Запросы' },
     { id: 'bugs',       label: 'Задачи/Ошибки' },
     { id: 'eval',       label: 'Контроль оценки' },
+    { id: 'bugControl', label: 'Контроль ошибок' },
     { id: 'fields',     label: 'Поля' },
   ];
 
@@ -1103,6 +1259,176 @@ export default function Sidebar({
         </div>
       )}
 
+      {activeTab === 'bugControl' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '14px', flex: 1, minHeight: 0, borderBottom: `1px solid ${theme.borderLight}`, overflowY: 'auto' }}>
+            <div style={{ fontSize: '12px', color: theme.textSecondary, marginBottom: '10px', lineHeight: '1.5' }}>
+              Отчёт по изменениям fix version в заведённых вами ошибках.
+              Подсвечивает задачи, у которых версию исправления сдвинули на более позднюю.
+            </div>
+
+            {/* Reporter mode toggle */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Reporter</label>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  onClick={() => onSettingsChange({ bugControlReportersMode: 'me' })}
+                  style={{
+                    flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 600,
+                    border: `1px solid ${settings.bugControlReportersMode === 'me' ? theme.accent : theme.border}`,
+                    borderRadius: '4px', cursor: 'pointer',
+                    background: settings.bugControlReportersMode === 'me' ? (theme.id === 'csi' ? '#e8f0f8' : '#1a2e40') : theme.bgInput,
+                    color: settings.bugControlReportersMode === 'me' ? theme.accent : theme.textSecondary,
+                  }}
+                >★ Только мои</button>
+                <button
+                  onClick={() => onSettingsChange({ bugControlReportersMode: 'list' })}
+                  style={{
+                    flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 600,
+                    border: `1px solid ${settings.bugControlReportersMode === 'list' ? theme.accent : theme.border}`,
+                    borderRadius: '4px', cursor: 'pointer',
+                    background: settings.bugControlReportersMode === 'list' ? (theme.id === 'csi' ? '#e8f0f8' : '#1a2e40') : theme.bgInput,
+                    color: settings.bugControlReportersMode === 'list' ? theme.accent : theme.textSecondary,
+                  }}
+                >👥 Выбрать reporter'ов</button>
+              </div>
+            </div>
+
+            {/* Reporters multi-select — visible only in 'list' mode */}
+            {settings.bugControlReportersMode === 'list' && renderMultiSelect({
+              title: 'Reporter\'ы',
+              subtitle: 'Мульти-выбор для директора по проектам',
+              options: bugControlReporterOptions,
+              selected: (settings.bugControlReporters || []).map((r) => r.accountId),
+              onLoad: loadBugControlReporters,
+              loading: bugControlReportersLoading,
+              searchVal: bugControlReporterSearch,
+              onSearch: setBugControlReporterSearch,
+              onToggle: (id) => {
+                onSettingsChange((s) => {
+                  const current = s.bugControlReporters || [];
+                  const exists = current.find((r) => r.accountId === id);
+                  const next = exists
+                    ? current.filter((r) => r.accountId !== id)
+                    : [...current, bugControlReporterOptions.find((r) => r.accountId === id)].filter(Boolean);
+                  return { bugControlReporters: next };
+                });
+              },
+              onApply: () => {},
+              searchPlaceholder: 'Поиск reporter\'а...',
+            })}
+
+            {/* Clients multi-select */}
+            {renderMultiSelect({
+              title: 'Клиенты',
+              subtitle: 'Опционально — фильтр по клиенту (пусто = все)',
+              options: bugControlClientOptions,
+              selected: settings.bugControlClients || [],
+              onLoad: loadBugControlClients,
+              loading: bugControlClientsLoading,
+              searchVal: bugControlClientSearch,
+              onSearch: setBugControlClientSearch,
+              onToggle: (val) => {
+                onSettingsChange((s) => {
+                  const current = s.bugControlClients || [];
+                  const next = current.includes(val) ? current.filter((v) => v !== val) : [...current, val];
+                  return { bugControlClients: next };
+                });
+              },
+              onApply: () => {},
+              searchPlaceholder: 'Поиск клиента...',
+            })}
+
+            {/* Projects */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Проекты (через запятую)</label>
+              <input
+                type="text"
+                value={settings.bugControlProjects || ''}
+                onChange={(e) => onSettingsChange({ bugControlProjects: e.target.value })}
+                placeholder="SRTZ, SRTB, SR"
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                onBlur={(e) => (e.target.style.borderColor = theme.border)}
+              />
+            </div>
+
+            {/* Issue type */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Тип задачи</label>
+              <input
+                type="text"
+                value={settings.bugControlIssueType || ''}
+                onChange={(e) => onSettingsChange({ bugControlIssueType: e.target.value })}
+                placeholder="Bug"
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                onBlur={(e) => (e.target.style.borderColor = theme.border)}
+              />
+            </div>
+
+            {/* Include closed checkbox */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: theme.textPrimary, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={!!settings.bugControlIncludeClosed}
+                  onChange={(e) => onSettingsChange({ bugControlIncludeClosed: e.target.checked })}
+                  style={{ accentColor: theme.accent, cursor: 'pointer' }}
+                />
+                Включать закрытые задачи
+              </label>
+            </div>
+
+            {/* JQL textarea */}
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={labelStyle}>JQL {settings.bugControlJqlAuto ? '(авто)' : '(ручное редактирование)'}</label>
+                {!settings.bugControlJqlAuto && (
+                  <button
+                    onClick={() => onSettingsChange({ bugControlJqlAuto: true, bugControlJql: buildBugControlJql(settings) })}
+                    style={{ fontSize: '10px', padding: '2px 8px', border: `1px solid ${theme.border}`, borderRadius: '4px', background: theme.bgInput, color: theme.textSecondary, cursor: 'pointer' }}
+                    title="Сбросить к авто-генерации">
+                    ↻ Сбросить к авто
+                  </button>
+                )}
+              </div>
+              <textarea
+                value={settings.bugControlJql || ''}
+                onChange={(e) => onSettingsChange({ bugControlJql: e.target.value, bugControlJqlAuto: false })}
+                rows={4}
+                style={{ ...inputStyle, width: '100%', fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', resize: 'vertical' }}
+                onFocus={(e) => (e.target.style.borderColor = theme.accent)}
+                onBlur={(e) => (e.target.style.borderColor = theme.border)}
+              />
+            </div>
+
+            <button
+              onClick={() => onLoadBugControl(settings.bugControlJql)}
+              disabled={bugControlLoading}
+              style={{
+                width: '100%', padding: '8px 12px', border: 'none', borderRadius: '6px',
+                fontSize: '13px', fontWeight: 600, cursor: bugControlLoading ? 'not-allowed' : 'pointer',
+                background: bugControlLoading ? theme.border : theme.accent,
+                color: bugControlLoading ? theme.textSecondary : theme.accentText,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              }}
+            >
+              <span style={{ display: 'inline-block', animation: bugControlLoading ? 'jira-spin 0.8s linear infinite' : 'none' }}>↻</span>
+              {bugControlLoading ? 'Загружаем...' : 'Загрузить задачи'}
+            </button>
+
+            {bugControlHasData && (
+              <div style={{ marginTop: '10px', padding: '8px 10px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px', fontSize: '11px', color: theme.textSecondary }}>
+                Загружено <b style={{ color: theme.textPrimary }}>{bugControlSummary?.total ?? 0}</b> задач:
+                {' '}⚠ <b style={{ color: '#ef4444' }}>{bugControlSummary?.red ?? 0}</b> со сдвигом,
+                {' '}↻ <b style={{ color: '#f59e0b' }}>{bugControlSummary?.yellow ?? 0}</b> с изменениями
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'fields' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
           {/* Context switcher */}
@@ -1110,7 +1436,37 @@ export default function Sidebar({
             <button style={switchBtn('cr', fieldsContext)} onClick={() => setFieldsContext('cr')}>CR Запросы</button>
             <button style={switchBtn('bugs', fieldsContext)} onClick={() => setFieldsContext('bugs')}>Задачи/Ошибки</button>
             <button style={switchBtn('eval', fieldsContext)} onClick={() => setFieldsContext('eval')}>Контроль оценки</button>
+            <button style={switchBtn('bugControl', fieldsContext)} onClick={() => setFieldsContext('bugControl')}>Контроль ошибок</button>
           </div>
+
+          {fieldsContext === 'bugControl' && (
+            <div style={{ marginBottom: '10px', padding: '8px 10px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px' }}>
+              <div style={{ fontSize: '11px', color: theme.textSecondary, marginBottom: '6px', lineHeight: 1.4 }}>
+                Колонки для «Контроля ошибок». Если список пустой — используется встроенный набор по умолчанию.
+                Можно менять порядок, удалять, добавлять новые поля Jira.
+              </div>
+              <button
+                onClick={() => onColumnsBugControlChange([
+                  { id: 'key',                label: 'Ключ',               defaultWidth: 110 },
+                  { id: 'client',             label: 'Клиент',             defaultWidth: 180 },
+                  { id: 'status',             label: 'Статус',             defaultWidth: 130 },
+                  { id: 'summary',            label: 'Описание',           defaultWidth: 320 },
+                  { id: 'currentFixVersion',  label: 'Фактическая версия', defaultWidth: 140 },
+                  { id: 'flag',               label: 'Флаг',               defaultWidth: 130 },
+                  { id: 'changeCount',        label: 'Изменений',          defaultWidth: 90  },
+                  { id: 'lastChange',         label: 'Последнее изменение',defaultWidth: 200 },
+                  { id: 'history',            label: 'История fix version',defaultWidth: 360 },
+                  { id: 'reporter',           label: 'Reporter',           defaultWidth: 140 },
+                ])}
+                style={{ width: '100%', padding: '6px 10px', fontSize: '12px', fontWeight: 600,
+                  border: `1px solid ${theme.border}`, borderRadius: '5px',
+                  background: theme.bgPage, color: theme.textSecondary, cursor: 'pointer' }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}>
+                ↻ Восстановить встроенные колонки
+              </button>
+            </div>
+          )}
           <div style={sec}>
             <button style={{ ...btnPrimary, background: fieldsLoading ? theme.border : theme.accent, color: fieldsLoading ? theme.textSecondary : theme.accentText }}
               onClick={handleFetchFields} disabled={fieldsLoading}>

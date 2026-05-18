@@ -2,6 +2,8 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useSettings } from './hooks/useSettings.js';
 import { useJira } from './hooks/useJira.js';
 import { useEvaluation } from './hooks/useEvaluation.js';
+import { useBugControl } from './hooks/useBugControl.js';
+import BugControlTab from './components/BugControlTab.jsx';
 import { downloadCSV } from './utils/csvExport.js';
 import { useTheme } from './contexts/ThemeContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -77,6 +79,7 @@ export default function App() {
   const crJira = useJira('jira_session_cr');
   const bugsJira = useJira('jira_session_bugs');
   const evaluation = useEvaluation();
+  const bugControl = useBugControl();
 
   const { userInfo, jiraFields, fetchMyself, fetchFields } = crJira;
 
@@ -105,6 +108,7 @@ export default function App() {
   const columns = settings.columns || [];
   const columnsBugs = settings.columnsBugs || [];
   const columnsEval = settings.columnsEval || [];
+  const columnsBugControl = settings.columnsBugControl || [];
 
   const handleColumnsChange = useCallback((newColumns) => {
     updateSettings({ columns: newColumns });
@@ -118,6 +122,10 @@ export default function App() {
 
   const handleColumnsEvalChange = useCallback((newColumns) => {
     updateSettings({ columnsEval: newColumns });
+  }, [updateSettings]);
+
+  const handleColumnsBugControlChange = useCallback((newColumns) => {
+    updateSettings({ columnsBugControl: newColumns });
   }, [updateSettings]);
 
   const credentials = { jiraUrl: settings.jiraUrl, jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken };
@@ -173,6 +181,47 @@ export default function App() {
   }, []);
 
   const [evalManagerFilter, setEvalManagerFilter] = useState('currentUser()');
+  const [bugControlExporting, setBugControlExporting] = useState(false);
+  const [bugControlExportLabel, setBugControlExportLabel] = useState('Экспорт Excel');
+
+  const handleLoadBugControl = useCallback(async (jql) => {
+    await bugControl.load(settings, jql);
+  }, [bugControl.load, settings.jiraUrl, settings.jiraEmail, settings.jiraToken,
+      settings.bugControlReportersMode, settings.bugControlReporters,
+      settings.bugControlProjects, settings.bugControlIssueType, settings.bugControlIncludeClosed, settings.bugControlJql]);
+
+  const bugControlSummary = useMemo(() => {
+    let red = 0, yellow = 0;
+    bugControl.issues.forEach((issue) => {
+      const flag = bugControl.historyMap[issue.key]?.flag;
+      if (flag === 'red') red++;
+      else if (flag === 'yellow') yellow++;
+    });
+    return { red, yellow, total: bugControl.issues.length };
+  }, [bugControl.issues, bugControl.historyMap]);
+
+  const handleExportBugControl = useCallback(async () => {
+    if (bugControlExporting) return;
+    setBugControlExporting(true);
+    setBugControlExportLabel('Формирование файла...');
+    try {
+      const mod = await import('./utils/bugControlExport.js');
+      const result = await mod.exportBugControl({
+        issues: bugControl.issues,
+        historyMap: bugControl.historyMap,
+        versionsMeta: bugControl.versionsMeta,
+        settings,
+      });
+      setBugControlExportLabel(`Готово: ${result.count} задач`);
+      setTimeout(() => setBugControlExportLabel('Экспорт Excel'), 4000);
+    } catch (err) {
+      setBugControlExportLabel('Ошибка');
+      console.error('[BugControl export]', err);
+      setTimeout(() => setBugControlExportLabel('Экспорт Excel'), 4000);
+    } finally {
+      setBugControlExporting(false);
+    }
+  }, [bugControlExporting, bugControl, settings]);
 
   const handleLoadEval = useCallback((managersOverride) => {
     const managers = (typeof managersOverride === 'string' || Array.isArray(managersOverride))
@@ -261,6 +310,12 @@ export default function App() {
         evalHasData={evaluation.issues.length > 0}
         columnsEval={columnsEval}
         onColumnsEvalChange={handleColumnsEvalChange}
+        columnsBugControl={columnsBugControl}
+        onColumnsBugControlChange={handleColumnsBugControlChange}
+        onLoadBugControl={handleLoadBugControl}
+        bugControlLoading={bugControl.loadingIssues || bugControl.loadingHistory}
+        bugControlHasData={bugControl.issues.length > 0}
+        bugControlSummary={bugControlSummary}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -363,7 +418,22 @@ export default function App() {
 
         {/* Content area */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          {isEvalTab ? (
+          {activeTab === 'bugControl' ? (
+            <BugControlTab
+              issues={bugControl.issues}
+              historyMap={bugControl.historyMap}
+              versionsMeta={bugControl.versionsMeta}
+              loadingIssues={bugControl.loadingIssues}
+              loadingHistory={bugControl.loadingHistory}
+              error={bugControl.error}
+              onLoad={() => handleLoadBugControl(settings.bugControlJql)}
+              onExport={handleExportBugControl}
+              exporting={bugControlExporting}
+              exportLabel={bugControlExportLabel}
+              settings={settings}
+              columnsBugControl={columnsBugControl}
+            />
+          ) : isEvalTab ? (
             <EvaluationTab
               issues={evaluation.issues}
               slaMap={evaluation.slaMap}
