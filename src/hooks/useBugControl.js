@@ -63,13 +63,33 @@ export function calcBugFlags(history, versionsMeta) {
     return { flag: 'none', changeCount: 0, hasShiftRight: false };
   }
 
+  // Track the all-time-max version ever held across the issue's history.
+  // A "shift right" happens when a new assigned version is later than any version
+  // that was ever held before — even if the field was cleared in between.
   let hasShiftRight = false;
+  let allTimeMax = null;
+
   for (const entry of history) {
-    const maxFrom = pickLatest(entry.fromList, versionsMeta);
-    const maxTo   = pickLatest(entry.toList,   versionsMeta);
-    if (maxFrom && maxTo && compareVersions(maxFrom, maxTo, versionsMeta) < 0) {
+    // Include the BEFORE-state (fromList) in the all-time-max tracking,
+    // since those versions were held until this change.
+    for (const v of entry.fromList) {
+      if (!allTimeMax || compareVersions(allTimeMax, v, versionsMeta) < 0) {
+        allTimeMax = v;
+      }
+    }
+
+    const maxTo = pickLatest(entry.toList, versionsMeta);
+
+    // Shift right: new assigned max strictly later than the historical max.
+    // First-ever assignment (allTimeMax === null) is NOT a shift — establishes baseline.
+    if (maxTo && allTimeMax && compareVersions(allTimeMax, maxTo, versionsMeta) < 0) {
       hasShiftRight = true;
       break;
+    }
+
+    // Update all-time-max with the new state.
+    if (maxTo && (!allTimeMax || compareVersions(allTimeMax, maxTo, versionsMeta) < 0)) {
+      allTimeMax = maxTo;
     }
   }
 

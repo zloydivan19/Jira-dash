@@ -207,15 +207,30 @@ function HistoryCell({ history, versionsMeta, theme }) {
     return <span style={{ fontSize: '11px', color: theme.textMuted }}>—</span>;
   }
 
+  // Track all-time-max version across history so we can color individual entries
+  // red when the new assignment exceeds the highest previously-held version
+  // (even if the field was cleared in between).
+  let allTimeMax = null;
+
   return (
     <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
       {history.map((entry, idx) => {
         const fromStr = entry.fromList.length ? entry.fromList.join(', ') : '(не было)';
         const toStr   = entry.toList.length   ? entry.toList.join(', ')   : '(очищено)';
-        const maxFrom = pickLatest(entry.fromList);
-        const maxTo   = pickLatest(entry.toList);
-        const isShiftRight = maxFrom && maxTo && compare(maxFrom, maxTo) < 0;
+
+        // Include fromList in all-time-max BEFORE checking this entry
+        for (const v of entry.fromList) {
+          if (!allTimeMax || compare(allTimeMax, v) < 0) allTimeMax = v;
+        }
+
+        const maxTo = pickLatest(entry.toList);
+        const isShiftRight = maxTo && allTimeMax && compare(allTimeMax, maxTo) < 0;
         const arrowColor = isShiftRight ? '#ef4444' : theme.textMuted;
+
+        if (maxTo && (!allTimeMax || compare(allTimeMax, maxTo) < 0)) {
+          allTimeMax = maxTo;
+        }
+
         const ts = new Date(entry.date);
         const dateStr = ts.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const timeStr = ts.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
