@@ -643,6 +643,7 @@ export default function Sidebar({
     { id: 'bugs',       label: 'Задачи/Ошибки' },
     { id: 'eval',       label: 'Контроль оценки' },
     { id: 'bugControl', label: 'Контроль ошибок' },
+    { id: 'ttm',        label: 'TTM анализ' },
     { id: 'fields',     label: 'Поля' },
   ];
 
