@@ -118,17 +118,20 @@ function extractTeam(raw) {
 }
 
 const S1_COLS = [
-  { label: 'Ключ',          w: 13 },
-  { label: 'Клиент',        w: 24 },
-  { label: 'Описание',      w: 55 },
-  { label: 'Создано',       w: 14 },
-  { label: 'Релиз',         w: 18 },
-  { label: 'Дата релиза',   w: 14 },
-  { label: 'TTM (дн.)',     w: 12 },
-  { label: 'Команда',       w: 16 },
-  { label: 'Статус',        w: 18 },
-  { label: 'Исполнитель',   w: 22 },
-  { label: 'Ссылка',        w: 32 },
+  { label: 'Ключ',                w: 13 },
+  { label: 'Клиент',              w: 24 },
+  { label: 'Описание',            w: 55 },
+  { label: 'Создано',             w: 14 },
+  { label: 'Релиз',               w: 18 },
+  { label: 'Дата релиза',         w: 14 },
+  { label: 'TTM (дн.)',           w: 12 },
+  { label: 'TTM Оценка',          w: 13 },
+  { label: 'TTM Согласование',    w: 17 },
+  { label: 'TTM Разработка',      w: 15 },
+  { label: 'Команда',             w: 16 },
+  { label: 'Статус',              w: 18 },
+  { label: 'Исполнитель',         w: 22 },
+  { label: 'Ссылка',              w: 32 },
 ];
 const S1_N = S1_COLS.length;
 
@@ -167,6 +170,7 @@ function buildIssuesSheet({ issues, stats, today, jiraUrl, periodStr, filterMode
       : '111827';
     const url = `${jiraBase}/browse/${issue.key}`;
 
+    const ph = issue._ttm?.phases || {};
     rows.push([
       { ...dataCell(issue.key, bg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: url } },
       dataCell(extractClient(issue.fields?.customfield_12601), bg),
@@ -175,6 +179,9 @@ function buildIssuesSheet({ issues, stats, today, jiraUrl, periodStr, filterMode
       dataCell(t.releaseName, bg, { align: 'center' }),
       dataCell(fmtDate(t.releaseDate), bg, { align: 'center' }),
       dataCell(t.ttmDays, bg, { align: 'center', bold: true, fgColor: fg }),
+      dataCell(ph.phaseEstimation  != null ? ph.phaseEstimation  : '—', bg, { align: 'center' }),
+      dataCell(ph.phaseApproval    != null ? ph.phaseApproval    : '—', bg, { align: 'center' }),
+      dataCell(ph.phaseDevelopment != null ? ph.phaseDevelopment : '—', bg, { align: 'center' }),
       dataCell(extractTeam(issue.fields?.customfield_12800), bg),
       dataCell(issue.fields?.status?.name || '—', bg),
       dataCell(issue.fields?.assignee?.displayName || '—', bg),
