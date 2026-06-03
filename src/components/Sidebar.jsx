@@ -452,6 +452,32 @@ export default function Sidebar({
     return parts.join(' AND ') + ' ORDER BY updated DESC';
   }
 
+  function buildTtmJql(s) {
+    const parts = [];
+
+    const projects = (s.ttmProjects || '').split(',').map((p) => p.trim()).filter(Boolean);
+    if (projects.length) parts.push(`project in (${projects.join(', ')})`);
+
+    const issueType = (s.ttmIssueType || '').trim();
+    if (issueType) parts.push(`issuetype = "${issueType}"`);
+
+    parts.push('fixVersion is not EMPTY');
+
+    const clients = s.ttmClients || [];
+    if (clients.length) {
+      const inList = clients.map((c) => `"${c}"`).join(', ');
+      parts.push(`cf[12601] in (${inList})`);
+    }
+
+    // В режиме "по дате создания" сужаем выборку в JQL для оптимизации.
+    // Для "по дате релиза" фильтр применяется в useTTM.load на клиенте.
+    if (s.ttmFilterMode === 'created' && s.ttmPeriodFrom && s.ttmPeriodTo) {
+      parts.push(`created >= "${s.ttmPeriodFrom}" AND created <= "${s.ttmPeriodTo}"`);
+    }
+
+    return parts.join(' AND ') + ' ORDER BY updated DESC';
+  }
+
   // ── Bugs tab: clients ──
   const loadBugsClients = async () => {
     setBugsClientsLoading(true);
