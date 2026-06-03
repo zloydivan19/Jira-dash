@@ -478,6 +478,8 @@ export default function App() {
               stats={ttm.stats}
               teamStats={ttm.teamStats}
               loading={ttm.loading}
+              loadingChangelog={ttm.loadingChangelog}
+              changelogProgress={ttm.changelogProgress}
               error={ttm.error}
               onLoad={() => handleLoadTtm(settings.ttmJql)}
               onExport={handleExportTtm}

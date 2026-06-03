@@ -324,7 +324,7 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
   );
 }
 
-export default function TTMTab({ issues, stats, teamStats, loading, error, onLoad, onExport, exporting, exportLabel, settings }) {
+export default function TTMTab({ issues, stats, teamStats, loading, loadingChangelog, changelogProgress, error, onLoad, onExport, exporting, exportLabel, settings }) {
   const { theme } = useTheme();
 
   const [highlight,  setHighlight]  = useState(true);
@@ -437,6 +437,12 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
               <> за <b style={{ color: theme.textPrimary }}>{settings.ttmPeriodFrom}</b> — <b style={{ color: theme.textPrimary }}>{settings.ttmPeriodTo}</b></>
             )}
             {' · '}режим: <b style={{ color: theme.textPrimary }}>{settings.ttmFilterMode === 'created' ? 'по созданию' : 'по релизу'}</b>
+          </span>
+        )}
+
+        {loadingChangelog && changelogProgress?.total > 0 && (
+          <span style={{ fontSize: '12px', color: theme.textSecondary }}>
+            ⏳ История: <b style={{ color: theme.textPrimary }}>{changelogProgress.done}</b> / {changelogProgress.total}
           </span>
         )}
 
