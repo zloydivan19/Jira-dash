@@ -143,7 +143,7 @@ function TeamSummary({ teamStats, globalAvg, theme }) {
   );
 }
 
-function IssuesTable({ issues, stats, theme, jiraBase, highlight }) {
+function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort }) {
   const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
 
   const rowBgColor = (issue) => {
@@ -162,12 +162,16 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight }) {
       <thead>
         <tr style={{ background: theme.bgThead || theme.bgCard }}>
           {FIXED_COLUMNS.map((col) => (
-            <th key={col.id} style={{
+            <th key={col.id} onClick={() => onSort(col.id)} style={{
               padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
-              color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em',
-              borderBottom: `2px solid ${theme.border}`, whiteSpace: 'nowrap',
+              color: sortCol === col.id ? theme.accent : theme.textSecondary,
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+              borderBottom: `2px solid ${theme.border}`, whiteSpace: 'nowrap', cursor: 'pointer',
             }}>
               {col.label}
+              {sortCol === col.id
+                ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '▲' : '▼'}</span>
+                : <span style={{ fontSize: '9px', marginLeft: '3px', color: theme.textMuted }}>⇅</span>}
             </th>
           ))}
         </tr>
@@ -330,7 +334,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
                   return sortDir === 'asc' ? cmp : -cmp;
                 });
 
-                return <IssuesTable issues={sorted} stats={stats} theme={theme} jiraBase={jiraBase} highlight={highlight} />;
+                return <IssuesTable issues={sorted} stats={stats} theme={theme} jiraBase={jiraBase} highlight={highlight} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />;
               })()}
             </div>
           );
