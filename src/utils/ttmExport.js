@@ -117,6 +117,20 @@ function extractTeam(raw) {
   return String(raw);
 }
 
+function extractDevType(raw) {
+  if (!raw) return '—';
+  if (Array.isArray(raw)) return raw.map((v) => (typeof v === 'object' ? v.value : v)).filter(Boolean).join(', ') || '—';
+  if (typeof raw === 'object') return raw.value || '—';
+  return String(raw);
+}
+
+function fmtPair(cal, work) {
+  if (cal == null && work == null) return '—';
+  const c = cal != null ? `${cal} кд` : '? кд';
+  const w = work != null ? `${work} рд` : '? рд';
+  return `${c} / ${w}`;
+}
+
 const S1_COLS = [
   { label: 'Ключ',                w: 13 },
   { label: 'Клиент',              w: 24 },
