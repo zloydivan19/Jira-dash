@@ -482,6 +482,10 @@ export default function Sidebar({
 
     parts.push('fixVersion is not EMPTY');
 
+    // Исключаем "отложенные" задачи — они не были фактически реализованы.
+    // Имена статусов взяты из паттерна EvaluationTab (PAUSE_STATUSES + варианты "отменено").
+    parts.push('status not in ("Отложено", "Pause", "На паузе", "Отменено", "Cancelled")');
+
     const clients = s.ttmClients || [];
     if (clients.length) {
       const inList = clients.map((c) => `"${c}"`).join(', ');
