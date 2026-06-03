@@ -784,33 +784,33 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
               {/* Stat cards */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
                 <StatCard title="Всего задач" value={effectiveStats.count} theme={theme} />
-                <StatCard title="Средний TTM" value={`${effectiveStats.avg} дн.`} theme={theme} />
-                <StatCard title="Медианный TTM" value={`${effectiveStats.median} дн.`} theme={theme} />
+                <StatCard title="Средний TTM" value={fmtDaysPair(effectiveStats.avg?.cal, effectiveStats.avg?.work)} theme={theme} />
+                <StatCard title="Медианный TTM" value={fmtDaysPair(effectiveStats.median?.cal, effectiveStats.median?.work)} theme={theme} />
                 <StatCard
                   title="Avg Оценка"
-                  value={effectiveStats.phaseEstimationAvg != null ? `${effectiveStats.phaseEstimationAvg} дн.` : '—'}
-                  sub={effectiveStats.phaseEstimationAvg != null ? `посчитано для ${effectiveStats.phaseEstimationCount} из ${effectiveStats.count}` : null}
+                  value={fmtDaysPair(effectiveStats.phaseEstimationAvg?.cal, effectiveStats.phaseEstimationAvg?.work)}
+                  sub={effectiveStats.phaseEstimationAvg?.cal != null ? `посчитано для ${effectiveStats.phaseEstimationCount} из ${effectiveStats.count}` : null}
                   color="#3b82f6"
                   theme={theme}
                 />
                 <StatCard
                   title="Avg Согласование"
-                  value={effectiveStats.phaseApprovalAvg != null ? `${effectiveStats.phaseApprovalAvg} дн.` : '—'}
-                  sub={effectiveStats.phaseApprovalAvg != null ? `посчитано для ${effectiveStats.phaseApprovalCount} из ${effectiveStats.count}` : null}
+                  value={fmtDaysPair(effectiveStats.phaseApprovalAvg?.cal, effectiveStats.phaseApprovalAvg?.work)}
+                  sub={effectiveStats.phaseApprovalAvg?.cal != null ? `посчитано для ${effectiveStats.phaseApprovalCount} из ${effectiveStats.count}` : null}
                   color="#f59e0b"
                   theme={theme}
                 />
                 <StatCard
                   title="Avg Разработка"
-                  value={effectiveStats.phaseDevelopmentAvg != null ? `${effectiveStats.phaseDevelopmentAvg} дн.` : '—'}
-                  sub={effectiveStats.phaseDevelopmentAvg != null ? `посчитано для ${effectiveStats.phaseDevelopmentCount} из ${effectiveStats.count}` : null}
+                  value={fmtDaysPair(effectiveStats.phaseDevelopmentAvg?.cal, effectiveStats.phaseDevelopmentAvg?.work)}
+                  sub={effectiveStats.phaseDevelopmentAvg?.cal != null ? `посчитано для ${effectiveStats.phaseDevelopmentCount} из ${effectiveStats.count}` : null}
                   color="#22c55e"
                   theme={theme}
                 />
                 {effectiveStats.fastest && (
                   <StatCard
                     title="Самая быстрая"
-                    value={<span><IssueLink issueKey={effectiveStats.fastest.key} jiraBase={jiraBase} theme={theme} /> · {effectiveStats.fastest._ttm.ttmDays} дн.</span>}
+                    value={<span><IssueLink issueKey={effectiveStats.fastest.key} jiraBase={jiraBase} theme={theme} /> · {fmtDaysPair(effectiveStats.fastest._ttm.ttmDays, effectiveStats.fastest._ttm.ttmWorkDays)}</span>}
                     sub={teamOf(effectiveStats.fastest) || '—'}
                     theme={theme}
                   />
@@ -818,7 +818,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                 {effectiveStats.slowest && (
                   <StatCard
                     title="Самая долгая"
-                    value={<span><IssueLink issueKey={effectiveStats.slowest.key} jiraBase={jiraBase} theme={theme} /> · {effectiveStats.slowest._ttm.ttmDays} дн.</span>}
+                    value={<span><IssueLink issueKey={effectiveStats.slowest.key} jiraBase={jiraBase} theme={theme} /> · {fmtDaysPair(effectiveStats.slowest._ttm.ttmDays, effectiveStats.slowest._ttm.ttmWorkDays)}</span>}
                     sub={teamOf(effectiveStats.slowest) || '—'}
                     color="#ef4444"
                     theme={theme}
@@ -845,7 +845,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: theme.textSecondary }}>
                   <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)}
                     style={{ accentColor: theme.accent, cursor: 'pointer' }} />
-                  Подсветить отклонения от среднего (avg = {effectiveStats.avg} дн.)
+                  Подсветить отклонения от среднего (avg = {fmtDaysPair(effectiveStats.avg?.cal, effectiveStats.avg?.work)})
                 </label>
               </div>
 
