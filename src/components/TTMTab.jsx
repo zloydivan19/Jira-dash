@@ -541,6 +541,27 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                 <StatCard title="Всего задач" value={effectiveStats.count} theme={theme} />
                 <StatCard title="Средний TTM" value={`${effectiveStats.avg} дн.`} theme={theme} />
                 <StatCard title="Медианный TTM" value={`${effectiveStats.median} дн.`} theme={theme} />
+                <StatCard
+                  title="Avg Оценка"
+                  value={effectiveStats.phaseEstimationAvg != null ? `${effectiveStats.phaseEstimationAvg} дн.` : '—'}
+                  sub={effectiveStats.phaseEstimationAvg != null ? `посчитано для ${effectiveStats.phaseEstimationCount} из ${effectiveStats.count}` : null}
+                  color="#3b82f6"
+                  theme={theme}
+                />
+                <StatCard
+                  title="Avg Согласование"
+                  value={effectiveStats.phaseApprovalAvg != null ? `${effectiveStats.phaseApprovalAvg} дн.` : '—'}
+                  sub={effectiveStats.phaseApprovalAvg != null ? `посчитано для ${effectiveStats.phaseApprovalCount} из ${effectiveStats.count}` : null}
+                  color="#f59e0b"
+                  theme={theme}
+                />
+                <StatCard
+                  title="Avg Разработка"
+                  value={effectiveStats.phaseDevelopmentAvg != null ? `${effectiveStats.phaseDevelopmentAvg} дн.` : '—'}
+                  sub={effectiveStats.phaseDevelopmentAvg != null ? `посчитано для ${effectiveStats.phaseDevelopmentCount} из ${effectiveStats.count}` : null}
+                  color="#22c55e"
+                  theme={theme}
+                />
                 {effectiveStats.fastest && (
                   <StatCard
                     title="Самая быстрая"
