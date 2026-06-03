@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { computeStats, computeTeamStats } from '../hooks/useTTM.js';
+import { getPhaseMarker, formatDuration } from '../utils/changelog.js';
 
 const FIXED_COLUMNS = [
   { id: 'expand',      label: '',              defaultWidth: 36  },
@@ -266,6 +267,128 @@ function TtmFilterDropdown({ colId, allIssues, selected, onChange, onClose, anch
   );
 }
 
+function ExpandedPanel({ issue, history, onRetry, theme }) {
+  const phases = issue._ttm?.phases;
+  const ttmDays = issue._ttm?.ttmDays || 0;
+
+  return (
+    <div style={{
+      padding: '16px 20px',
+      background: theme.id === 'csi' ? '#f9fafb' : '#13151c',
+      border: `1px solid ${theme.borderLight}`,
+      borderRadius: '6px',
+      margin: '4px 8px 8px',
+    }}>
+      <PhaseBar phases={phases} ttmDays={ttmDays} theme={theme} />
+      <div style={{ height: '12px' }} />
+      <StatusHistory history={history} onRetry={onRetry} theme={theme} />
+    </div>
+  );
+}
+
+function PhaseBar({ phases, ttmDays, theme }) {
+  if (!phases) {
+    return <div style={{ fontSize: '12px', color: theme.textMuted }}>Фазы ещё загружаются...</div>;
+  }
+
+  const e = phases.phaseEstimation;
+  const a = phases.phaseApproval;
+  const d = phases.phaseDevelopment;
+  const total = (e || 0) + (a || 0) + (d || 0);
+
+  const w = (val) => total > 0 && val != null ? `${(val / total) * 100}%` : '0%';
+  const pct = (val) => ttmDays > 0 && val != null ? ` (${Math.round((val / ttmDays) * 100)}% от TTM)` : '';
+
+  return (
+    <div>
+      <div style={{ fontSize: '13px', fontWeight: 700, color: theme.textPrimary, marginBottom: '8px' }}>
+        Разбивка TTM по фазам
+        {phases.skippedAM && (
+          <span title="Задача не была в Awaiting Moderation, фаза 1 от даты создания"
+            style={{ marginLeft: '8px', fontSize: '11px', color: '#f59e0b' }}>
+            ⚠ AM пропущена
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', height: '22px', borderRadius: '4px', overflow: 'hidden', border: `1px solid ${theme.borderLight}` }}>
+        <div style={{ width: w(e), background: e != null ? '#3b82f6' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+          title={e != null ? `Оценка: ${e} дн.` : 'Фаза не определена'}>
+          {e != null && total > 0 && (e / total) > 0.08 ? `${e}д` : ''}
+        </div>
+        <div style={{ width: w(a), background: a != null ? '#f59e0b' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+          title={a != null ? `Согласование: ${a} дн.` : 'Фаза не определена'}>
+          {a != null && total > 0 && (a / total) > 0.08 ? `${a}д` : ''}
+        </div>
+        <div style={{ width: w(d), background: d != null ? '#22c55e' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+          title={d != null ? `Разработка: ${d} дн.` : 'Фаза не определена'}>
+          {d != null && total > 0 && (d / total) > 0.08 ? `${d}д` : ''}
+        </div>
+      </div>
+      <ul style={{ marginTop: '8px', marginBottom: 0, padding: 0, listStyle: 'none', fontSize: '12px', color: theme.textSecondary, lineHeight: '1.7' }}>
+        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#3b82f6', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
+          Выдача оценки (AM → CR в майке): <b style={{ color: theme.textPrimary }}>{e != null ? `${e} дн.` : '—'}</b>{pct(e)}
+        </li>
+        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#f59e0b', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
+          Согласование (CR в майке → Приоритезировано): <b style={{ color: theme.textPrimary }}>{a != null ? `${a} дн.` : '—'}</b>{pct(a)}
+        </li>
+        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#22c55e', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
+          Разработка (Приоритезировано → Отправлено клиенту): <b style={{ color: theme.textPrimary }}>{d != null ? `${d} дн.` : '—'}</b>{pct(d)}
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function StatusHistory({ history, onRetry, theme }) {
+  if (!history) return null;
+  if (history.loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: theme.textSecondary }}>
+        <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: `2px solid ${theme.border}`, borderTopColor: theme.accent, animation: 'jira-spin 0.7s linear infinite' }} />
+        Загружаем историю...
+      </div>
+    );
+  }
+  if (history.error) {
+    return (
+      <div style={{ fontSize: '12px', color: '#ef4444' }}>
+        ⚠ Не удалось загрузить историю: {history.error}
+        {onRetry && <button onClick={onRetry} style={{ marginLeft: '8px', fontSize: '11px', padding: '2px 8px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Повторить</button>}
+      </div>
+    );
+  }
+  if (!history.history?.length) {
+    return <div style={{ fontSize: '12px', color: theme.textMuted, fontStyle: 'italic' }}>История статусов недоступна</div>;
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: '13px', fontWeight: 700, color: theme.textPrimary, marginBottom: '8px' }}>🕘 История статусов</div>
+      <table style={{ borderCollapse: 'collapse', fontSize: '12px', width: '100%' }}>
+        <tbody>
+          {history.history.map((entry, idx) => {
+            const prev = idx > 0 ? history.history[idx - 1] : null;
+            const duration = prev ? formatDuration(entry.created - prev.created) : '';
+            const marker = getPhaseMarker(entry.to);
+            const date = new Date(entry.created);
+            return (
+              <tr key={idx}>
+                <td style={{ padding: '4px 12px 4px 0', color: theme.textSecondary, whiteSpace: 'nowrap' }}>
+                  {date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} {date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                </td>
+                <td style={{ padding: '4px 8px', color: theme.textMuted }}>→</td>
+                <td style={{ padding: '4px 12px 4px 0', color: theme.textPrimary, fontWeight: 500 }}>{entry.to}</td>
+                <td style={{ padding: '4px 12px 4px 0', color: theme.textSecondary }}>{duration}</td>
+                <td style={{ padding: '4px 0', color: '#22c55e', fontWeight: 600 }}>{marker || ''}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, colWidths, startResize, onExclude, expandedKeys, onToggleExpand, historyCache, onRetryHistory }) {
   const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
 
@@ -326,10 +449,10 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
         </tr>
       </thead>
       <tbody>
-        {issues.map((issue, idx) => {
+        {issues.flatMap((issue, idx) => {
           const customBg = rowBgColor(issue);
           const bg = customBg || (idx % 2 === 0 ? theme.bgRowEven || theme.bgPage : theme.bgRowOdd || theme.bgCard);
-          return (
+          const rows = [
             <tr key={issue.key} style={{ background: bg }}
               onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
               onMouseLeave={(e) => (e.currentTarget.style.background = bg)}>
@@ -341,20 +464,30 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
                 </td>
               ))}
               <td style={{ ...tdBase, padding: '8px 6px', textAlign: 'center' }}>
-                <button
-                  onClick={() => onExclude(issue.key)}
-                  title="Исключить из расчёта"
-                  style={{
-                    background: 'transparent', border: 'none',
-                    color: theme.textMuted, cursor: 'pointer',
-                    fontSize: '14px', padding: '2px 6px', borderRadius: '4px',
-                  }}
+                <button onClick={() => onExclude(issue.key)} title="Исключить из расчёта"
+                  style={{ background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '14px', padding: '2px 6px', borderRadius: '4px' }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = theme.id === 'csi' ? '#fef2f2' : '#3a1a1a'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = 'transparent'; }}
-                >✕</button>
+                  onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = 'transparent'; }}>
+                  ✕
+                </button>
               </td>
             </tr>
-          );
+          ];
+          if (expandedKeys?.has(issue.key)) {
+            rows.push(
+              <tr key={`${issue.key}-expanded`} style={{ background: bg }}>
+                <td colSpan={FIXED_COLUMNS.length + 1} style={{ padding: 0, border: 'none' }}>
+                  <ExpandedPanel
+                    issue={issue}
+                    history={historyCache?.[issue.key]}
+                    onRetry={() => onRetryHistory && onRetryHistory(issue.key)}
+                    theme={theme}
+                  />
+                </td>
+              </tr>
+            );
+          }
+          return rows;
         })}
       </tbody>
     </table>
