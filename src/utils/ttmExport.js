@@ -223,13 +223,13 @@ export { buildIssuesSheet };
 const S2_COLS = [
   { label: 'Команда',         w: 26 },
   { label: 'Задач',           w: 12 },
-  { label: 'Средний TTM',     w: 16 },
-  { label: 'Оценка',          w: 12 },
-  { label: 'Согласование',    w: 14 },
-  { label: 'Разработка',      w: 14 },
-  { label: 'Медиана',         w: 14 },
-  { label: 'Мин TTM',         w: 12 },
-  { label: 'Макс TTM',        w: 12 },
+  { label: 'Средний TTM',     w: 20 },
+  { label: 'Оценка',          w: 18 },
+  { label: 'Согласование',    w: 20 },
+  { label: 'Разработка',      w: 20 },
+  { label: 'Медиана',         w: 18 },
+  { label: 'Мин TTM',         w: 18 },
+  { label: 'Макс TTM',        w: 18 },
   { label: '% проблемных',    w: 16 },
 ];
 const S2_N = S2_COLS.length;
@@ -254,7 +254,7 @@ function buildTeamsSheet({ teamStats, stats, today: _today, periodStr }) {
 
   // Row 1 — meta
   rows.push([
-    metaCell(`Период: ${periodStr}  |  Среднее по всем: ${stats?.avg ?? 0} дн.  |  Всего задач: ${stats?.count ?? 0}  |  Команд: ${teamStats.length}`),
+    metaCell(`Период: ${periodStr}  |  Среднее по всем: ${fmtPair(stats?.avg?.cal, stats?.avg?.work)}  |  Всего задач: ${stats?.count ?? 0}  |  Команд: ${teamStats.length}`),
     ...Array(S2_N - 1).fill(blankCell()),
   ]);
 
@@ -265,23 +265,24 @@ function buildTeamsSheet({ teamStats, stats, today: _today, periodStr }) {
   rows.push(S2_COLS.map((c) => summaryHdrCell(c.label)));
 
   // Rows 4+
-  const globalAvg = stats?.avg ?? 0;
+  const globalAvgCal = typeof stats?.avg === 'object' && stats.avg !== null ? (stats.avg.cal ?? 0) : (stats?.avg ?? 0);
   teamStats.forEach((t, idx) => {
-    const bg = t.avg > globalAvg * 1.5 ? C.rowRed
-      : t.avg > globalAvg * 1.2 ? C.rowYellow
+    const teamAvgCal = t.avg?.cal ?? 0;
+    const bg = teamAvgCal > globalAvgCal * 1.5 ? C.rowRed
+      : teamAvgCal > globalAvgCal * 1.2 ? C.rowYellow
       : idx % 2 === 0 ? C.rowWhite : C.rowGray;
     const ratioColor = t.problemRatio >= 0.3 ? C.redText : '111827';
 
     rows.push([
       dataCell(t.team,   bg, { bold: true }),
       dataCell(t.count,  bg, { align: 'center' }),
-      dataCell(t.avg,    bg, { align: 'center', bold: true }),
-      dataCell(t.phaseEstimationAvg  != null ? t.phaseEstimationAvg  : '—', bg, { align: 'center' }),
-      dataCell(t.phaseApprovalAvg    != null ? t.phaseApprovalAvg    : '—', bg, { align: 'center' }),
-      dataCell(t.phaseDevelopmentAvg != null ? t.phaseDevelopmentAvg : '—', bg, { align: 'center' }),
-      dataCell(t.median, bg, { align: 'center' }),
-      dataCell(t.min,    bg, { align: 'center' }),
-      dataCell(t.max,    bg, { align: 'center' }),
+      dataCell(fmtPair(t.avg?.cal, t.avg?.work),                                bg, { align: 'center', bold: true }),
+      dataCell(fmtPair(t.phaseEstimationAvg?.cal,  t.phaseEstimationAvg?.work),  bg, { align: 'center' }),
+      dataCell(fmtPair(t.phaseApprovalAvg?.cal,    t.phaseApprovalAvg?.work),    bg, { align: 'center' }),
+      dataCell(fmtPair(t.phaseDevelopmentAvg?.cal, t.phaseDevelopmentAvg?.work), bg, { align: 'center' }),
+      dataCell(fmtPair(t.median?.cal, t.median?.work), bg, { align: 'center' }),
+      dataCell(fmtPair(t.min?.cal,    t.min?.work),    bg, { align: 'center' }),
+      dataCell(fmtPair(t.max?.cal,    t.max?.work),    bg, { align: 'center' }),
       dataCell(`${Math.round(t.problemRatio * 100)}%`, bg, { align: 'center', fgColor: ratioColor, bold: t.problemRatio >= 0.3 }),
     ]);
   });
