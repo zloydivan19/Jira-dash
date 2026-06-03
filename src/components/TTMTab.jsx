@@ -394,7 +394,15 @@ function StatusHistory({ history, onRetry, theme }) {
         <tbody>
           {history.history.map((entry, idx) => {
             const prev = idx > 0 ? history.history[idx - 1] : null;
-            const duration = prev ? formatDuration(entry.created - prev.created) : '';
+            const calStr = prev ? formatDuration(entry.created - prev.created) : '';
+            const workDays = prev ? workingDays(prev.created, entry.created) : null;
+            const duration = prev
+              ? (workDays != null && workDays > 0
+                  ? `${calStr} / ${workDays} рд`
+                  : workDays === 0
+                    ? `${calStr} (< 1 рд)`
+                    : calStr)
+              : '';
             const marker = getPhaseMarker(entry.to);
             const date = new Date(entry.created);
             return (
