@@ -1,4 +1,55 @@
 /**
+ * Календарные дни между двумя моментами времени.
+ * Округление до 1 знака после точки. null если входные данные некорректны или from > to.
+ */
+export function calendarDays(from, to) {
+  if (!from || !to) return null;
+  const d = (to - from) / 86400000;
+  if (d < 0) return null;
+  return Math.round(d * 10) / 10;
+}
+
+/**
+ * Рабочие дни между двумя моментами времени (Сб и Вс исключены).
+ * Дробная часть для частичных дней учитывается корректно.
+ * Округление до 1 знака. null если входные данные некорректны или from > to.
+ */
+export function workingDays(from, to) {
+  if (!from || !to) return null;
+  if (to < from) return null;
+
+  const MS_PER_DAY = 86400000;
+  let total = 0;
+  const cur = new Date(from);
+  cur.setHours(0, 0, 0, 0);
+
+  while (cur < to) {
+    const dayStart = cur.getTime();
+    const dayEnd   = dayStart + MS_PER_DAY;
+    const day      = cur.getDay();
+    if (day !== 0 && day !== 6) {
+      const overlapStart = Math.max(dayStart, from.getTime());
+      const overlapEnd   = Math.min(dayEnd,   to.getTime());
+      const fraction     = (overlapEnd - overlapStart) / MS_PER_DAY;
+      if (fraction > 0) total += fraction;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return Math.round(total * 10) / 10;
+}
+
+/**
+ * Форматирует пару календарных и рабочих дней в строку "X кд / Y рд".
+ * Если оба null → "—". Если одно null — соответствующая часть "? кд" или "? рд".
+ */
+export function fmtDaysPair(cal, work) {
+  if (cal == null && work == null) return '—';
+  const c = cal != null ? `${cal} кд` : '? кд';
+  const w = work != null ? `${work} рд` : '? рд';
+  return `${c} / ${w}`;
+}
+
+/**
  * Parse status transitions from a Jira changelog response.
  * Returns an array of { created: Date, from: string, to: string } sorted ascending by date.
  * Status names are lowercased + trimmed for downstream comparisons.
