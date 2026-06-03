@@ -350,10 +350,65 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
 
 export { buildKpiSheet };
 
-// Placeholder — real implementation comes in Task 21
-export async function exportTTM({ issues }) {
-  if (!issues || issues.length === 0) return { count: 0 };
-  throw new Error('exportTTM not yet implemented — Tasks 18-21 in progress');
+function buildPeriodStr(settings) {
+  if (settings.ttmPeriodFrom && settings.ttmPeriodTo) {
+    // Если период — целый год, упростить до "YYYY"
+    const from = settings.ttmPeriodFrom;
+    const to = settings.ttmPeriodTo;
+    if (from.endsWith('-01-01') && to.endsWith('-12-31') && from.slice(0, 4) === to.slice(0, 4)) {
+      return from.slice(0, 4);
+    }
+    return `${from} — ${to}`;
+  }
+  return 'весь период';
+}
+
+function buildClientsStr(settings) {
+  const c = settings.ttmClients || [];
+  if (c.length === 0) return 'все клиенты';
+  if (c.length <= 3) return c.join(', ');
+  return `${c.slice(0, 3).join(', ')} (+${c.length - 3})`;
+}
+
+export async function exportTTM({ issues, stats, teamStats, settings }) {
+  if (!issues || issues.length === 0) {
+    return { count: 0 };
+  }
+
+  const today = fmtDate(new Date());
+  const periodStr = buildPeriodStr(settings);
+  const filterModeStr = settings.ttmFilterMode === 'created' ? 'по дате создания' : 'по дате релиза';
+  const clientsStr = buildClientsStr(settings);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,
+    buildIssuesSheet({ issues, stats, today, jiraUrl: settings.jiraUrl, periodStr, filterModeStr }),
+    'Задачи');
+  XLSX.utils.book_append_sheet(wb,
+    buildTeamsSheet({ teamStats, stats, today, periodStr }),
+    'Сводка по командам');
+  XLSX.utils.book_append_sheet(wb,
+    buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jiraUrl: settings.jiraUrl }),
+    'Общая статистика');
+
+  // Filename construction
+  const clientForName = settings.ttmClients?.length === 1
+    ? settings.ttmClients[0].replace(/[\\/:*?"<>|]/g, '_')
+    : (settings.ttmClients?.length ? 'выборка' : 'все_клиенты');
+  const periodForName = periodStr.includes(' — ') ? periodStr.replace(/ — /g, '_') : periodStr;
+  const fname = `TTM_отчёт_${clientForName}_${periodForName}.xlsx`;
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob  = new Blob([wbout], { type: 'application/octet-stream' });
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href = url; a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  return { count: stats?.count ?? issues.length };
 }
 
 export { C, bdr, hdrCell, dataCell, titleCell, metaCell, blankCell, fmtDate, buildSheet, rowBgByTtm, extractClient, extractTeam };
