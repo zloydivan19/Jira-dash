@@ -57,7 +57,9 @@ export function computeMedian(arr) {
 
 /**
  * Compute global stats from an array of enriched issues (each with `_ttm`).
- * Returns the same shape as before: { count, anomalies, avg, median, min, max, fastest, slowest, top5Fastest, top5Slowest }.
+ * All day aggregates returned as `{ cal, work }` pairs. `fastest`/`slowest` remain
+ * full issue references. Sorting / filtering / problem-detection downstream uses
+ * the canonical `_ttm.ttmDays` (calendar days) for ordering.
  * `filtered` is the post-period-filter list; anomalies inside are counted separately.
  */
 export function computeStats(filtered) {
@@ -66,50 +68,70 @@ export function computeStats(filtered) {
 
   if (valid.length === 0) {
     return {
-      count: 0, anomalies, avg: 0, median: 0, min: 0, max: 0,
+      count: 0, anomalies,
+      avg:    { cal: 0, work: 0 },
+      median: { cal: 0, work: 0 },
+      min:    { cal: 0, work: 0 },
+      max:    { cal: 0, work: 0 },
       fastest: null, slowest: null, top5Fastest: [], top5Slowest: [],
-      phaseEstimationAvg: null, phaseEstimationMedian: null, phaseEstimationCount: 0,
-      phaseApprovalAvg: null, phaseApprovalMedian: null, phaseApprovalCount: 0,
-      phaseDevelopmentAvg: null, phaseDevelopmentMedian: null, phaseDevelopmentCount: 0,
+      phaseEstimationAvg:    { cal: null, work: null }, phaseEstimationMedian:    { cal: null, work: null }, phaseEstimationCount:    0,
+      phaseApprovalAvg:      { cal: null, work: null }, phaseApprovalMedian:      { cal: null, work: null }, phaseApprovalCount:      0,
+      phaseDevelopmentAvg:   { cal: null, work: null }, phaseDevelopmentMedian:   { cal: null, work: null }, phaseDevelopmentCount:   0,
     };
   }
 
-  const ttms = valid.map((i) => i._ttm.ttmDays);
-  const min = Math.min(...ttms);
-  const max = Math.max(...ttms);
-  const fastest = valid.find((i) => i._ttm.ttmDays === min) || null;
-  const slowest = valid.find((i) => i._ttm.ttmDays === max) || null;
+  const cals  = valid.map((i) => i._ttm.ttmDays);
+  const works = valid.map((i) => i._ttm.ttmWorkDays).filter((v) => v != null);
 
-  // Phase aggregates — фильтруем только задачи у которых посчитана соответствующая фаза
-  const phaseAvg = (key) => {
-    const vals = valid.map((i) => i._ttm.phases?.[key]).filter((v) => v != null);
-    return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+  const avgOf = (arr) =>
+    arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
+
+  const minCal = Math.min(...cals);
+  const maxCal = Math.max(...cals);
+  const fastest = valid.find((i) => i._ttm.ttmDays === minCal) || null;
+  const slowest = valid.find((i) => i._ttm.ttmDays === maxCal) || null;
+
+  // Phases are now { cal, work } objects on _ttm.phases.<key>. Aggregate cal and work independently.
+  const phasePairAvg = (key) => {
+    const cArr = valid.map((i) => i._ttm.phases?.[key]?.cal).filter((v) => v != null);
+    const wArr = valid.map((i) => i._ttm.phases?.[key]?.work).filter((v) => v != null);
+    return { cal: avgOf(cArr), work: avgOf(wArr) };
   };
-  const phaseMedianHelper = (key) => {
-    const vals = valid.map((i) => i._ttm.phases?.[key]).filter((v) => v != null);
-    return vals.length ? computeMedian(vals) : null;
+  const phasePairMedian = (key) => {
+    const cArr = valid.map((i) => i._ttm.phases?.[key]?.cal).filter((v) => v != null);
+    const wArr = valid.map((i) => i._ttm.phases?.[key]?.work).filter((v) => v != null);
+    return {
+      cal:  cArr.length ? computeMedian(cArr) : null,
+      work: wArr.length ? computeMedian(wArr) : null,
+    };
   };
-  const phaseCount = (key) => valid.filter((i) => i._ttm.phases?.[key] != null).length;
+  const phaseCount = (key) => valid.filter((i) => i._ttm.phases?.[key]?.cal != null).length;
 
   return {
     count: valid.length,
     anomalies,
-    avg: Math.round(ttms.reduce((a, b) => a + b, 0) / ttms.length),
-    median: computeMedian(ttms),
-    min,
-    max,
+    avg: {
+      cal:  Math.round((cals.reduce((a, b) => a + b, 0) / cals.length) * 10) / 10,
+      work: works.length ? Math.round((works.reduce((a, b) => a + b, 0) / works.length) * 10) / 10 : null,
+    },
+    median: {
+      cal:  computeMedian(cals),
+      work: works.length ? computeMedian(works) : null,
+    },
+    min: { cal: minCal, work: fastest?._ttm.ttmWorkDays ?? null },
+    max: { cal: maxCal, work: slowest?._ttm.ttmWorkDays ?? null },
     fastest,
     slowest,
     top5Fastest: [...valid].sort((a, b) => a._ttm.ttmDays - b._ttm.ttmDays).slice(0, 5),
     top5Slowest: [...valid].sort((a, b) => b._ttm.ttmDays - a._ttm.ttmDays).slice(0, 5),
-    phaseEstimationAvg:    phaseAvg('phaseEstimation'),
-    phaseEstimationMedian: phaseMedianHelper('phaseEstimation'),
+    phaseEstimationAvg:    phasePairAvg('phaseEstimation'),
+    phaseEstimationMedian: phasePairMedian('phaseEstimation'),
     phaseEstimationCount:  phaseCount('phaseEstimation'),
-    phaseApprovalAvg:      phaseAvg('phaseApproval'),
-    phaseApprovalMedian:   phaseMedianHelper('phaseApproval'),
+    phaseApprovalAvg:      phasePairAvg('phaseApproval'),
+    phaseApprovalMedian:   phasePairMedian('phaseApproval'),
     phaseApprovalCount:    phaseCount('phaseApproval'),
-    phaseDevelopmentAvg:   phaseAvg('phaseDevelopment'),
-    phaseDevelopmentMedian:phaseMedianHelper('phaseDevelopment'),
+    phaseDevelopmentAvg:   phasePairAvg('phaseDevelopment'),
+    phaseDevelopmentMedian:phasePairMedian('phaseDevelopment'),
     phaseDevelopmentCount: phaseCount('phaseDevelopment'),
   };
 }
