@@ -145,11 +145,22 @@ function IssueLink({ issueKey, jiraBase, theme }) {
 function TeamSummary({ teamStats, globalAvg, globalPhaseAvgs, theme }) {
   if (!teamStats || teamStats.length === 0) return null;
 
+  // Backward-safe extraction: globalAvg может быть числом (legacy) или { cal, work }
+  const globalAvgCal = typeof globalAvg === 'object' && globalAvg !== null ? (globalAvg.cal ?? 0) : (globalAvg ?? 0);
+
   const rowBg = (avg) => {
-    if (avg > globalAvg * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
-    if (avg > globalAvg * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
+    if (avg > globalAvgCal * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
+    if (avg > globalAvgCal * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
     return 'transparent';
   };
+
+  const phaseExceeds = (teamPhaseAvg, globalPhase) => {
+    const teamCal   = teamPhaseAvg?.cal;
+    const globalCal = globalPhase?.cal;
+    return teamCal != null && globalCal != null && teamCal > globalCal * 1.5;
+  };
+
+  const dangerBg = theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
 
   return (
     <div style={{ marginBottom: '24px' }}>
@@ -163,43 +174,42 @@ function TeamSummary({ teamStats, globalAvg, globalPhaseAvgs, theme }) {
           </tr>
         </thead>
         <tbody>
-          {teamStats.map((t) => (
-            <tr key={t.team} style={{ background: rowBg(t.avg) }}>
-              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, color: theme.textPrimary }}>{t.team}</td>
-              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.count}</td>
-              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600 }}>{t.avg} дн.</td>
-              <td style={{
-                padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`,
-                background: globalPhaseAvgs?.estimation && t.phaseEstimationAvg != null && t.phaseEstimationAvg > globalPhaseAvgs.estimation * 1.5
-                  ? (theme.id === 'csi' ? '#fef2f2' : '#3a1a1a') : 'transparent',
-                color: globalPhaseAvgs?.estimation && t.phaseEstimationAvg != null && t.phaseEstimationAvg > globalPhaseAvgs.estimation * 1.5
-                  ? '#ef4444' : theme.textPrimary,
-                fontWeight: 500,
-              }}>{t.phaseEstimationAvg != null ? `${t.phaseEstimationAvg} дн.` : '—'}</td>
-              <td style={{
-                padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`,
-                background: globalPhaseAvgs?.approval && t.phaseApprovalAvg != null && t.phaseApprovalAvg > globalPhaseAvgs.approval * 1.5
-                  ? (theme.id === 'csi' ? '#fef2f2' : '#3a1a1a') : 'transparent',
-                color: globalPhaseAvgs?.approval && t.phaseApprovalAvg != null && t.phaseApprovalAvg > globalPhaseAvgs.approval * 1.5
-                  ? '#ef4444' : theme.textPrimary,
-                fontWeight: 500,
-              }}>{t.phaseApprovalAvg != null ? `${t.phaseApprovalAvg} дн.` : '—'}</td>
-              <td style={{
-                padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`,
-                background: globalPhaseAvgs?.development && t.phaseDevelopmentAvg != null && t.phaseDevelopmentAvg > globalPhaseAvgs.development * 1.5
-                  ? (theme.id === 'csi' ? '#fef2f2' : '#3a1a1a') : 'transparent',
-                color: globalPhaseAvgs?.development && t.phaseDevelopmentAvg != null && t.phaseDevelopmentAvg > globalPhaseAvgs.development * 1.5
-                  ? '#ef4444' : theme.textPrimary,
-                fontWeight: 500,
-              }}>{t.phaseDevelopmentAvg != null ? `${t.phaseDevelopmentAvg} дн.` : '—'}</td>
-              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.median} дн.</td>
-              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.min} дн.</td>
-              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.max} дн.</td>
-              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, color: t.problemRatio >= 0.3 ? '#ef4444' : theme.textSecondary, fontWeight: t.problemRatio >= 0.3 ? 600 : 400 }}>
-                {Math.round(t.problemRatio * 100)}%
-              </td>
-            </tr>
-          ))}
+          {teamStats.map((t) => {
+            const estExceeds = phaseExceeds(t.phaseEstimationAvg,  globalPhaseAvgs?.estimation);
+            const appExceeds = phaseExceeds(t.phaseApprovalAvg,    globalPhaseAvgs?.approval);
+            const devExceeds = phaseExceeds(t.phaseDevelopmentAvg, globalPhaseAvgs?.development);
+            return (
+              <tr key={t.team} style={{ background: rowBg(t.avg?.cal ?? 0) }}>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, color: theme.textPrimary }}>{t.team}</td>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.count}</td>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.avg?.cal, t.avg?.work)}</td>
+                <td style={{
+                  padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
+                  background: estExceeds ? dangerBg : 'transparent',
+                  color: estExceeds ? '#ef4444' : theme.textPrimary,
+                  fontWeight: 500,
+                }}>{fmtDaysPair(t.phaseEstimationAvg?.cal, t.phaseEstimationAvg?.work)}</td>
+                <td style={{
+                  padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
+                  background: appExceeds ? dangerBg : 'transparent',
+                  color: appExceeds ? '#ef4444' : theme.textPrimary,
+                  fontWeight: 500,
+                }}>{fmtDaysPair(t.phaseApprovalAvg?.cal, t.phaseApprovalAvg?.work)}</td>
+                <td style={{
+                  padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
+                  background: devExceeds ? dangerBg : 'transparent',
+                  color: devExceeds ? '#ef4444' : theme.textPrimary,
+                  fontWeight: 500,
+                }}>{fmtDaysPair(t.phaseDevelopmentAvg?.cal, t.phaseDevelopmentAvg?.work)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.median?.cal, t.median?.work)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.min?.cal, t.min?.work)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.max?.cal, t.max?.work)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, color: t.problemRatio >= 0.3 ? '#ef4444' : theme.textSecondary, fontWeight: t.problemRatio >= 0.3 ? 600 : 400 }}>
+                  {Math.round(t.problemRatio * 100)}%
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
