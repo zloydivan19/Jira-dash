@@ -23,6 +23,7 @@ export default function Sidebar({
   columnsEval, onColumnsEvalChange,
   columnsBugControl, onColumnsBugControlChange,
   onLoadBugControl, bugControlLoading, bugControlHasData, bugControlSummary,
+  onLoadTtm, ttmLoading, ttmHasData, ttmSummary,
 }) {
   const { theme } = useTheme();
 
@@ -1468,6 +1469,197 @@ export default function Sidebar({
                 Загружено <b style={{ color: theme.textPrimary }}>{bugControlSummary?.total ?? 0}</b> задач:
                 {' '}⚠ <b style={{ color: '#ef4444' }}>{bugControlSummary?.red ?? 0}</b> со сдвигом,
                 {' '}↻ <b style={{ color: '#f59e0b' }}>{bugControlSummary?.yellow ?? 0}</b> с изменениями
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'ttm' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '14px', flex: 1, minHeight: 0, borderBottom: `1px solid ${theme.borderLight}`, overflowY: 'auto' }}>
+            <div style={{ fontSize: '12px', color: theme.textSecondary, marginBottom: '10px', lineHeight: '1.5' }}>
+              Пост-фактум отчёт: время от создания задачи до фактического релиза.
+              Берутся только задачи с выпущенной fix version (releaseDate ≤ сегодня).
+            </div>
+
+            {/* Период */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Период</label>
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                <input
+                  type="date"
+                  value={settings.ttmPeriodFrom || ''}
+                  onChange={(e) => onSettingsChange({ ttmPeriodFrom: e.target.value })}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <input
+                  type="date"
+                  value={settings.ttmPeriodTo || ''}
+                  onChange={(e) => onSettingsChange({ ttmPeriodTo: e.target.value })}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+              </div>
+              {/* Year input + month presets */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <label style={{ fontSize: '11px', color: theme.textSecondary }}>Год:</label>
+                <input
+                  type="number"
+                  min="2000" max="2100"
+                  placeholder="2024"
+                  onChange={(e) => {
+                    const y = parseInt(e.target.value, 10);
+                    if (y >= 2000 && y <= 2100) {
+                      onSettingsChange({ ttmPeriodFrom: `${y}-01-01`, ttmPeriodTo: `${y}-12-31` });
+                    }
+                  }}
+                  style={{ ...inputStyle, width: '80px' }}
+                />
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {[
+                    { label: '3 мес', months: 3 },
+                    { label: '6 мес', months: 6 },
+                    { label: 'Год',   months: 12 },
+                  ].map(({ label, months }) => (
+                    <button key={label}
+                      onClick={() => {
+                        const to = new Date();
+                        const from = new Date();
+                        from.setMonth(from.getMonth() - months);
+                        onSettingsChange({
+                          ttmPeriodFrom: from.toISOString().slice(0, 10),
+                          ttmPeriodTo:   to.toISOString().slice(0, 10),
+                        });
+                      }}
+                      style={{ padding: '3px 8px', fontSize: '10px', border: `1px solid ${theme.border}`, borderRadius: '4px', background: theme.bgInput, color: theme.textSecondary, cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[
+                  { label: 'Текущий год', y: new Date().getFullYear() },
+                  { label: 'Прошлый год', y: new Date().getFullYear() - 1 },
+                ].map(({ label, y }) => (
+                  <button key={label}
+                    onClick={() => onSettingsChange({ ttmPeriodFrom: `${y}-01-01`, ttmPeriodTo: `${y}-12-31` })}
+                    style={{ padding: '3px 8px', fontSize: '10px', border: `1px solid ${theme.border}`, borderRadius: '4px', background: theme.bgInput, color: theme.textSecondary, cursor: 'pointer' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter mode toggle */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Фильтр по дате</label>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[
+                  { value: 'release', label: 'По дате релиза' },
+                  { value: 'created', label: 'По дате создания' },
+                ].map(({ value, label }) => (
+                  <button key={value}
+                    onClick={() => onSettingsChange({ ttmFilterMode: value })}
+                    style={{
+                      flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 600,
+                      border: `1px solid ${settings.ttmFilterMode === value ? theme.accent : theme.border}`,
+                      borderRadius: '4px', cursor: 'pointer',
+                      background: settings.ttmFilterMode === value ? (theme.id === 'csi' ? '#e8f0f8' : '#1a2e40') : theme.bgInput,
+                      color: settings.ttmFilterMode === value ? theme.accent : theme.textSecondary,
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Clients multi-select — переиспользуем loadBugControlClients */}
+            {renderMultiSelect({
+              title: 'Клиенты',
+              subtitle: 'Опционально — пусто = все клиенты',
+              options: bugControlClientOptions,
+              selected: settings.ttmClients || [],
+              onLoad: loadBugControlClients,
+              loading: bugControlClientsLoading,
+              searchVal: bugControlClientSearch,
+              onSearch: setBugControlClientSearch,
+              onToggle: (val) => {
+                onSettingsChange((s) => {
+                  const current = s.ttmClients || [];
+                  const next = current.includes(val) ? current.filter((v) => v !== val) : [...current, val];
+                  return { ttmClients: next };
+                });
+              },
+              onApply: () => {},
+              searchPlaceholder: 'Поиск клиента...',
+            })}
+
+            {/* Projects */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Проекты (через запятую)</label>
+              <input
+                type="text"
+                value={settings.ttmProjects || ''}
+                onChange={(e) => onSettingsChange({ ttmProjects: e.target.value })}
+                placeholder="SR, SRTB, SRTS, SRTZ"
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Issue type */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Тип задачи</label>
+              <input
+                type="text"
+                value={settings.ttmIssueType || ''}
+                onChange={(e) => onSettingsChange({ ttmIssueType: e.target.value })}
+                placeholder="CR"
+                style={inputStyle}
+              />
+            </div>
+
+            {/* JQL preview */}
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={labelStyle}>JQL {settings.ttmJqlAuto ? '(авто)' : '(ручное редактирование)'}</label>
+                {!settings.ttmJqlAuto && (
+                  <button
+                    onClick={() => onSettingsChange({ ttmJqlAuto: true, ttmJql: buildTtmJql(settings) })}
+                    style={{ fontSize: '10px', padding: '2px 8px', border: `1px solid ${theme.border}`, borderRadius: '4px', background: theme.bgInput, color: theme.textSecondary, cursor: 'pointer' }}
+                    title="Сбросить к авто-генерации">
+                    ↻ Сбросить к авто
+                  </button>
+                )}
+              </div>
+              <textarea
+                value={settings.ttmJql || ''}
+                onChange={(e) => onSettingsChange({ ttmJql: e.target.value, ttmJqlAuto: false })}
+                rows={4}
+                style={{ ...inputStyle, width: '100%', fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', resize: 'vertical' }}
+              />
+            </div>
+
+            {/* Load button */}
+            <button
+              onClick={() => onLoadTtm(settings.ttmJql)}
+              disabled={ttmLoading}
+              style={{
+                width: '100%', padding: '8px 12px', border: 'none', borderRadius: '6px',
+                fontSize: '13px', fontWeight: 600, cursor: ttmLoading ? 'not-allowed' : 'pointer',
+                background: ttmLoading ? theme.border : theme.accent,
+                color: ttmLoading ? theme.textSecondary : theme.accentText,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              }}
+            >
+              <span style={{ display: 'inline-block', animation: ttmLoading ? 'jira-spin 0.8s linear infinite' : 'none' }}>↻</span>
+              {ttmLoading ? 'Рассчитываем...' : 'Рассчитать TTM'}
+            </button>
+
+            {ttmHasData && (
+              <div style={{ marginTop: '10px', padding: '8px 10px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px', fontSize: '11px', color: theme.textSecondary }}>
+                Выпущено <b style={{ color: theme.textPrimary }}>{ttmSummary?.count ?? 0}</b> задач за период,
+                {' '}средний TTM: <b style={{ color: theme.textPrimary }}>{ttmSummary?.avg ?? 0}</b> дн.
               </div>
             )}
           </div>
