@@ -118,6 +118,24 @@ export default function Sidebar({
     settings.bugControlIncludeClosed,
   ]);
 
+  useEffect(() => {
+    if (activeTab !== 'ttm') return;
+    if (!settings.ttmJqlAuto) return;
+    const generated = buildTtmJql(settings);
+    if (generated !== settings.ttmJql) {
+      onSettingsChange({ ttmJql: generated });
+    }
+  }, [
+    activeTab,
+    settings.ttmJqlAuto,
+    settings.ttmProjects,
+    settings.ttmIssueType,
+    settings.ttmClients,
+    settings.ttmFilterMode,
+    settings.ttmPeriodFrom,
+    settings.ttmPeriodTo,
+  ]);
+
   const credHeaders = () => ({
     'x-jira-url':   settings.jiraUrl   || '',
     'x-jira-email': settings.jiraEmail || '',
