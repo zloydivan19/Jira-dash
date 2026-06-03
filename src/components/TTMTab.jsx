@@ -218,10 +218,53 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Toolbar — Task 15 */}
-      <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderLight}`, background: theme.bgToolbar, display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+      <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderLight}`, background: theme.bgToolbar, display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, flexWrap: 'wrap' }}>
         <span style={{ fontSize: '14px', fontWeight: 700, color: theme.textPrimary }}>TTM анализ</span>
+
+        {!loading && totalIssues > 0 && stats && (
+          <span style={{ fontSize: '12px', color: theme.textMuted }}>
+            <b style={{ color: theme.textPrimary }}>{stats.count}</b> выпущено
+            {settings.ttmPeriodFrom && settings.ttmPeriodTo && (
+              <> за <b style={{ color: theme.textPrimary }}>{settings.ttmPeriodFrom}</b> — <b style={{ color: theme.textPrimary }}>{settings.ttmPeriodTo}</b></>
+            )}
+            {' · '}режим: <b style={{ color: theme.textPrimary }}>{settings.ttmFilterMode === 'created' ? 'по созданию' : 'по релизу'}</b>
+          </span>
+        )}
+
+        <div style={{ position: 'relative', flex: 1, maxWidth: '320px' }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по ключу, описанию, клиенту, команде..."
+            style={{
+              width: '100%', background: theme.bgInput, border: `1px solid ${theme.border}`,
+              borderRadius: '6px', color: theme.textPrimary, fontSize: '13px',
+              padding: '6px 10px', outline: 'none',
+            }}
+          />
+        </div>
+
         <div style={{ flex: 1 }} />
+
+        <button
+          onClick={onExport}
+          disabled={exporting || totalIssues === 0}
+          title="Выгрузить отчёт в Excel со стилизацией"
+          style={{
+            padding: '6px 14px',
+            background: (exporting || totalIssues === 0) ? theme.border : (theme.id === 'dark' ? '#14290e' : '#dcfce7'),
+            color: (exporting || totalIssues === 0) ? theme.textSecondary : (theme.id === 'dark' ? '#4ade80' : '#15803d'),
+            border: `1px solid ${(exporting || totalIssues === 0) ? theme.border : '#22c55e'}`,
+            borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+            cursor: (exporting || totalIssues === 0) ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px',
+          }}>
+          {exporting
+            ? <span style={{ width: '11px', height: '11px', borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', display: 'inline-block', animation: 'jira-spin 0.7s linear infinite' }} />
+            : '↓'}
+          {exportLabel || 'Экспорт Excel'}
+        </button>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
