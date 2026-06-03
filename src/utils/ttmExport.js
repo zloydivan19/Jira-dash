@@ -199,6 +199,83 @@ function buildIssuesSheet({ issues, stats, today, jiraUrl, periodStr, filterMode
 
 export { buildIssuesSheet };
 
+const S2_COLS = [
+  { label: 'Команда',         w: 26 },
+  { label: 'Задач',           w: 12 },
+  { label: 'Средний TTM',     w: 16 },
+  { label: 'Медиана',         w: 14 },
+  { label: 'Мин TTM',         w: 12 },
+  { label: 'Макс TTM',        w: 12 },
+  { label: '% проблемных',    w: 16 },
+];
+const S2_N = S2_COLS.length;
+
+function summaryHdrCell(value) {
+  return {
+    v: value,
+    s: {
+      font:      { bold: true, sz: 10, color: { rgb: C.headerFg }, name: 'Calibri' },
+      fill:      { patternType: 'solid', fgColor: { rgb: C.summaryBg } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border:    bdr(C.headerFg),
+    },
+  };
+}
+
+function buildTeamsSheet({ teamStats, stats, today: _today, periodStr }) {
+  const rows = [];
+
+  // Row 0 — title
+  rows.push([titleCell('Сводка по командам'), ...Array(S2_N - 1).fill(blankCell())]);
+
+  // Row 1 — meta
+  rows.push([
+    metaCell(`Период: ${periodStr}  |  Среднее по всем: ${stats?.avg ?? 0} дн.  |  Всего задач: ${stats?.count ?? 0}  |  Команд: ${teamStats.length}`),
+    ...Array(S2_N - 1).fill(blankCell()),
+  ]);
+
+  // Row 2 — spacer
+  rows.push(Array(S2_N).fill(blankCell()));
+
+  // Row 3 — headers
+  rows.push(S2_COLS.map((c) => summaryHdrCell(c.label)));
+
+  // Rows 4+
+  const globalAvg = stats?.avg ?? 0;
+  teamStats.forEach((t, idx) => {
+    const bg = t.avg > globalAvg * 1.5 ? C.rowRed
+      : t.avg > globalAvg * 1.2 ? C.rowYellow
+      : idx % 2 === 0 ? C.rowWhite : C.rowGray;
+    const ratioColor = t.problemRatio >= 0.3 ? C.redText : '111827';
+
+    rows.push([
+      dataCell(t.team,   bg, { bold: true }),
+      dataCell(t.count,  bg, { align: 'center' }),
+      dataCell(t.avg,    bg, { align: 'center', bold: true }),
+      dataCell(t.median, bg, { align: 'center' }),
+      dataCell(t.min,    bg, { align: 'center' }),
+      dataCell(t.max,    bg, { align: 'center' }),
+      dataCell(`${Math.round(t.problemRatio * 100)}%`, bg, { align: 'center', fgColor: ratioColor, bold: t.problemRatio >= 0.3 }),
+    ]);
+  });
+
+  const ws = buildSheet(rows, S2_COLS.map((c) => c.w), [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: S2_N - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: S2_N - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: S2_N - 1 } },
+  ]);
+
+  ws['!rows'] = [
+    { hpt: 30 }, { hpt: 22 }, { hpt: 6 }, { hpt: 30 },
+    ...teamStats.map(() => ({ hpt: 20 })),
+  ];
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3, c: S2_N - 1 } }) };
+
+  return ws;
+}
+
+export { buildTeamsSheet };
+
 // Placeholder — real implementation comes in Task 21
 export async function exportTTM({ issues }) {
   if (!issues || issues.length === 0) return { count: 0 };
