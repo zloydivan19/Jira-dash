@@ -312,10 +312,18 @@ function PhaseBar({ phases, ttmDays, theme }) {
   const e = phases.phaseEstimation;
   const a = phases.phaseApproval;
   const d = phases.phaseDevelopment;
-  const total = (e || 0) + (a || 0) + (d || 0);
+  const totalCal = (e?.cal || 0) + (a?.cal || 0) + (d?.cal || 0);
 
-  const w = (val) => total > 0 && val != null ? `${(val / total) * 100}%` : '0%';
-  const pct = (val) => ttmDays > 0 && val != null ? ` (${Math.round((val / ttmDays) * 100)}% от TTM)` : '';
+  const w = (val) => totalCal > 0 && val?.cal != null ? `${(val.cal / totalCal) * 100}%` : '0%';
+  const pct = (val) => ttmDays > 0 && val?.cal != null ? ` (${Math.round((val.cal / ttmDays) * 100)}% от TTM)` : '';
+
+  const segLabel = (val) => {
+    if (val?.cal == null) return '';
+    const ratio = totalCal > 0 ? val.cal / totalCal : 0;
+    if (ratio > 0.18) return `${val.cal}кд/${val.work ?? '?'}рд`;
+    if (ratio > 0.08) return `${val.cal}`;
+    return '';
+  };
 
   return (
     <div>
@@ -329,28 +337,28 @@ function PhaseBar({ phases, ttmDays, theme }) {
         )}
       </div>
       <div style={{ display: 'flex', height: '22px', borderRadius: '4px', overflow: 'hidden', border: `1px solid ${theme.borderLight}` }}>
-        <div style={{ width: w(e), background: e != null ? '#3b82f6' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
-          title={e != null ? `Оценка: ${e} дн.` : 'Фаза не определена'}>
-          {e != null && total > 0 && (e / total) > 0.08 ? `${e}д` : ''}
+        <div style={{ width: w(e), background: e?.cal != null ? '#3b82f6' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+          title={e?.cal != null ? `Оценка: ${e.cal} кд / ${e.work ?? '?'} рд` : 'Фаза не определена'}>
+          {segLabel(e)}
         </div>
-        <div style={{ width: w(a), background: a != null ? '#f59e0b' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
-          title={a != null ? `Согласование: ${a} дн.` : 'Фаза не определена'}>
-          {a != null && total > 0 && (a / total) > 0.08 ? `${a}д` : ''}
+        <div style={{ width: w(a), background: a?.cal != null ? '#f59e0b' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+          title={a?.cal != null ? `Согласование: ${a.cal} кд / ${a.work ?? '?'} рд` : 'Фаза не определена'}>
+          {segLabel(a)}
         </div>
-        <div style={{ width: w(d), background: d != null ? '#22c55e' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
-          title={d != null ? `Разработка: ${d} дн.` : 'Фаза не определена'}>
-          {d != null && total > 0 && (d / total) > 0.08 ? `${d}д` : ''}
+        <div style={{ width: w(d), background: d?.cal != null ? '#22c55e' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+          title={d?.cal != null ? `Разработка: ${d.cal} кд / ${d.work ?? '?'} рд` : 'Фаза не определена'}>
+          {segLabel(d)}
         </div>
       </div>
       <ul style={{ marginTop: '8px', marginBottom: 0, padding: 0, listStyle: 'none', fontSize: '12px', color: theme.textSecondary, lineHeight: '1.7' }}>
         <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#3b82f6', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
-          Выдача оценки (AM → CR в майке): <b style={{ color: theme.textPrimary }}>{e != null ? `${e} дн.` : '—'}</b>{pct(e)}
+          Выдача оценки (AM → CR в майке): <b style={{ color: theme.textPrimary }}>{fmtDaysPair(e?.cal, e?.work)}</b>{pct(e)}
         </li>
         <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#f59e0b', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
-          Согласование (CR в майке → Приоритезировано): <b style={{ color: theme.textPrimary }}>{a != null ? `${a} дн.` : '—'}</b>{pct(a)}
+          Согласование (CR в майке → Приоритезировано): <b style={{ color: theme.textPrimary }}>{fmtDaysPair(a?.cal, a?.work)}</b>{pct(a)}
         </li>
         <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#22c55e', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
-          Разработка (Приоритезировано → Отправлено клиенту): <b style={{ color: theme.textPrimary }}>{d != null ? `${d} дн.` : '—'}</b>{pct(d)}
+          Разработка (Приоритезировано → Отправлено клиенту): <b style={{ color: theme.textPrimary }}>{fmtDaysPair(d?.cal, d?.work)}</b>{pct(d)}
         </li>
       </ul>
     </div>
