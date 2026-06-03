@@ -157,8 +157,10 @@ export function useTTM() {
   const [issues,    setIssues]    = useState(() => readSession(SS_ISSUES, []));
   const [stats,     setStats]     = useState(() => readSession(SS_STATS,  null));
   const [teamStats, setTeamStats] = useState(() => readSession(SS_TEAMS,  []));
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState(null);
+  const [loading,           setLoading]           = useState(false);
+  const [loadingChangelog,  setLoadingChangelog]  = useState(false);
+  const [changelogProgress, setChangelogProgress] = useState({ done: 0, total: 0 });
+  const [error,             setError]             = useState(null);
 
   useEffect(() => { writeSession(SS_ISSUES, issues); },       [issues]);
   useEffect(() => { writeSession(SS_STATS,  stats); },        [stats]);
@@ -237,11 +239,59 @@ export function useTTM() {
     const validForTeams = filtered.filter((i) => !i._ttm.isAnomaly);
     const newTeamStats = computeTeamStats(validForTeams, newStats.avg);
 
+    // Первый снимок: задачи + базовая статистика без фаз (UI уже показывает таблицу)
     setIssues(filtered);
     setStats(newStats);
     setTeamStats(newTeamStats);
     setLoading(false);
+
+    // === Шаг 5: batch fetch changelog для всех выпущенных задач ===
+    if (filtered.length === 0) return;
+
+    setLoadingChangelog(true);
+    setChangelogProgress({ done: 0, total: filtered.length });
+
+    const BATCH = 8;
+    const enrichedWithPhases = [...filtered];   // копии issues, мутируем _ttm по мере готовности
+
+    for (let i = 0; i < filtered.length; i += BATCH) {
+      const batch = filtered.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(async (issue) => {
+        try {
+          const res = await axios.get('/api/jira/changelog', {
+            params: { issueKey: issue.key },
+            headers,
+            timeout: 15000,
+          });
+          const history = parseStatusHistory(res.data);
+          const phases = calcPhases(history, issue.fields.created);
+          return { key: issue.key, phases };
+        } catch (e) {
+          return { key: issue.key, phases: null, error: e?.message || 'Ошибка changelog' };
+        }
+      }));
+
+      // Записываем phases в копии issues
+      results.forEach(({ key, phases, error: phErr }) => {
+        const target = enrichedWithPhases.find((iss) => iss.key === key);
+        if (target) {
+          target._ttm = { ...target._ttm, phases, phasesError: phErr || null };
+        }
+      });
+
+      // Прогресс и пересчёт stats после каждого batch'a
+      setChangelogProgress({ done: Math.min(i + BATCH, filtered.length), total: filtered.length });
+
+      const recomputedStats = computeStats(enrichedWithPhases);
+      const validForTeams = enrichedWithPhases.filter((iss) => !iss._ttm.isAnomaly);
+      const recomputedTeamStats = computeTeamStats(validForTeams, recomputedStats.avg);
+      setIssues([...enrichedWithPhases]);
+      setStats(recomputedStats);
+      setTeamStats(recomputedTeamStats);
+    }
+
+    setLoadingChangelog(false);
   }, []);
 
-  return { issues, stats, teamStats, loading, error, load };
+  return { issues, stats, teamStats, loading, loadingChangelog, changelogProgress, error, load };
 }
