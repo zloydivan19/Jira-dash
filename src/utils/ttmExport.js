@@ -138,13 +138,13 @@ const S1_COLS = [
   { label: 'Создано',             w: 14 },
   { label: 'Релиз',               w: 18 },
   { label: 'Дата релиза',         w: 14 },
-  { label: 'TTM (дн.)',           w: 12 },
-  { label: 'TTM Оценка',          w: 13 },
-  { label: 'TTM Согласование',    w: 17 },
-  { label: 'TTM Разработка',      w: 15 },
+  { label: 'TTM',                 w: 18 },
+  { label: 'TTM Оценка',          w: 18 },
+  { label: 'TTM Согласование',    w: 20 },
+  { label: 'TTM Разработка',      w: 20 },
   { label: 'Команда',             w: 16 },
   { label: 'Статус',              w: 18 },
-  { label: 'Исполнитель',         w: 22 },
+  { label: 'Вид / Обоснование',   w: 30 },
   { label: 'Ссылка',              w: 32 },
 ];
 const S1_N = S1_COLS.length;
@@ -174,7 +174,7 @@ function buildIssuesSheet({ issues, stats, today, jiraUrl, periodStr, filterMode
   rows.push(S1_COLS.map((c) => hdrCell(c.label)));
 
   // Rows 4+
-  const avg = stats?.avg ?? 0;
+  const avg = typeof stats?.avg === 'object' && stats.avg !== null ? (stats.avg.cal ?? 0) : (stats?.avg ?? 0);
   sorted.forEach((issue, idx) => {
     const t = issue._ttm;
     const bg = rowBgByTtm(t.ttmDays, avg, t.isAnomaly, idx);
@@ -192,13 +192,13 @@ function buildIssuesSheet({ issues, stats, today, jiraUrl, periodStr, filterMode
       dataCell(fmtDate(t.createdDate), bg, { align: 'center' }),
       dataCell(t.releaseName, bg, { align: 'center' }),
       dataCell(fmtDate(t.releaseDate), bg, { align: 'center' }),
-      dataCell(t.ttmDays, bg, { align: 'center', bold: true, fgColor: fg }),
-      dataCell(ph.phaseEstimation  != null ? ph.phaseEstimation  : '—', bg, { align: 'center' }),
-      dataCell(ph.phaseApproval    != null ? ph.phaseApproval    : '—', bg, { align: 'center' }),
-      dataCell(ph.phaseDevelopment != null ? ph.phaseDevelopment : '—', bg, { align: 'center' }),
+      dataCell(fmtPair(t.ttmDays, t.ttmWorkDays), bg, { align: 'center', bold: true, fgColor: fg }),
+      dataCell(fmtPair(ph.phaseEstimation?.cal,  ph.phaseEstimation?.work),  bg, { align: 'center' }),
+      dataCell(fmtPair(ph.phaseApproval?.cal,    ph.phaseApproval?.work),    bg, { align: 'center' }),
+      dataCell(fmtPair(ph.phaseDevelopment?.cal, ph.phaseDevelopment?.work), bg, { align: 'center' }),
       dataCell(extractTeam(issue.fields?.customfield_12800), bg),
       dataCell(issue.fields?.status?.name || '—', bg),
-      dataCell(issue.fields?.assignee?.displayName || '—', bg),
+      dataCell(extractDevType(issue.fields?.customfield_13999), bg),
       dataCell(url, bg, { fgColor: C.blueText }),
     ]);
   });
