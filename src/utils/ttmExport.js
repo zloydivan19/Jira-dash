@@ -310,6 +310,20 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
   if (stats?.anomalies > 0) {
     rows.push([dataCell('Аномалий (исключены):', C.rowPurple, { bold: true }), dataCell(stats.anomalies, C.rowPurple, { bold: true, fgColor: C.purpleText }), blankCell(), blankCell()]);
   }
+
+  // Средние фазы
+  rows.push(Array(COLS).fill(blankCell()));
+  rows.push([dataCell('Средние фазы:', C.rowGray, { bold: true }), blankCell(C.rowGray), blankCell(C.rowGray), blankCell(C.rowGray)]);
+  const phaseLine = (label, avg, count, total) => [
+    dataCell(`  • ${label}:`, C.rowWhite),
+    dataCell(avg != null ? `${avg} дн.` : '—', C.rowWhite, { bold: true }),
+    dataCell(avg != null ? `(посчитано для ${count} из ${total})` : '', C.rowWhite, { fgColor: C.grayText }),
+    blankCell(),
+  ];
+  rows.push(phaseLine('Выдача оценки', stats?.phaseEstimationAvg,    stats?.phaseEstimationCount,    stats?.count));
+  rows.push(phaseLine('Согласование',   stats?.phaseApprovalAvg,      stats?.phaseApprovalCount,      stats?.count));
+  rows.push(phaseLine('Разработка',     stats?.phaseDevelopmentAvg,   stats?.phaseDevelopmentCount,   stats?.count));
+
   rows.push(Array(COLS).fill(blankCell()));
 
   // Fastest / Slowest
