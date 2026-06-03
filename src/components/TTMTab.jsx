@@ -16,7 +16,7 @@ const FIXED_COLUMNS = [
   { id: 'ttmDays',     label: 'TTM (дни)',      defaultWidth: 100 },
   { id: 'team',        label: 'Команда',        defaultWidth: 110 },
   { id: 'status',      label: 'Статус',         defaultWidth: 110 },
-  { id: 'assignee',    label: 'Исполнитель',    defaultWidth: 140 },
+  { id: 'devType',     label: 'Вид / Обоснование', defaultWidth: 200 },
 ];
 
 function fmtDate(date) {
@@ -42,6 +42,14 @@ function getTeam(issue) {
   return String(raw);
 }
 
+function getDevType(issue) {
+  const raw = issue.fields?.customfield_13999;
+  if (!raw) return '—';
+  if (Array.isArray(raw)) return raw.map((v) => (typeof v === 'object' ? v.value : v)).filter(Boolean).join(', ') || '—';
+  if (typeof raw === 'object') return raw.value || '—';
+  return String(raw);
+}
+
 function getCellStr(colId, issue) {
   switch (colId) {
     case 'key':         return issue.key || '—';
@@ -53,7 +61,7 @@ function getCellStr(colId, issue) {
     case 'ttmDays':     return String(issue._ttm.ttmDays);
     case 'team':        return getTeam(issue);
     case 'status':      return issue.fields?.status?.name || '—';
-    case 'assignee':    return issue.fields?.assignee?.displayName || '—';
+    case 'devType':     return getDevType(issue);
     default:            return '—';
   }
 }
@@ -101,8 +109,8 @@ function renderTtmCell(colId, issue, helpers) {
           {issue.fields?.status?.name || '—'}
         </span>
       );
-    case 'assignee':
-      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{issue.fields?.assignee?.displayName || '—'}</span>;
+    case 'devType':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getDevType(issue)}</span>;
     default:
       return <span>—</span>;
   }
@@ -851,7 +859,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                       i.fields?.summary,
                       getClient(i),
                       getTeam(i),
-                      i.fields?.assignee?.displayName,
+                      getDevType(i),
                       i.fields?.status?.name,
                     ].filter(Boolean).join(' ').toLowerCase();
                     return text.includes(q);
@@ -875,7 +883,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                     case 'ttmDays':     aVal = a._ttm.ttmDays; bVal = b._ttm.ttmDays; break;
                     case 'team':        aVal = getTeam(a); bVal = getTeam(b); break;
                     case 'status':      aVal = a.fields?.status?.name || ''; bVal = b.fields?.status?.name || ''; break;
-                    case 'assignee':    aVal = a.fields?.assignee?.displayName || ''; bVal = b.fields?.assignee?.displayName || ''; break;
+                    case 'devType':    aVal = getDevType(a); bVal = getDevType(b); break;
                     default: return 0;
                   }
                   const cmp = typeof aVal === 'string' ? aVal.localeCompare(bVal, 'ru') : aVal - bVal;
