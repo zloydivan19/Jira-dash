@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import axios from 'axios';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { computeStats, computeTeamStats } from '../hooks/useTTM.js';
 
 const FIXED_COLUMNS = [
+  { id: 'expand',      label: '',              defaultWidth: 36  },
   { id: 'key',         label: 'Ключ',          defaultWidth: 110 },
   { id: 'client',      label: 'Клиент',         defaultWidth: 180 },
   { id: 'summary',     label: 'Описание',       defaultWidth: 320 },
@@ -56,8 +58,19 @@ function getCellStr(colId, issue) {
 }
 
 function renderTtmCell(colId, issue, helpers) {
-  const { theme, jiraBase } = helpers;
+  const { theme, jiraBase, expandedKeys, onToggleExpand } = helpers;
   switch (colId) {
+    case 'expand': {
+      const isOpen = expandedKeys?.has(issue.key);
+      return (
+        <button
+          onClick={() => onToggleExpand?.(issue.key)}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: theme.textSecondary, fontSize: '12px', padding: '2px 6px' }}
+          title={isOpen ? 'Свернуть' : 'Раскрыть'}>
+          {isOpen ? '▼' : '▶'}
+        </button>
+      );
+    }
     case 'key':
       return (
         <a href={`${jiraBase}/browse/${issue.key}`} target="_blank" rel="noreferrer"
@@ -253,7 +266,7 @@ function TtmFilterDropdown({ colId, allIssues, selected, onChange, onClose, anch
   );
 }
 
-function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, colWidths, startResize, onExclude }) {
+function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, colWidths, startResize, onExclude, expandedKeys, onToggleExpand, historyCache, onRetryHistory }) {
   const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
 
   const rowBgColor = (issue) => {
@@ -324,7 +337,7 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
                 <td key={col.id} style={col.id === 'summary' || col.id === 'client'
                   ? { ...tdBase, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
                   : tdBase}>
-                  {renderTtmCell(col.id, issue, { theme, jiraBase })}
+                  {renderTtmCell(col.id, issue, { theme, jiraBase, expandedKeys, onToggleExpand })}
                 </td>
               ))}
               <td style={{ ...tdBase, padding: '8px 6px', textAlign: 'center' }}>
@@ -377,6 +390,73 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
       return next;
     });
   }, []);
+
+  const [expandedKeys, setExpandedKeys] = useState(new Set());
+  const [historyCache, setHistoryCache] = useState({});
+
+  const toggleExpand = useCallback((issueKey) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(issueKey)) { next.delete(issueKey); return next; }
+      next.add(issueKey);
+      return next;
+    });
+    // Trigger lazy fetch if not in cache
+    setHistoryCache((cache) => {
+      if (cache[issueKey]?.history || cache[issueKey]?.loading) return cache;
+      // Schedule async fetch (state mutation outside of setState)
+      (async () => {
+        setHistoryCache((c) => ({ ...c, [issueKey]: { loading: true } }));
+        try {
+          const headers = {
+            'x-jira-url':   settings.jiraUrl   || '',
+            'x-jira-email': settings.jiraEmail || '',
+            'x-jira-token': settings.jiraToken || '',
+          };
+          const res = await axios.get('/api/jira/changelog', { params: { issueKey }, headers, timeout: 15000 });
+          const { parseStatusHistory } = await import('../utils/changelog.js');
+          const history = parseStatusHistory(res.data);
+          setHistoryCache((c) => ({ ...c, [issueKey]: { history, loading: false } }));
+        } catch (e) {
+          setHistoryCache((c) => ({ ...c, [issueKey]: { error: e?.response?.data?.error || e?.message || 'Ошибка', loading: false } }));
+        }
+      })();
+      return cache;
+    });
+  }, [settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
+
+  const retryHistoryFetch = useCallback((issueKey) => {
+    setHistoryCache((c) => {
+      const next = { ...c };
+      delete next[issueKey];
+      return next;
+    });
+    // Force fetch by simulating expand-toggle
+    setExpandedKeys((prev) => {
+      // ensure expanded
+      if (prev.has(issueKey)) return prev;
+      const next = new Set(prev);
+      next.add(issueKey);
+      return next;
+    });
+    // Now fetch
+    (async () => {
+      setHistoryCache((c) => ({ ...c, [issueKey]: { loading: true } }));
+      try {
+        const headers = {
+          'x-jira-url':   settings.jiraUrl   || '',
+          'x-jira-email': settings.jiraEmail || '',
+          'x-jira-token': settings.jiraToken || '',
+        };
+        const res = await axios.get('/api/jira/changelog', { params: { issueKey }, headers, timeout: 15000 });
+        const { parseStatusHistory } = await import('../utils/changelog.js');
+        const history = parseStatusHistory(res.data);
+        setHistoryCache((c) => ({ ...c, [issueKey]: { history, loading: false } }));
+      } catch (e) {
+        setHistoryCache((c) => ({ ...c, [issueKey]: { error: e?.response?.data?.error || e?.message || 'Ошибка', loading: false } }));
+      }
+    })();
+  }, [settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
 
   const restoreAllExcluded = useCallback(() => {
     setExcludedKeys(new Set());
@@ -684,6 +764,10 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                   colWidths={colWidths}
                   startResize={startResize}
                   onExclude={toggleExclude}
+                  expandedKeys={expandedKeys}
+                  onToggleExpand={toggleExpand}
+                  historyCache={historyCache}
+                  onRetryHistory={retryHistoryFetch}
                 />;
               })()}
             </div>
