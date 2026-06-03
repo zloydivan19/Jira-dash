@@ -28,6 +28,46 @@ function IssueLink({ issueKey, jiraBase, theme }) {
   );
 }
 
+function TeamSummary({ teamStats, globalAvg, theme }) {
+  if (!teamStats || teamStats.length === 0) return null;
+
+  const rowBg = (avg) => {
+    if (avg > globalAvg * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
+    if (avg > globalAvg * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
+    return 'transparent';
+  };
+
+  return (
+    <div style={{ marginBottom: '24px' }}>
+      <div style={{ fontSize: '13px', fontWeight: 700, color: theme.textPrimary, marginBottom: '8px' }}>Сводка по командам</div>
+      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px', background: theme.bgCard, border: `1px solid ${theme.borderLight}`, borderRadius: '6px', overflow: 'hidden' }}>
+        <thead>
+          <tr style={{ background: theme.bgThead || theme.bgPage }}>
+            {['Команда', 'Задач', 'Средний TTM', 'Медиана', 'Мин', 'Макс', '% проблемных'].map((h) => (
+              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: `1px solid ${theme.border}` }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {teamStats.map((t) => (
+            <tr key={t.team} style={{ background: rowBg(t.avg) }}>
+              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, color: theme.textPrimary }}>{t.team}</td>
+              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.count}</td>
+              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600 }}>{t.avg} дн.</td>
+              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.median} дн.</td>
+              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.min} дн.</td>
+              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.max} дн.</td>
+              <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, color: t.problemRatio >= 0.3 ? '#ef4444' : theme.textSecondary, fontWeight: t.problemRatio >= 0.3 ? 600 : 400 }}>
+                {Math.round(t.problemRatio * 100)}%
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function TTMTab({ issues, stats, teamStats, loading, error, onLoad, onExport, exporting, exportLabel, settings }) {
   const { theme } = useTheme();
   const totalIssues = issues.length;
@@ -104,7 +144,9 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
                 )}
               </div>
 
-              {/* Team summary + table — Task 12, 13 */}
+              <TeamSummary teamStats={teamStats} globalAvg={stats.avg} theme={theme} />
+
+              {/* Issues table — Task 13 */}
             </div>
           );
         })()}
