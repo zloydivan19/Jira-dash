@@ -71,8 +71,69 @@ export function useTTM() {
   });
 
   const load = useCallback(async (settings, jql) => {
-    // Реализация в Task 4
-    setError('Not implemented yet');
+    setLoading(true);
+    setError(null);
+    setIssues([]);
+    setStats(null);
+    setTeamStats([]);
+    sessionStorage.removeItem(SS_ISSUES);
+    sessionStorage.removeItem(SS_STATS);
+    sessionStorage.removeItem(SS_TEAMS);
+
+    const headers = credHeaders(settings);
+    const fields = 'summary,status,issuetype,created,fixVersions,customfield_12601,customfield_12606,customfield_12800,assignee';
+
+    const allIssues = [];
+    let nextPageToken = null;
+    const LIMIT = 500;
+    const PAGE = 1000;
+
+    try {
+      while (true) {
+        const params = { jql, maxResults: Math.min(PAGE, LIMIT - allIssues.length), fields };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+
+        const res = await axios.get('/api/jira/search', { params, headers, timeout: 30000 });
+        const page = res.data?.issues || [];
+        allIssues.push(...page);
+        nextPageToken = res.data?.nextPageToken || null;
+        const isLast = res.data?.isLast ?? true;
+        if (isLast || !nextPageToken) break;
+        if (allIssues.length >= LIMIT) break;
+      }
+    } catch (err) {
+      const msg = err.response?.data?.details
+        ? `${err.response.data.error}: ${err.response.data.details}`
+        : err.response?.data?.error || err.message || 'Ошибка загрузки задач';
+      setError(msg);
+      setLoading(false);
+      return;
+    }
+
+    // Расчёт TTM по каждой задаче, отбрасываем null (нет выпущенных fix versions)
+    const enriched = allIssues
+      .map((issue) => {
+        const ttm = calcTTM(issue);
+        if (!ttm) return null;
+        return { ...issue, _ttm: ttm };
+      })
+      .filter(Boolean);
+
+    // Фильтрация по периоду
+    const from = settings.ttmPeriodFrom ? new Date(settings.ttmPeriodFrom) : null;
+    const to   = settings.ttmPeriodTo   ? new Date(settings.ttmPeriodTo)   : null;
+    if (to) to.setHours(23, 59, 59, 999);
+
+    const filtered = enriched.filter((issue) => {
+      const dateToCheck = settings.ttmFilterMode === 'created' ? issue._ttm.createdDate : issue._ttm.releaseDate;
+      if (from && dateToCheck < from) return false;
+      if (to   && dateToCheck > to)   return false;
+      return true;
+    });
+
+    // Статистика и группировка — Task 5
+    setIssues(filtered);
+    setLoading(false);
   }, []);
 
   return { issues, stats, teamStats, loading, error, load };
