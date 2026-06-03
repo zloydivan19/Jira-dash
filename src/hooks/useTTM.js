@@ -64,7 +64,13 @@ export function computeStats(filtered) {
   const anomalies = filtered.length - valid.length;
 
   if (valid.length === 0) {
-    return { count: 0, anomalies, avg: 0, median: 0, min: 0, max: 0, fastest: null, slowest: null, top5Fastest: [], top5Slowest: [] };
+    return {
+      count: 0, anomalies, avg: 0, median: 0, min: 0, max: 0,
+      fastest: null, slowest: null, top5Fastest: [], top5Slowest: [],
+      phaseEstimationAvg: null, phaseEstimationMedian: null, phaseEstimationCount: 0,
+      phaseApprovalAvg: null, phaseApprovalMedian: null, phaseApprovalCount: 0,
+      phaseDevelopmentAvg: null, phaseDevelopmentMedian: null, phaseDevelopmentCount: 0,
+    };
   }
 
   const ttms = valid.map((i) => i._ttm.ttmDays);
@@ -72,6 +78,17 @@ export function computeStats(filtered) {
   const max = Math.max(...ttms);
   const fastest = valid.find((i) => i._ttm.ttmDays === min) || null;
   const slowest = valid.find((i) => i._ttm.ttmDays === max) || null;
+
+  // Phase aggregates — фильтруем только задачи у которых посчитана соответствующая фаза
+  const phaseAvg = (key) => {
+    const vals = valid.map((i) => i._ttm.phases?.[key]).filter((v) => v != null);
+    return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+  };
+  const phaseMedianHelper = (key) => {
+    const vals = valid.map((i) => i._ttm.phases?.[key]).filter((v) => v != null);
+    return vals.length ? computeMedian(vals) : null;
+  };
+  const phaseCount = (key) => valid.filter((i) => i._ttm.phases?.[key] != null).length;
 
   return {
     count: valid.length,
@@ -84,6 +101,15 @@ export function computeStats(filtered) {
     slowest,
     top5Fastest: [...valid].sort((a, b) => a._ttm.ttmDays - b._ttm.ttmDays).slice(0, 5),
     top5Slowest: [...valid].sort((a, b) => b._ttm.ttmDays - a._ttm.ttmDays).slice(0, 5),
+    phaseEstimationAvg:    phaseAvg('phaseEstimation'),
+    phaseEstimationMedian: phaseMedianHelper('phaseEstimation'),
+    phaseEstimationCount:  phaseCount('phaseEstimation'),
+    phaseApprovalAvg:      phaseAvg('phaseApproval'),
+    phaseApprovalMedian:   phaseMedianHelper('phaseApproval'),
+    phaseApprovalCount:    phaseCount('phaseApproval'),
+    phaseDevelopmentAvg:   phaseAvg('phaseDevelopment'),
+    phaseDevelopmentMedian:phaseMedianHelper('phaseDevelopment'),
+    phaseDevelopmentCount: phaseCount('phaseDevelopment'),
   };
 }
 
@@ -93,16 +119,25 @@ export function computeStats(filtered) {
  * Returns array of { team, count, avg, median, min, max, problemRatio } sorted by count desc.
  */
 export function computeTeamStats(valid, globalAvg) {
-  const byTeam = {};
+  // Group issues by team (keeping the full issue, not just ttmDays — we need phases too)
+  const byTeamIssues = {};
   valid.forEach((i) => {
     const team = extractTeamName(i.fields?.customfield_12800);
-    (byTeam[team] ||= []).push(i._ttm.ttmDays);
+    (byTeamIssues[team] ||= []).push(i);
   });
-  return Object.entries(byTeam).map(([team, list]) => {
+
+  return Object.entries(byTeamIssues).map(([team, issues]) => {
+    const list = issues.map((i) => i._ttm.ttmDays);
     const teamMin = Math.min(...list);
     const teamMax = Math.max(...list);
     const teamAvg = Math.round(list.reduce((a, b) => a + b, 0) / list.length);
     const problemCount = list.filter((t) => t > globalAvg * 1.5).length;
+
+    const phaseAvgForTeam = (key) => {
+      const vals = issues.map((i) => i._ttm.phases?.[key]).filter((v) => v != null);
+      return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+    };
+
     return {
       team,
       count: list.length,
@@ -111,6 +146,9 @@ export function computeTeamStats(valid, globalAvg) {
       min: teamMin,
       max: teamMax,
       problemRatio: list.length > 0 ? problemCount / list.length : 0,
+      phaseEstimationAvg:  phaseAvgForTeam('phaseEstimation'),
+      phaseApprovalAvg:    phaseAvgForTeam('phaseApproval'),
+      phaseDevelopmentAvg: phaseAvgForTeam('phaseDevelopment'),
     };
   }).sort((a, b) => b.count - a.count);
 }
