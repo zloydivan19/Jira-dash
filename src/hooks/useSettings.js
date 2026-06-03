@@ -22,6 +22,15 @@ const DEFAULT_SETTINGS = {
   bugControlIncludeClosed: false,
   bugControlJql: '',                    // manually edited JQL
   bugControlJqlAuto: true,              // auto-generation enabled
+  // TTM analysis tab
+  ttmPeriodFrom: '',                       // 'YYYY-MM-DD'
+  ttmPeriodTo: '',                          // 'YYYY-MM-DD'
+  ttmFilterMode: 'release',                 // 'release' | 'created'
+  ttmClients: [],                           // string[] (client display values)
+  ttmProjects: 'SR, SRTB, SRTS, SRTZ',
+  ttmIssueType: 'CR',
+  ttmJql: '',
+  ttmJqlAuto: true,
 };
 
 function loadSettings() {
