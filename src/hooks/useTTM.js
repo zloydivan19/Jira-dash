@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
+import { parseStatusHistory, calcPhases } from '../utils/changelog.js';
 
 const SS_ISSUES = 'ttm_issues';
 const SS_STATS  = 'ttm_stats';
