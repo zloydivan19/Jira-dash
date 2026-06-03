@@ -53,6 +53,67 @@ export function computeMedian(arr) {
     : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
+/**
+ * Compute global stats from an array of enriched issues (each with `_ttm`).
+ * Returns the same shape as before: { count, anomalies, avg, median, min, max, fastest, slowest, top5Fastest, top5Slowest }.
+ * `filtered` is the post-period-filter list; anomalies inside are counted separately.
+ */
+export function computeStats(filtered) {
+  const valid = filtered.filter((i) => !i._ttm.isAnomaly);
+  const anomalies = filtered.length - valid.length;
+
+  if (valid.length === 0) {
+    return { count: 0, anomalies, avg: 0, median: 0, min: 0, max: 0, fastest: null, slowest: null, top5Fastest: [], top5Slowest: [] };
+  }
+
+  const ttms = valid.map((i) => i._ttm.ttmDays);
+  const min = Math.min(...ttms);
+  const max = Math.max(...ttms);
+  const fastest = valid.find((i) => i._ttm.ttmDays === min) || null;
+  const slowest = valid.find((i) => i._ttm.ttmDays === max) || null;
+
+  return {
+    count: valid.length,
+    anomalies,
+    avg: Math.round(ttms.reduce((a, b) => a + b, 0) / ttms.length),
+    median: computeMedian(ttms),
+    min,
+    max,
+    fastest,
+    slowest,
+    top5Fastest: [...valid].sort((a, b) => a._ttm.ttmDays - b._ttm.ttmDays).slice(0, 5),
+    top5Slowest: [...valid].sort((a, b) => b._ttm.ttmDays - a._ttm.ttmDays).slice(0, 5),
+  };
+}
+
+/**
+ * Compute per-team stats. `valid` is the list of non-anomaly enriched issues.
+ * `globalAvg` is used to determine the `problemRatio` threshold.
+ * Returns array of { team, count, avg, median, min, max, problemRatio } sorted by count desc.
+ */
+export function computeTeamStats(valid, globalAvg) {
+  const byTeam = {};
+  valid.forEach((i) => {
+    const team = extractTeamName(i.fields?.customfield_12800);
+    (byTeam[team] ||= []).push(i._ttm.ttmDays);
+  });
+  return Object.entries(byTeam).map(([team, list]) => {
+    const teamMin = Math.min(...list);
+    const teamMax = Math.max(...list);
+    const teamAvg = Math.round(list.reduce((a, b) => a + b, 0) / list.length);
+    const problemCount = list.filter((t) => t > globalAvg * 1.5).length;
+    return {
+      team,
+      count: list.length,
+      avg: teamAvg,
+      median: computeMedian(list),
+      min: teamMin,
+      max: teamMax,
+      problemRatio: list.length > 0 ? problemCount / list.length : 0,
+    };
+  }).sort((a, b) => b.count - a.count);
+}
+
 export function useTTM() {
   const [issues,    setIssues]    = useState(() => readSession(SS_ISSUES, []));
   const [stats,     setStats]     = useState(() => readSession(SS_STATS,  null));
@@ -131,58 +192,11 @@ export function useTTM() {
       return true;
     });
 
-    // Аномалии (created > releaseDate) — исключаем из расчётов, но сохраняем в issues для отображения
-    const valid = filtered.filter((i) => !i._ttm.isAnomaly);
-    const anomalies = filtered.length - valid.length;
+    const newStats = computeStats(filtered);
 
-    if (valid.length === 0) {
-      setIssues(filtered);
-      setStats({ count: 0, anomalies, avg: 0, median: 0, min: 0, max: 0, fastest: null, slowest: null, top5Fastest: [], top5Slowest: [] });
-      setTeamStats([]);
-      setLoading(false);
-      return;
-    }
-
-    const ttms = valid.map((i) => i._ttm.ttmDays);
-    const min = Math.min(...ttms);
-    const max = Math.max(...ttms);
-    const fastest = valid.find((i) => i._ttm.ttmDays === min) || null;
-    const slowest = valid.find((i) => i._ttm.ttmDays === max) || null;
-
-    const newStats = {
-      count: valid.length,
-      anomalies,
-      avg: Math.round(ttms.reduce((a, b) => a + b, 0) / ttms.length),
-      median: computeMedian(ttms),
-      min,
-      max,
-      fastest,
-      slowest,
-      top5Fastest: [...valid].sort((a, b) => a._ttm.ttmDays - b._ttm.ttmDays).slice(0, 5),
-      top5Slowest: [...valid].sort((a, b) => b._ttm.ttmDays - a._ttm.ttmDays).slice(0, 5),
-    };
-
-    // Группировка по командам
-    const byTeam = {};
-    valid.forEach((i) => {
-      const team = extractTeamName(i.fields?.customfield_12800);
-      (byTeam[team] ||= []).push(i._ttm.ttmDays);
-    });
-    const newTeamStats = Object.entries(byTeam).map(([team, list]) => {
-      const teamMin = Math.min(...list);
-      const teamMax = Math.max(...list);
-      const teamAvg = Math.round(list.reduce((a, b) => a + b, 0) / list.length);
-      const problemCount = list.filter((t) => t > newStats.avg * 1.5).length;
-      return {
-        team,
-        count: list.length,
-        avg: teamAvg,
-        median: computeMedian(list),
-        min: teamMin,
-        max: teamMax,
-        problemRatio: list.length > 0 ? problemCount / list.length : 0,
-      };
-    }).sort((a, b) => b.count - a.count);
+    // Группировка по командам — пропускаем аномалии, как и раньше
+    const validForTeams = filtered.filter((i) => !i._ttm.isAnomaly);
+    const newTeamStats = computeTeamStats(validForTeams, newStats.avg);
 
     setIssues(filtered);
     setStats(newStats);

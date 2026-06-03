@@ -4,7 +4,7 @@ import { useJira } from './hooks/useJira.js';
 import { useEvaluation } from './hooks/useEvaluation.js';
 import { useBugControl } from './hooks/useBugControl.js';
 import BugControlTab from './components/BugControlTab.jsx';
-import { useTTM } from './hooks/useTTM.js';
+import { useTTM, computeStats, computeTeamStats } from './hooks/useTTM.js';
 import TTMTab from './components/TTMTab.jsx';
 import { downloadCSV } from './utils/csvExport.js';
 import { useTheme } from './contexts/ThemeContext.jsx';
@@ -241,11 +241,25 @@ export default function App() {
     setTtmExporting(true);
     setTtmExportLabel('Формирование файла...');
     try {
+      // Read manually-excluded keys and apply
+      let excludedKeys = new Set();
+      try { excludedKeys = new Set(JSON.parse(localStorage.getItem('ttm_excluded_keys')) || []); } catch {}
+
+      const effectiveIssues = excludedKeys.size > 0
+        ? ttm.issues.filter((i) => !excludedKeys.has(i.key))
+        : ttm.issues;
+      const effectiveStats = excludedKeys.size > 0
+        ? computeStats(effectiveIssues)
+        : ttm.stats;
+      const effectiveTeamStats = excludedKeys.size > 0
+        ? computeTeamStats(effectiveIssues.filter((i) => !i._ttm.isAnomaly), effectiveStats?.avg ?? 0)
+        : ttm.teamStats;
+
       const mod = await import('./utils/ttmExport.js');
       const result = await mod.exportTTM({
-        issues: ttm.issues,
-        stats: ttm.stats,
-        teamStats: ttm.teamStats,
+        issues: effectiveIssues,
+        stats: effectiveStats,
+        teamStats: effectiveTeamStats,
         settings,
       });
       setTtmExportLabel(`Готово: ${result.count} задач`);

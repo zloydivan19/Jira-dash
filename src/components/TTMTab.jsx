@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import { computeStats, computeTeamStats } from '../hooks/useTTM.js';
 
 const FIXED_COLUMNS = [
   { id: 'key',         label: 'Ключ',          defaultWidth: 110 },
@@ -228,7 +229,7 @@ function TtmFilterDropdown({ colId, allIssues, selected, onChange, onClose, anch
   );
 }
 
-function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, colWidths, startResize }) {
+function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, colWidths, startResize, onExclude }) {
   const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
 
   const rowBgColor = (issue) => {
@@ -243,6 +244,7 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
     <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%', fontSize: '13px', tableLayout: 'fixed' }}>
       <colgroup>
         {FIXED_COLUMNS.map((c) => <col key={c.id} style={{ width: (colWidths[c.id] ?? c.defaultWidth ?? 150) + 'px' }} />)}
+        <col style={{ width: '44px' }} />
       </colgroup>
       <thead>
         <tr style={{ background: theme.bgThead || theme.bgCard }}>
@@ -280,6 +282,10 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
               </th>
             );
           })}
+          <th style={{
+            padding: '8px 4px', textAlign: 'center', fontSize: '11px', fontWeight: 700,
+            color: theme.textMuted, borderBottom: `2px solid ${theme.border}`,
+          }} title="Исключить из расчёта">✕</th>
         </tr>
       </thead>
       <tbody>
@@ -297,6 +303,19 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
                   {renderTtmCell(col.id, issue, { theme, jiraBase })}
                 </td>
               ))}
+              <td style={{ ...tdBase, padding: '8px 6px', textAlign: 'center' }}>
+                <button
+                  onClick={() => onExclude(issue.key)}
+                  title="Исключить из расчёта"
+                  style={{
+                    background: 'transparent', border: 'none',
+                    color: theme.textMuted, cursor: 'pointer',
+                    fontSize: '14px', padding: '2px 6px', borderRadius: '4px',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = theme.id === 'csi' ? '#fef2f2' : '#3a1a1a'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = 'transparent'; }}
+                >✕</button>
+              </td>
             </tr>
           );
         })}
@@ -307,7 +326,6 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
 
 export default function TTMTab({ issues, stats, teamStats, loading, error, onLoad, onExport, exporting, exportLabel, settings }) {
   const { theme } = useTheme();
-  const totalIssues = issues.length;
 
   const [highlight,  setHighlight]  = useState(true);
   const [sortCol,    setSortCol]    = useState('ttmDays');
@@ -322,6 +340,42 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
   });
   const [openFilterCol, setOpenFilterCol] = useState(null);
   const [filterAnchor,  setFilterAnchor]  = useState(null);
+
+  const [excludedKeys, setExcludedKeys] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('ttm_excluded_keys')) || []); } catch { return new Set(); }
+  });
+
+  const toggleExclude = useCallback((key) => {
+    setExcludedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem('ttm_excluded_keys', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  const restoreAllExcluded = useCallback(() => {
+    setExcludedKeys(new Set());
+    try { localStorage.removeItem('ttm_excluded_keys'); } catch {}
+  }, []);
+
+  const effectiveIssues = useMemo(
+    () => issues.filter((i) => !excludedKeys.has(i.key)),
+    [issues, excludedKeys]
+  );
+
+  const effectiveStats = useMemo(
+    () => excludedKeys.size === 0 ? stats : computeStats(effectiveIssues),
+    [excludedKeys, stats, effectiveIssues]
+  );
+
+  const effectiveTeamStats = useMemo(() => {
+    if (excludedKeys.size === 0) return teamStats;
+    const valid = effectiveIssues.filter((i) => !i._ttm.isAnomaly);
+    return computeTeamStats(valid, effectiveStats?.avg ?? 0);
+  }, [excludedKeys, teamStats, effectiveIssues, effectiveStats]);
+
+  const totalIssues = effectiveIssues.length;
 
   const handleFilterClick = useCallback((e, colId) => {
     e.stopPropagation();
@@ -376,13 +430,23 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
       <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderLight}`, background: theme.bgToolbar, display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, flexWrap: 'wrap' }}>
         <span style={{ fontSize: '14px', fontWeight: 700, color: theme.textPrimary }}>TTM анализ</span>
 
-        {!loading && totalIssues > 0 && stats && (
+        {!loading && totalIssues > 0 && effectiveStats && (
           <span style={{ fontSize: '12px', color: theme.textMuted }}>
-            <b style={{ color: theme.textPrimary }}>{stats.count}</b> выпущено
+            <b style={{ color: theme.textPrimary }}>{effectiveStats.count}</b> выпущено
             {settings.ttmPeriodFrom && settings.ttmPeriodTo && (
               <> за <b style={{ color: theme.textPrimary }}>{settings.ttmPeriodFrom}</b> — <b style={{ color: theme.textPrimary }}>{settings.ttmPeriodTo}</b></>
             )}
             {' · '}режим: <b style={{ color: theme.textPrimary }}>{settings.ttmFilterMode === 'created' ? 'по созданию' : 'по релизу'}</b>
+          </span>
+        )}
+
+        {excludedKeys.size > 0 && (
+          <span style={{ fontSize: '12px', color: theme.textMuted }}>
+            <span style={{ color: '#a855f7', fontWeight: 600 }}>Исключено: {excludedKeys.size}</span>
+            <button onClick={restoreAllExcluded}
+              style={{ marginLeft: '6px', fontSize: '11px', color: theme.accent, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+              ↻ Восстановить все
+            </button>
           </span>
         )}
 
@@ -446,7 +510,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
           </div>
         )}
 
-        {!loading && totalIssues === 0 && !error && (
+        {!loading && issues.length === 0 && !error && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '12px' }}>
             <span style={{ fontSize: '32px' }}>📊</span>
             <span style={{ color: theme.textSecondary, fontSize: '14px' }}>Нет данных</span>
@@ -454,7 +518,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
           </div>
         )}
 
-        {!loading && totalIssues > 0 && stats && (() => {
+        {!loading && issues.length > 0 && effectiveStats && (() => {
           const jiraBase = (settings.jiraUrl || '').replace(/\/$/, '');
           const teamOf = (issue) => {
             const raw = issue.fields?.customfield_12800;
@@ -468,44 +532,44 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
             <div>
               {/* Stat cards */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
-                <StatCard title="Всего задач" value={stats.count} theme={theme} />
-                <StatCard title="Средний TTM" value={`${stats.avg} дн.`} theme={theme} />
-                <StatCard title="Медианный TTM" value={`${stats.median} дн.`} theme={theme} />
-                {stats.fastest && (
+                <StatCard title="Всего задач" value={effectiveStats.count} theme={theme} />
+                <StatCard title="Средний TTM" value={`${effectiveStats.avg} дн.`} theme={theme} />
+                <StatCard title="Медианный TTM" value={`${effectiveStats.median} дн.`} theme={theme} />
+                {effectiveStats.fastest && (
                   <StatCard
                     title="Самая быстрая"
-                    value={<span><IssueLink issueKey={stats.fastest.key} jiraBase={jiraBase} theme={theme} /> · {stats.fastest._ttm.ttmDays} дн.</span>}
-                    sub={teamOf(stats.fastest) || '—'}
+                    value={<span><IssueLink issueKey={effectiveStats.fastest.key} jiraBase={jiraBase} theme={theme} /> · {effectiveStats.fastest._ttm.ttmDays} дн.</span>}
+                    sub={teamOf(effectiveStats.fastest) || '—'}
                     theme={theme}
                   />
                 )}
-                {stats.slowest && (
+                {effectiveStats.slowest && (
                   <StatCard
                     title="Самая долгая"
-                    value={<span><IssueLink issueKey={stats.slowest.key} jiraBase={jiraBase} theme={theme} /> · {stats.slowest._ttm.ttmDays} дн.</span>}
-                    sub={teamOf(stats.slowest) || '—'}
+                    value={<span><IssueLink issueKey={effectiveStats.slowest.key} jiraBase={jiraBase} theme={theme} /> · {effectiveStats.slowest._ttm.ttmDays} дн.</span>}
+                    sub={teamOf(effectiveStats.slowest) || '—'}
                     color="#ef4444"
                     theme={theme}
                   />
                 )}
-                {stats.anomalies > 0 && (
-                  <StatCard title="⚠ Аномалий" value={stats.anomalies} sub="created > releaseDate, исключены из расчёта" color="#a855f7" theme={theme} />
+                {effectiveStats.anomalies > 0 && (
+                  <StatCard title="⚠ Аномалий" value={effectiveStats.anomalies} sub="created > releaseDate, исключены из расчёта" color="#a855f7" theme={theme} />
                 )}
               </div>
 
-              <TeamSummary teamStats={teamStats} globalAvg={stats.avg} theme={theme} />
+              <TeamSummary teamStats={effectiveTeamStats} globalAvg={effectiveStats.avg} theme={theme} />
 
               {/* Highlight toggle */}
               <div style={{ marginBottom: '8px', fontSize: '12px' }}>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: theme.textSecondary }}>
                   <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)}
                     style={{ accentColor: theme.accent, cursor: 'pointer' }} />
-                  Подсветить отклонения от среднего (avg = {stats.avg} дн.)
+                  Подсветить отклонения от среднего (avg = {effectiveStats.avg} дн.)
                 </label>
               </div>
 
               {(() => {
-                let result = issues;
+                let result = effectiveIssues;
                 if (search.trim()) {
                   const q = search.toLowerCase();
                   result = result.filter((i) => {
@@ -547,7 +611,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
 
                 return <IssuesTable
                   issues={sorted}
-                  stats={stats}
+                  stats={effectiveStats}
                   theme={theme}
                   jiraBase={jiraBase}
                   highlight={highlight}
@@ -559,6 +623,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
                   onFilterClick={handleFilterClick}
                   colWidths={colWidths}
                   startResize={startResize}
+                  onExclude={toggleExclude}
                 />;
               })()}
             </div>
@@ -569,7 +634,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
       {openFilterCol && filterAnchor && (
         <TtmFilterDropdown
           colId={openFilterCol}
-          allIssues={issues}
+          allIssues={effectiveIssues}
           selected={colFilters[openFilterCol] || []}
           onChange={handleFilterChange}
           onClose={handleCloseFilter}
