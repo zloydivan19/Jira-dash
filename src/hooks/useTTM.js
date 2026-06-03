@@ -138,40 +138,55 @@ export function computeStats(filtered) {
 
 /**
  * Compute per-team stats. `valid` is the list of non-anomaly enriched issues.
- * `globalAvg` is used to determine the `problemRatio` threshold.
- * Returns array of { team, count, avg, median, min, max, problemRatio } sorted by count desc.
+ * `globalAvg` is either a number (legacy) or `{ cal, work }` (new) — used to compute the
+ * `problemRatio` threshold on the calendar dimension.
+ * Returns array of { team, count, avg:{cal,work}, median:{cal,work}, min:{cal,work},
+ * max:{cal,work}, problemRatio, phase*Avg:{cal,work} } sorted by count desc.
  */
 export function computeTeamStats(valid, globalAvg) {
-  // Group issues by team (keeping the full issue, not just ttmDays — we need phases too)
   const byTeamIssues = {};
   valid.forEach((i) => {
     const team = extractTeamName(i.fields?.customfield_12800);
     (byTeamIssues[team] ||= []).push(i);
   });
 
-  return Object.entries(byTeamIssues).map(([team, issues]) => {
-    const list = issues.map((i) => i._ttm.ttmDays);
-    const teamMin = Math.min(...list);
-    const teamMax = Math.max(...list);
-    const teamAvg = Math.round(list.reduce((a, b) => a + b, 0) / list.length);
-    const problemCount = list.filter((t) => t > globalAvg * 1.5).length;
+  // Accept either legacy number or new { cal, work } shape; threshold uses calendar days.
+  const globalCal = typeof globalAvg === 'object' && globalAvg !== null ? (globalAvg.cal ?? 0) : (globalAvg ?? 0);
 
-    const phaseAvgForTeam = (key) => {
-      const vals = issues.map((i) => i._ttm.phases?.[key]).filter((v) => v != null);
-      return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+  return Object.entries(byTeamIssues).map(([team, issues]) => {
+    const cals  = issues.map((i) => i._ttm.ttmDays);
+    const works = issues.map((i) => i._ttm.ttmWorkDays).filter((v) => v != null);
+
+    const teamMinCal = Math.min(...cals);
+    const teamMaxCal = Math.max(...cals);
+    const minIssue   = issues.find((i) => i._ttm.ttmDays === teamMinCal);
+    const maxIssue   = issues.find((i) => i._ttm.ttmDays === teamMaxCal);
+
+    const avgOf = (arr) =>
+      arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
+
+    const problemCount = cals.filter((t) => t > globalCal * 1.5).length;
+
+    const phasePairAvgForTeam = (key) => {
+      const cArr = issues.map((i) => i._ttm.phases?.[key]?.cal).filter((v) => v != null);
+      const wArr = issues.map((i) => i._ttm.phases?.[key]?.work).filter((v) => v != null);
+      return { cal: avgOf(cArr), work: avgOf(wArr) };
     };
 
     return {
       team,
-      count: list.length,
-      avg: teamAvg,
-      median: computeMedian(list),
-      min: teamMin,
-      max: teamMax,
-      problemRatio: list.length > 0 ? problemCount / list.length : 0,
-      phaseEstimationAvg:  phaseAvgForTeam('phaseEstimation'),
-      phaseApprovalAvg:    phaseAvgForTeam('phaseApproval'),
-      phaseDevelopmentAvg: phaseAvgForTeam('phaseDevelopment'),
+      count: cals.length,
+      avg:    { cal: avgOf(cals), work: avgOf(works) },
+      median: {
+        cal:  computeMedian(cals),
+        work: works.length ? computeMedian(works) : null,
+      },
+      min: { cal: teamMinCal, work: minIssue?._ttm.ttmWorkDays ?? null },
+      max: { cal: teamMaxCal, work: maxIssue?._ttm.ttmWorkDays ?? null },
+      problemRatio: cals.length > 0 ? problemCount / cals.length : 0,
+      phaseEstimationAvg:  phasePairAvgForTeam('phaseEstimation'),
+      phaseApprovalAvg:    phasePairAvgForTeam('phaseApproval'),
+      phaseDevelopmentAvg: phasePairAvgForTeam('phaseDevelopment'),
     };
   }).sort((a, b) => b.count - a.count);
 }
