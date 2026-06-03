@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
-import { parseStatusHistory, calcPhases } from '../utils/changelog.js';
+import { parseStatusHistory, calcPhases, calendarDays, workingDays } from '../utils/changelog.js';
 
 const SS_ISSUES = 'ttm_issues';
 const SS_STATS  = 'ttm_stats';
@@ -30,6 +30,7 @@ export function calcTTM(issue) {
     createdDate,
     releaseName: latest.name,
     ttmDays,
+    ttmWorkDays: workingDays(createdDate, releaseDate),
     isAnomaly: ttmDays < 0,
   };
 }
@@ -183,7 +184,7 @@ export function useTTM() {
     sessionStorage.removeItem(SS_TEAMS);
 
     const headers = credHeaders(settings);
-    const fields = 'summary,status,issuetype,created,fixVersions,customfield_12601,customfield_12606,customfield_12800,assignee';
+    const fields = 'summary,status,issuetype,created,fixVersions,customfield_12601,customfield_12606,customfield_12800,customfield_13999,assignee';
 
     const allIssues = [];
     let nextPageToken = null;
