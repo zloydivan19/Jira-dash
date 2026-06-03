@@ -683,22 +683,30 @@ export default function Sidebar({
 
   // ── Styles ──
   const TABS = [
-    { id: 'connection', label: 'Вход' },
-    { id: 'queries',    label: 'CR Запросы' },
-    { id: 'bugs',       label: 'Задачи/Ошибки' },
-    { id: 'eval',       label: 'Контроль оценки' },
-    { id: 'bugControl', label: 'Контроль ошибок' },
-    { id: 'ttm',        label: 'TTM анализ' },
-    { id: 'fields',     label: 'Поля' },
+    { id: 'connection', label: 'Вход',             icon: '🔑' },
+    { id: 'queries',    label: 'CR Запросы',       icon: '📋' },
+    { id: 'bugs',       label: 'Задачи/Ошибки',    icon: '🐛' },
+    { id: 'eval',       label: 'Контроль оценки',  icon: '⏱' },
+    { id: 'bugControl', label: 'Контроль ошибок',  icon: '⚠' },
+    { id: 'ttm',        label: 'TTM анализ',       icon: '📊' },
+    { id: 'fields',     label: 'Поля',             icon: '⚙' },
   ];
 
   const tabBtn = (tab) => ({
-    flex: 1, padding: '7px 4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600,
-    letterSpacing: '0.03em', transition: 'all 0.15s ease', border: 'none',
-    whiteSpace: 'normal', lineHeight: '1.3', textAlign: 'center',
-    background: activeTab === tab ? theme.tabActiveBg : 'transparent',
-    color: activeTab === tab ? theme.tabActiveText : theme.tabInactiveText,
-    borderBottom: activeTab === tab ? 'none' : theme.tabBorder,
+    width: '100%',
+    padding: '8px 12px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: activeTab === tab ? 600 : 500,
+    transition: 'all 0.12s ease',
+    border: 'none',
+    borderLeft: `3px solid ${activeTab === tab ? theme.accent : 'transparent'}`,
+    textAlign: 'left',
+    background: activeTab === tab ? (theme.tabActiveBg || (theme.id === 'csi' ? '#e8f0f8' : '#1a2e40')) : 'transparent',
+    color: activeTab === tab ? theme.accent : theme.textSecondary,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
   });
 
   const switchBtn = (val, current) => ({
@@ -914,11 +922,14 @@ export default function Sidebar({
         {userInfo && <div style={{ fontSize: '11px', color: theme.textSecondary, marginTop: '2px' }}>{userInfo.displayName || userInfo.emailAddress}</div>}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${theme.borderLight}` }}>
+      {/* Tabs — vertical list */}
+      <div style={{ display: 'flex', flexDirection: 'column', borderBottom: `1px solid ${theme.borderLight}`, flexShrink: 0 }}>
         {TABS.map((tab) => (
-          <button key={tab.id} style={tabBtn(tab.id)} onClick={() => onTabChange(tab.id)} title={tab.label}>
-            {tab.label}
+          <button key={tab.id} style={tabBtn(tab.id)} onClick={() => onTabChange(tab.id)} title={tab.label}
+            onMouseEnter={(e) => { if (activeTab !== tab.id) e.currentTarget.style.background = theme.bgRowHover || (theme.id === 'csi' ? '#f4f6fa' : '#1a1f2e'); }}
+            onMouseLeave={(e) => { if (activeTab !== tab.id) e.currentTarget.style.background = 'transparent'; }}>
+            <span style={{ fontSize: '14px', width: '16px', textAlign: 'center', flexShrink: 0 }}>{tab.icon}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
           </button>
         ))}
       </div>
