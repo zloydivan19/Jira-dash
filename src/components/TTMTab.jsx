@@ -38,6 +38,22 @@ function getTeam(issue) {
   return String(raw);
 }
 
+function getCellStr(colId, issue) {
+  switch (colId) {
+    case 'key':         return issue.key || '—';
+    case 'client':      return getClient(issue);
+    case 'summary':     return issue.fields?.summary || '—';
+    case 'created':     return fmtDate(issue._ttm.createdDate);
+    case 'release':     return issue._ttm.releaseName || '—';
+    case 'releaseDate': return fmtDate(issue._ttm.releaseDate);
+    case 'ttmDays':     return String(issue._ttm.ttmDays);
+    case 'team':        return getTeam(issue);
+    case 'status':      return issue.fields?.status?.name || '—';
+    case 'assignee':    return issue.fields?.assignee?.displayName || '—';
+    default:            return '—';
+  }
+}
+
 function renderTtmCell(colId, issue, helpers) {
   const { theme, jiraBase } = helpers;
   switch (colId) {
@@ -143,7 +159,76 @@ function TeamSummary({ teamStats, globalAvg, theme }) {
   );
 }
 
-function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort }) {
+function TtmFilterDropdown({ colId, allIssues, selected, onChange, onClose, anchorRect, theme }) {
+  const ref = useRef(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
+
+  const uniqueValues = useMemo(() => {
+    const set = new Set();
+    allIssues.forEach((issue) => set.add(getCellStr(colId, issue)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [allIssues, colId]);
+
+  const [localSelected, setLocalSelected] = useState(() =>
+    selected.length === 0 ? [...uniqueValues] : [...selected]
+  );
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onCloseRef.current(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggle = (val) => {
+    const next = localSelected.includes(val) ? localSelected.filter((v) => v !== val) : [...localSelected, val];
+    setLocalSelected(next);
+    onChange(colId, next.length === 0 || next.length === uniqueValues.length ? [] : next);
+  };
+  const selectAll   = () => { setLocalSelected([...uniqueValues]); onChange(colId, []); };
+  const deselectAll = () => { setLocalSelected([]); onChange(colId, []); };
+
+  const allChecked  = localSelected.length === uniqueValues.length;
+  const noneChecked = localSelected.length === 0;
+
+  const dropHeight = Math.min(uniqueValues.length * 29 + 56, 340);
+  const spaceBelow = window.innerHeight - anchorRect.bottom;
+  const top  = spaceBelow > dropHeight + 8 ? anchorRect.bottom + 2 : anchorRect.top - dropHeight - 2;
+  const left = Math.min(anchorRect.left, window.innerWidth - 220);
+
+  const btnStyle = (active) => ({
+    flex: 1, padding: '6px 8px', fontSize: '11px', cursor: 'pointer', textAlign: 'center',
+    color: active ? theme.accent : theme.textSecondary,
+    fontWeight: active ? 600 : 400, background: 'transparent', border: 'none',
+  });
+
+  return createPortal(
+    <div ref={ref} style={{
+      position: 'fixed', top, left, zIndex: 9999,
+      background: theme.bgDropdown, border: `1px solid ${theme.border}`,
+      borderRadius: '7px', boxShadow: theme.id === 'dark' ? '0 8px 32px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.15)',
+      minWidth: '180px', maxWidth: '260px', overflow: 'hidden',
+    }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${theme.borderLight}` }}>
+        <button style={btnStyle(allChecked)} onClick={selectAll}>Выбрать все</button>
+        <div style={{ width: '1px', background: theme.borderLight, flexShrink: 0 }} />
+        <button style={btnStyle(noneChecked)} onClick={deselectAll}>Снять все</button>
+      </div>
+      <div style={{ maxHeight: '270px', overflowY: 'auto' }}>
+        {uniqueValues.map((val) => (
+          <label key={val} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', color: theme.textPrimary }}>
+            <input type="checkbox" checked={localSelected.includes(val)} onChange={() => toggle(val)}
+              style={{ accentColor: theme.accent, cursor: 'pointer', flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val}</span>
+          </label>
+        ))}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, colWidths, startResize }) {
   const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
 
   const rowBgColor = (issue) => {
@@ -157,23 +242,44 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
   return (
     <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%', fontSize: '13px', tableLayout: 'fixed' }}>
       <colgroup>
-        {FIXED_COLUMNS.map((c) => <col key={c.id} style={{ width: c.defaultWidth + 'px' }} />)}
+        {FIXED_COLUMNS.map((c) => <col key={c.id} style={{ width: (colWidths[c.id] ?? c.defaultWidth ?? 150) + 'px' }} />)}
       </colgroup>
       <thead>
         <tr style={{ background: theme.bgThead || theme.bgCard }}>
-          {FIXED_COLUMNS.map((col) => (
-            <th key={col.id} onClick={() => onSort(col.id)} style={{
-              padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
-              color: sortCol === col.id ? theme.accent : theme.textSecondary,
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-              borderBottom: `2px solid ${theme.border}`, whiteSpace: 'nowrap', cursor: 'pointer',
-            }}>
-              {col.label}
-              {sortCol === col.id
-                ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '▲' : '▼'}</span>
-                : <span style={{ fontSize: '9px', marginLeft: '3px', color: theme.textMuted }}>⇅</span>}
-            </th>
-          ))}
+          {FIXED_COLUMNS.map((col) => {
+            const isFiltered = (colFilters[col.id]?.length ?? 0) > 0;
+            const headerColor = isFiltered ? theme.accent : (sortCol === col.id ? theme.accent : theme.textSecondary);
+            return (
+              <th key={col.id} style={{
+                padding: '8px 8px 8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
+                color: headerColor, textTransform: 'uppercase', letterSpacing: '0.05em',
+                borderBottom: `2px solid ${isFiltered ? theme.accent : theme.border}`,
+                whiteSpace: 'nowrap', overflow: 'hidden',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span onClick={() => onSort(col.id)} style={{ cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {col.label}
+                    {sortCol === col.id
+                      ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '▲' : '▼'}</span>
+                      : <span style={{ fontSize: '9px', marginLeft: '3px', color: theme.textMuted }}>⇅</span>}
+                  </span>
+                  <span
+                    onClick={(e) => onFilterClick(e, col.id)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    title="Фильтр"
+                    style={{ cursor: 'pointer', fontSize: '12px', color: isFiltered ? theme.accent : theme.textMuted, padding: '1px 2px', borderRadius: '3px', background: openFilterCol === col.id ? theme.border : 'transparent', flexShrink: 0 }}
+                  >▾</span>
+                  <div
+                    onMouseDown={(e) => startResize(e, col.id)}
+                    title="Изменить ширину"
+                    style={{ width: '5px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: `2px solid ${theme.border}`, marginRight: '-8px' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderRightColor = theme.accent)}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = theme.border)}
+                  />
+                </div>
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -208,6 +314,55 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
   const [sortDir,    setSortDir]    = useState('desc');
   const [search,     setSearch]     = useState('');
 
+  const [colFilters, setColFilters] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('ttm_col_filters')) || {}; } catch { return {}; }
+  });
+  const [colWidths, setColWidths] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ttm_col_widths')) || {}; } catch { return {}; }
+  });
+  const [openFilterCol, setOpenFilterCol] = useState(null);
+  const [filterAnchor,  setFilterAnchor]  = useState(null);
+
+  const handleFilterClick = useCallback((e, colId) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setOpenFilterCol((prev) => {
+      if (prev === colId) { setFilterAnchor(null); return null; }
+      setFilterAnchor(rect);
+      return colId;
+    });
+  }, []);
+
+  const handleFilterChange = useCallback((colId, values) => {
+    setColFilters((prev) => {
+      const next = !values || values.length === 0
+        ? (({ [colId]: _, ...rest }) => rest)(prev)
+        : { ...prev, [colId]: values };
+      try { sessionStorage.setItem('ttm_col_filters', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleCloseFilter = useCallback(() => { setOpenFilterCol(null); setFilterAnchor(null); }, []);
+
+  const startResize = useCallback((e, colId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const col = FIXED_COLUMNS.find((c) => c.id === colId);
+    const startW = colWidths[colId] ?? col?.defaultWidth ?? 150;
+    const onMove = (ev) => setColWidths((prev) => {
+      const next = { ...prev, [colId]: Math.max(60, startW + ev.clientX - startX) };
+      try { localStorage.setItem('ttm_col_widths', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [colWidths]);
+
+  const activeFilterCount = Object.values(colFilters).filter((v) => v.length > 0).length;
+
   const handleSort = useCallback((col) => {
     setSortCol((prev) => {
       if (prev === col) { setSortDir((d) => d === 'asc' ? 'desc' : 'asc'); return prev; }
@@ -229,6 +384,13 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
             )}
             {' · '}режим: <b style={{ color: theme.textPrimary }}>{settings.ttmFilterMode === 'created' ? 'по созданию' : 'по релизу'}</b>
           </span>
+        )}
+
+        {activeFilterCount > 0 && (
+          <button onClick={() => { setColFilters({}); sessionStorage.removeItem('ttm_col_filters'); }}
+            style={{ fontSize: '11px', color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+            ✕ Сбросить фильтры ({activeFilterCount})
+          </button>
         )}
 
         <div style={{ position: 'relative', flex: 1, maxWidth: '320px' }}>
@@ -358,6 +520,12 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
                     return text.includes(q);
                   });
                 }
+                // Column filters
+                for (const [colId, values] of Object.entries(colFilters)) {
+                  if (!values || values.length === 0) continue;
+                  result = result.filter((i) => values.includes(getCellStr(colId, i)));
+                }
+
                 const sorted = [...result].sort((a, b) => {
                   let aVal, bVal;
                   switch (sortCol) {
@@ -377,12 +545,38 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
                   return sortDir === 'asc' ? cmp : -cmp;
                 });
 
-                return <IssuesTable issues={sorted} stats={stats} theme={theme} jiraBase={jiraBase} highlight={highlight} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />;
+                return <IssuesTable
+                  issues={sorted}
+                  stats={stats}
+                  theme={theme}
+                  jiraBase={jiraBase}
+                  highlight={highlight}
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  colFilters={colFilters}
+                  openFilterCol={openFilterCol}
+                  onFilterClick={handleFilterClick}
+                  colWidths={colWidths}
+                  startResize={startResize}
+                />;
               })()}
             </div>
           );
         })()}
       </div>
+
+      {openFilterCol && filterAnchor && (
+        <TtmFilterDropdown
+          colId={openFilterCol}
+          allIssues={issues}
+          selected={colFilters[openFilterCol] || []}
+          onChange={handleFilterChange}
+          onClose={handleCloseFilter}
+          anchorRect={filterAnchor}
+          theme={theme}
+        />
+      )}
     </div>
   );
 }
