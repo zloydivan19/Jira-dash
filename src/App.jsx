@@ -4,6 +4,8 @@ import { useJira } from './hooks/useJira.js';
 import { useEvaluation } from './hooks/useEvaluation.js';
 import { useBugControl } from './hooks/useBugControl.js';
 import BugControlTab from './components/BugControlTab.jsx';
+import { useTTM } from './hooks/useTTM.js';
+import TTMTab from './components/TTMTab.jsx';
 import { downloadCSV } from './utils/csvExport.js';
 import { useTheme } from './contexts/ThemeContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -80,6 +82,7 @@ export default function App() {
   const bugsJira = useJira('jira_session_bugs');
   const evaluation = useEvaluation();
   const bugControl = useBugControl();
+  const ttm = useTTM();
 
   const { userInfo, jiraFields, fetchMyself, fetchFields } = crJira;
 
@@ -223,6 +226,39 @@ export default function App() {
     }
   }, [bugControlExporting, bugControl, settings]);
 
+  const [ttmExporting, setTtmExporting] = useState(false);
+  const [ttmExportLabel, setTtmExportLabel] = useState('Экспорт Excel');
+
+  const handleLoadTtm = useCallback(async (jql) => {
+    await ttm.load(settings, jql);
+  }, [ttm.load,
+      settings.jiraUrl, settings.jiraEmail, settings.jiraToken,
+      settings.ttmFilterMode, settings.ttmPeriodFrom, settings.ttmPeriodTo,
+      settings.ttmClients, settings.ttmProjects, settings.ttmIssueType, settings.ttmJql]);
+
+  const handleExportTtm = useCallback(async () => {
+    if (ttmExporting) return;
+    setTtmExporting(true);
+    setTtmExportLabel('Формирование файла...');
+    try {
+      const mod = await import('./utils/ttmExport.js');
+      const result = await mod.exportTTM({
+        issues: ttm.issues,
+        stats: ttm.stats,
+        teamStats: ttm.teamStats,
+        settings,
+      });
+      setTtmExportLabel(`Готово: ${result.count} задач`);
+      setTimeout(() => setTtmExportLabel('Экспорт Excel'), 4000);
+    } catch (err) {
+      setTtmExportLabel('Ошибка');
+      console.error('[TTM export]', err);
+      setTimeout(() => setTtmExportLabel('Экспорт Excel'), 4000);
+    } finally {
+      setTtmExporting(false);
+    }
+  }, [ttmExporting, ttm.issues, ttm.stats, ttm.teamStats, settings]);
+
   const handleLoadEval = useCallback((managersOverride) => {
     const managers = (typeof managersOverride === 'string' || Array.isArray(managersOverride))
       ? managersOverride
@@ -316,6 +352,10 @@ export default function App() {
         bugControlLoading={bugControl.loadingIssues || bugControl.loadingHistory}
         bugControlHasData={bugControl.issues.length > 0}
         bugControlSummary={bugControlSummary}
+        onLoadTtm={handleLoadTtm}
+        ttmLoading={ttm.loading}
+        ttmHasData={ttm.issues.length > 0}
+        ttmSummary={ttm.stats}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -418,7 +458,20 @@ export default function App() {
 
         {/* Content area */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          {activeTab === 'bugControl' ? (
+          {activeTab === 'ttm' ? (
+            <TTMTab
+              issues={ttm.issues}
+              stats={ttm.stats}
+              teamStats={ttm.teamStats}
+              loading={ttm.loading}
+              error={ttm.error}
+              onLoad={() => handleLoadTtm(settings.ttmJql)}
+              onExport={handleExportTtm}
+              exporting={ttmExporting}
+              exportLabel={ttmExportLabel}
+              settings={settings}
+            />
+          ) : activeTab === 'bugControl' ? (
             <BugControlTab
               issues={bugControl.issues}
               historyMap={bugControl.historyMap}
