@@ -2,6 +2,32 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 
+function StatCard({ title, value, sub, color, theme }) {
+  return (
+    <div style={{
+      flex: '1 1 180px', minWidth: '180px',
+      padding: '14px 16px',
+      background: theme.bgCard,
+      border: `1px solid ${theme.borderLight}`,
+      borderRadius: '8px',
+      display: 'flex', flexDirection: 'column', gap: '4px',
+    }}>
+      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: theme.textMuted, fontWeight: 600 }}>{title}</div>
+      <div style={{ fontSize: '24px', fontWeight: 700, color: color || theme.textPrimary }}>{value}</div>
+      {sub && <div style={{ fontSize: '12px', color: theme.textSecondary }}>{sub}</div>}
+    </div>
+  );
+}
+
+function IssueLink({ issueKey, jiraBase, theme }) {
+  return (
+    <a href={`${jiraBase}/browse/${issueKey}`} target="_blank" rel="noreferrer"
+      style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>
+      {issueKey}
+    </a>
+  );
+}
+
 export default function TTMTab({ issues, stats, teamStats, loading, error, onLoad, onExport, exporting, exportLabel, settings }) {
   const { theme } = useTheme();
   const totalIssues = issues.length;
@@ -39,13 +65,49 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
           </div>
         )}
 
-        {!loading && totalIssues > 0 && (
-          <div>
-            <div style={{ padding: '20px', color: theme.textSecondary, fontSize: '13px' }}>
-              Загружено {totalIssues} задач. UI карточек/таблицы — в следующих шагах.
+        {!loading && totalIssues > 0 && stats && (() => {
+          const jiraBase = (settings.jiraUrl || '').replace(/\/$/, '');
+          const teamOf = (issue) => {
+            const raw = issue.fields?.customfield_12800;
+            if (!raw) return '';
+            if (Array.isArray(raw)) return raw.map((v) => typeof v === 'object' ? v.value ?? v.name ?? '' : v).filter(Boolean).join(', ');
+            if (typeof raw === 'object') return raw.value ?? raw.name ?? '';
+            return String(raw);
+          };
+
+          return (
+            <div>
+              {/* Stat cards */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
+                <StatCard title="Всего задач" value={stats.count} theme={theme} />
+                <StatCard title="Средний TTM" value={`${stats.avg} дн.`} theme={theme} />
+                <StatCard title="Медианный TTM" value={`${stats.median} дн.`} theme={theme} />
+                {stats.fastest && (
+                  <StatCard
+                    title="Самая быстрая"
+                    value={<span><IssueLink issueKey={stats.fastest.key} jiraBase={jiraBase} theme={theme} /> · {stats.fastest._ttm.ttmDays} дн.</span>}
+                    sub={teamOf(stats.fastest) || '—'}
+                    theme={theme}
+                  />
+                )}
+                {stats.slowest && (
+                  <StatCard
+                    title="Самая долгая"
+                    value={<span><IssueLink issueKey={stats.slowest.key} jiraBase={jiraBase} theme={theme} /> · {stats.slowest._ttm.ttmDays} дн.</span>}
+                    sub={teamOf(stats.slowest) || '—'}
+                    color="#ef4444"
+                    theme={theme}
+                  />
+                )}
+                {stats.anomalies > 0 && (
+                  <StatCard title="⚠ Аномалий" value={stats.anomalies} sub="created > releaseDate, исключены из расчёта" color="#a855f7" theme={theme} />
+                )}
+              </div>
+
+              {/* Team summary + table — Task 12, 13 */}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
