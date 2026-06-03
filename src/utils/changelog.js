@@ -34,18 +34,34 @@ export function parseStatusHistory(changelog) {
 export function calcPhases(statusHistory, issueCreated) {
   if (!Array.isArray(statusHistory) || !issueCreated) return null;
 
-  const firstEntryTo = {};
-  for (const entry of statusHistory) {
-    if (!firstEntryTo[entry.to]) firstEntryTo[entry.to] = entry.created;
-  }
+  // Phase 1 может стартовать с любого из этих статусов
+  // (задача может миновать AM и сразу попасть в "на оценку" — оба валидны как старт фазы 1)
+  const PHASE1_STARTERS = new Set(['awaiting moderation', 'на оценку', 'уточнение требований']);
 
-  const am   = firstEntryTo['awaiting moderation'];
-  const cr   = firstEntryTo['cr в майке'];
-  const prio = firstEntryTo['приоритезировано'] || firstEntryTo['приоритезированы'];
-  const sent = firstEntryTo['отправлено клиенту'];
+  // Phase 1 start — первый вход в любой phase-1 статус. Если ни одного нет — fallback на дату создания.
+  const firstStarter = statusHistory.find((e) => PHASE1_STARTERS.has(e.to));
+  const skippedAM    = !statusHistory.some((e) => e.to === 'awaiting moderation');
+  const phase1Start  = firstStarter?.created || new Date(issueCreated);
 
-  const phase1Start = am || new Date(issueCreated);
-  const skippedAM = !am;
+  // Phase 1 end — первый "CR в майке" ПОСЛЕ phase1Start.
+  // Важно: задача могла пройти несколько циклов оценки (отложено → возврат), и просто
+  // "первый CR в майке" может относиться к более раннему циклу, перед очередным AM/на оценку.
+  const phase1EndEntry = statusHistory.find((e) => e.to === 'cr в майке' && e.created >= phase1Start);
+  const phase1End      = phase1EndEntry?.created || null;
+
+  // Phase 2 start = phase1End. End — первый "Приоритезирован*" после.
+  const phase2Start    = phase1End;
+  const phase2EndEntry = phase2Start
+    ? statusHistory.find((e) => (e.to === 'приоритезировано' || e.to === 'приоритезированы') && e.created >= phase2Start)
+    : null;
+  const phase2End      = phase2EndEntry?.created || null;
+
+  // Phase 3 start = phase2End. End — первый "Отправлено клиенту" после.
+  const phase3Start    = phase2End;
+  const phase3EndEntry = phase3Start
+    ? statusHistory.find((e) => e.to === 'отправлено клиенту' && e.created >= phase3Start)
+    : null;
+  const phase3End      = phase3EndEntry?.created || null;
 
   const days = (a, b) => {
     if (!a || !b) return null;
@@ -55,14 +71,14 @@ export function calcPhases(statusHistory, issueCreated) {
   };
 
   return {
-    phaseEstimation:  days(phase1Start, cr),
-    phaseApproval:    days(cr,           prio),
-    phaseDevelopment: days(prio,         sent),
+    phaseEstimation:  days(phase1Start, phase1End),
+    phaseApproval:    days(phase2Start, phase2End),
+    phaseDevelopment: days(phase3Start, phase3End),
     phaseStart: {
       phase1Start,
-      phase2Start: cr || null,
-      phase3Start: prio || null,
-      phase3End:   sent || null,
+      phase2Start: phase2Start || null,
+      phase3Start: phase3Start || null,
+      phase3End:   phase3End || null,
     },
     skippedAM,
   };
