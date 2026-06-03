@@ -117,6 +117,88 @@ function extractTeam(raw) {
   return String(raw);
 }
 
+const S1_COLS = [
+  { label: 'Ключ',          w: 13 },
+  { label: 'Клиент',        w: 24 },
+  { label: 'Описание',      w: 55 },
+  { label: 'Создано',       w: 14 },
+  { label: 'Релиз',         w: 18 },
+  { label: 'Дата релиза',   w: 14 },
+  { label: 'TTM (дн.)',     w: 12 },
+  { label: 'Команда',       w: 16 },
+  { label: 'Статус',        w: 18 },
+  { label: 'Исполнитель',   w: 22 },
+  { label: 'Ссылка',        w: 32 },
+];
+const S1_N = S1_COLS.length;
+
+function buildIssuesSheet({ issues, stats, today, jiraUrl, periodStr, filterModeStr }) {
+  const jiraBase = (jiraUrl || '').replace(/\/$/, '');
+  const rows = [];
+
+  // Sort by ttmDays desc (anomalies last)
+  const valid = issues.filter((i) => !i._ttm.isAnomaly).sort((a, b) => b._ttm.ttmDays - a._ttm.ttmDays);
+  const anomalies = issues.filter((i) => i._ttm.isAnomaly);
+  const sorted = [...valid, ...anomalies];
+
+  // Row 0 — title
+  rows.push([titleCell('TTM отчёт по задачам'), ...Array(S1_N - 1).fill(blankCell())]);
+
+  // Row 1 — meta
+  rows.push([
+    metaCell(`Дата формирования: ${today}  |  Период: ${periodStr}  |  Режим: ${filterModeStr}  |  Всего: ${stats?.count ?? 0}  |  Аномалий: ${stats?.anomalies ?? 0}`),
+    ...Array(S1_N - 1).fill(blankCell()),
+  ]);
+
+  // Row 2 — spacer
+  rows.push(Array(S1_N).fill(blankCell()));
+
+  // Row 3 — headers
+  rows.push(S1_COLS.map((c) => hdrCell(c.label)));
+
+  // Rows 4+
+  const avg = stats?.avg ?? 0;
+  sorted.forEach((issue, idx) => {
+    const t = issue._ttm;
+    const bg = rowBgByTtm(t.ttmDays, avg, t.isAnomaly, idx);
+    const fg = t.isAnomaly ? C.purpleText
+      : (avg > 0 && t.ttmDays > avg * 1.5) ? C.redText
+      : (avg > 0 && t.ttmDays > avg * 1.2) ? C.yellowText
+      : '111827';
+    const url = `${jiraBase}/browse/${issue.key}`;
+
+    rows.push([
+      { ...dataCell(issue.key, bg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: url } },
+      dataCell(extractClient(issue.fields?.customfield_12601), bg),
+      dataCell(issue.fields?.summary || '—', bg),
+      dataCell(fmtDate(t.createdDate), bg, { align: 'center' }),
+      dataCell(t.releaseName, bg, { align: 'center' }),
+      dataCell(fmtDate(t.releaseDate), bg, { align: 'center' }),
+      dataCell(t.ttmDays, bg, { align: 'center', bold: true, fgColor: fg }),
+      dataCell(extractTeam(issue.fields?.customfield_12800), bg),
+      dataCell(issue.fields?.status?.name || '—', bg),
+      dataCell(issue.fields?.assignee?.displayName || '—', bg),
+      dataCell(url, bg, { fgColor: C.blueText }),
+    ]);
+  });
+
+  const ws = buildSheet(rows, S1_COLS.map((c) => c.w), [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: S1_N - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: S1_N - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: S1_N - 1 } },
+  ]);
+
+  ws['!rows'] = [
+    { hpt: 30 }, { hpt: 22 }, { hpt: 6 }, { hpt: 32 },
+    ...sorted.map(() => ({ hpt: 20 })),
+  ];
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3, c: S1_N - 1 } }) };
+
+  return ws;
+}
+
+export { buildIssuesSheet };
+
 // Placeholder — real implementation comes in Task 21
 export async function exportTTM({ issues }) {
   if (!issues || issues.length === 0) return { count: 0 };
