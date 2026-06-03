@@ -276,6 +276,80 @@ function buildTeamsSheet({ teamStats, stats, today: _today, periodStr }) {
 
 export { buildTeamsSheet };
 
+function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jiraUrl }) {
+  const jiraBase = (jiraUrl || '').replace(/\/$/, '');
+  const rows = [];
+  const COLS = 4;
+
+  // Title
+  rows.push([titleCell('TTM отчёт — Общая статистика'), blankCell(), blankCell(), blankCell()]);
+
+  // Meta block
+  rows.push([metaCell(`Дата формирования: ${today}`), blankCell(), blankCell(), blankCell()]);
+  rows.push([metaCell(`Клиент: ${clientsStr}`), blankCell(), blankCell(), blankCell()]);
+  rows.push([metaCell(`Период: ${periodStr} (${filterModeStr})`), blankCell(), blankCell(), blankCell()]);
+  rows.push(Array(COLS).fill(blankCell()));
+
+  // KPI block
+  rows.push([dataCell('Всего выпущено задач:', C.rowGray, { bold: true }), dataCell(stats?.count ?? 0, C.rowWhite, { bold: true, align: 'left' }), blankCell(), blankCell()]);
+  rows.push([dataCell('Средний TTM:',          C.rowGray, { bold: true }), dataCell(`${stats?.avg ?? 0} дн.`,    C.rowWhite, { bold: true }), blankCell(), blankCell()]);
+  rows.push([dataCell('Медианный TTM:',        C.rowGray, { bold: true }), dataCell(`${stats?.median ?? 0} дн.`, C.rowWhite, { bold: true }), blankCell(), blankCell()]);
+  if (stats?.anomalies > 0) {
+    rows.push([dataCell('Аномалий (исключены):', C.rowPurple, { bold: true }), dataCell(stats.anomalies, C.rowPurple, { bold: true, fgColor: C.purpleText }), blankCell(), blankCell()]);
+  }
+  rows.push(Array(COLS).fill(blankCell()));
+
+  // Fastest / Slowest
+  if (stats?.fastest) {
+    rows.push([dataCell('Самая быстрая:', C.rowGray, { bold: true }),
+      { ...dataCell(stats.fastest.key, C.rowWhite, { bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${stats.fastest.key}` } },
+      dataCell(`${stats.fastest._ttm.ttmDays} дн.`, C.rowWhite, { bold: true }),
+      dataCell(extractTeam(stats.fastest.fields?.customfield_12800), C.rowWhite),
+    ]);
+    rows.push([blankCell(), dataCell(stats.fastest.fields?.summary || '', C.rowWhite, { fgColor: C.grayText }), blankCell(), blankCell()]);
+  }
+  if (stats?.slowest) {
+    rows.push([dataCell('Самая долгая:', C.rowGray, { bold: true }),
+      { ...dataCell(stats.slowest.key, C.rowRed, { bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${stats.slowest.key}` } },
+      dataCell(`${stats.slowest._ttm.ttmDays} дн.`, C.rowRed, { bold: true, fgColor: C.redText }),
+      dataCell(extractTeam(stats.slowest.fields?.customfield_12800), C.rowRed),
+    ]);
+    rows.push([blankCell(), dataCell(stats.slowest.fields?.summary || '', C.rowRed, { fgColor: C.grayText }), blankCell(), blankCell()]);
+  }
+  rows.push(Array(COLS).fill(blankCell()));
+
+  // Top-5 fastest / slowest header
+  rows.push([dataCell('Топ-5 самых быстрых', C.rowGray, { bold: true, align: 'center' }), blankCell(C.rowGray), dataCell('Топ-5 самых долгих', C.rowGray, { bold: true, align: 'center' }), blankCell(C.rowGray)]);
+  rows.push([hdrCell('Ключ'), hdrCell('TTM'), hdrCell('Ключ'), hdrCell('TTM')]);
+
+  const fast = stats?.top5Fastest || [];
+  const slow = stats?.top5Slowest || [];
+  for (let i = 0; i < 5; i++) {
+    const f = fast[i];
+    const s = slow[i];
+    const fbg = i % 2 === 0 ? C.rowWhite : C.rowGray;
+    rows.push([
+      f ? { ...dataCell(f.key, fbg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${f.key}` } } : dataCell('', fbg),
+      f ? dataCell(`${f._ttm.ttmDays} дн.`, fbg, { align: 'center' }) : dataCell('', fbg),
+      s ? { ...dataCell(s.key, fbg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${s.key}` } } : dataCell('', fbg),
+      s ? dataCell(`${s._ttm.ttmDays} дн.`, fbg, { align: 'center', fgColor: C.redText }) : dataCell('', fbg),
+    ]);
+  }
+
+  const ws = buildSheet(rows, [22, 30, 22, 30], [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: COLS - 1 } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: COLS - 1 } },
+  ]);
+
+  ws['!rows'] = rows.map((_, i) => ({ hpt: i === 0 ? 30 : 20 }));
+
+  return ws;
+}
+
+export { buildKpiSheet };
+
 // Placeholder — real implementation comes in Task 21
 export async function exportTTM({ issues }) {
   if (!issues || issues.length === 0) return { count: 0 };
