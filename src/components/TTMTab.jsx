@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { computeStats, computeTeamStats } from '../hooks/useTTM.js';
-import { getPhaseMarker, formatDuration } from '../utils/changelog.js';
+import { getPhaseMarker, formatDuration, fmtDaysPair, workingDays } from '../utils/changelog.js';
 
 const FIXED_COLUMNS = [
   { id: 'expand',      label: '',              defaultWidth: 36  },
@@ -13,7 +13,7 @@ const FIXED_COLUMNS = [
   { id: 'created',     label: 'Дата создания',  defaultWidth: 110 },
   { id: 'release',     label: 'Релиз',          defaultWidth: 130 },
   { id: 'releaseDate', label: 'Дата релиза',    defaultWidth: 110 },
-  { id: 'ttmDays',     label: 'TTM (дни)',      defaultWidth: 100 },
+  { id: 'ttmDays',     label: 'TTM',            defaultWidth: 160 },
   { id: 'team',        label: 'Команда',        defaultWidth: 110 },
   { id: 'status',      label: 'Статус',         defaultWidth: 110 },
   { id: 'devType',     label: 'Вид / Обоснование', defaultWidth: 200 },
@@ -58,7 +58,7 @@ function getCellStr(colId, issue) {
     case 'created':     return fmtDate(issue._ttm.createdDate);
     case 'release':     return issue._ttm.releaseName || '—';
     case 'releaseDate': return fmtDate(issue._ttm.releaseDate);
-    case 'ttmDays':     return String(issue._ttm.ttmDays);
+    case 'ttmDays':     return fmtDaysPair(issue._ttm.ttmDays, issue._ttm.ttmWorkDays);
     case 'team':        return getTeam(issue);
     case 'status':      return issue.fields?.status?.name || '—';
     case 'devType':     return getDevType(issue);
@@ -99,7 +99,7 @@ function renderTtmCell(colId, issue, helpers) {
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{fmtDate(issue._ttm.releaseDate)}</span>;
     case 'ttmDays': {
       const color = issue._ttm.isAnomaly ? '#a855f7' : theme.textPrimary;
-      return <span style={{ fontSize: '13px', color, fontWeight: 600 }}>{issue._ttm.ttmDays}</span>;
+      return <span style={{ fontSize: '13px', color, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtDaysPair(issue._ttm.ttmDays, issue._ttm.ttmWorkDays)}</span>;
     }
     case 'team':
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getTeam(issue)}</span>;
