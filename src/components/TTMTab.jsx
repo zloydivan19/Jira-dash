@@ -120,7 +120,7 @@ function IssueLink({ issueKey, jiraBase, theme }) {
   );
 }
 
-function TeamSummary({ teamStats, globalAvg, theme }) {
+function TeamSummary({ teamStats, globalAvg, globalPhaseAvgs, theme }) {
   if (!teamStats || teamStats.length === 0) return null;
 
   const rowBg = (avg) => {
@@ -135,7 +135,7 @@ function TeamSummary({ teamStats, globalAvg, theme }) {
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px', background: theme.bgCard, border: `1px solid ${theme.borderLight}`, borderRadius: '6px', overflow: 'hidden' }}>
         <thead>
           <tr style={{ background: theme.bgThead || theme.bgPage }}>
-            {['Команда', 'Задач', 'Средний TTM', 'Медиана', 'Мин', 'Макс', '% проблемных'].map((h) => (
+            {['Команда', 'Задач', 'Средний TTM', 'Оценка', 'Согласование', 'Разработка', 'Медиана', 'Мин', 'Макс', '% проблемных'].map((h) => (
               <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: `1px solid ${theme.border}` }}>{h}</th>
             ))}
           </tr>
@@ -146,6 +146,30 @@ function TeamSummary({ teamStats, globalAvg, theme }) {
               <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, color: theme.textPrimary }}>{t.team}</td>
               <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.count}</td>
               <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600 }}>{t.avg} дн.</td>
+              <td style={{
+                padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`,
+                background: globalPhaseAvgs?.estimation && t.phaseEstimationAvg != null && t.phaseEstimationAvg > globalPhaseAvgs.estimation * 1.5
+                  ? (theme.id === 'csi' ? '#fef2f2' : '#3a1a1a') : 'transparent',
+                color: globalPhaseAvgs?.estimation && t.phaseEstimationAvg != null && t.phaseEstimationAvg > globalPhaseAvgs.estimation * 1.5
+                  ? '#ef4444' : theme.textPrimary,
+                fontWeight: 500,
+              }}>{t.phaseEstimationAvg != null ? `${t.phaseEstimationAvg} дн.` : '—'}</td>
+              <td style={{
+                padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`,
+                background: globalPhaseAvgs?.approval && t.phaseApprovalAvg != null && t.phaseApprovalAvg > globalPhaseAvgs.approval * 1.5
+                  ? (theme.id === 'csi' ? '#fef2f2' : '#3a1a1a') : 'transparent',
+                color: globalPhaseAvgs?.approval && t.phaseApprovalAvg != null && t.phaseApprovalAvg > globalPhaseAvgs.approval * 1.5
+                  ? '#ef4444' : theme.textPrimary,
+                fontWeight: 500,
+              }}>{t.phaseApprovalAvg != null ? `${t.phaseApprovalAvg} дн.` : '—'}</td>
+              <td style={{
+                padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`,
+                background: globalPhaseAvgs?.development && t.phaseDevelopmentAvg != null && t.phaseDevelopmentAvg > globalPhaseAvgs.development * 1.5
+                  ? (theme.id === 'csi' ? '#fef2f2' : '#3a1a1a') : 'transparent',
+                color: globalPhaseAvgs?.development && t.phaseDevelopmentAvg != null && t.phaseDevelopmentAvg > globalPhaseAvgs.development * 1.5
+                  ? '#ef4444' : theme.textPrimary,
+                fontWeight: 500,
+              }}>{t.phaseDevelopmentAvg != null ? `${t.phaseDevelopmentAvg} дн.` : '—'}</td>
               <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.median} дн.</td>
               <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.min} дн.</td>
               <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.max} дн.</td>
@@ -584,7 +608,16 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                 )}
               </div>
 
-              <TeamSummary teamStats={effectiveTeamStats} globalAvg={effectiveStats.avg} theme={theme} />
+              <TeamSummary
+                teamStats={effectiveTeamStats}
+                globalAvg={effectiveStats.avg}
+                globalPhaseAvgs={{
+                  estimation:  effectiveStats.phaseEstimationAvg,
+                  approval:    effectiveStats.phaseApprovalAvg,
+                  development: effectiveStats.phaseDevelopmentAvg,
+                }}
+                theme={theme}
+              />
 
               {/* Highlight toggle */}
               <div style={{ marginBottom: '8px', fontSize: '12px' }}>
