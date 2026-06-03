@@ -320,8 +320,8 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
 
   // KPI block
   rows.push([dataCell('Всего выпущено задач:', C.rowGray, { bold: true }), dataCell(stats?.count ?? 0, C.rowWhite, { bold: true, align: 'left' }), blankCell(), blankCell()]);
-  rows.push([dataCell('Средний TTM:',          C.rowGray, { bold: true }), dataCell(`${stats?.avg ?? 0} дн.`,    C.rowWhite, { bold: true }), blankCell(), blankCell()]);
-  rows.push([dataCell('Медианный TTM:',        C.rowGray, { bold: true }), dataCell(`${stats?.median ?? 0} дн.`, C.rowWhite, { bold: true }), blankCell(), blankCell()]);
+  rows.push([dataCell('Средний TTM:',          C.rowGray, { bold: true }), dataCell(fmtPair(stats?.avg?.cal,    stats?.avg?.work),    C.rowWhite, { bold: true }), blankCell(), blankCell()]);
+  rows.push([dataCell('Медианный TTM:',        C.rowGray, { bold: true }), dataCell(fmtPair(stats?.median?.cal, stats?.median?.work), C.rowWhite, { bold: true }), blankCell(), blankCell()]);
   if (stats?.anomalies > 0) {
     rows.push([dataCell('Аномалий (исключены):', C.rowPurple, { bold: true }), dataCell(stats.anomalies, C.rowPurple, { bold: true, fgColor: C.purpleText }), blankCell(), blankCell()]);
   }
@@ -329,10 +329,10 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
   // Средние фазы
   rows.push(Array(COLS).fill(blankCell()));
   rows.push([dataCell('Средние фазы:', C.rowGray, { bold: true }), blankCell(C.rowGray), blankCell(C.rowGray), blankCell(C.rowGray)]);
-  const phaseLine = (label, avg, count, total) => [
+  const phaseLine = (label, avgPair, count, total) => [
     dataCell(`  • ${label}:`, C.rowWhite),
-    dataCell(avg != null ? `${avg} дн.` : '—', C.rowWhite, { bold: true }),
-    dataCell(avg != null ? `(посчитано для ${count} из ${total})` : '', C.rowWhite, { fgColor: C.grayText }),
+    dataCell(avgPair?.cal != null ? fmtPair(avgPair.cal, avgPair.work) : '—', C.rowWhite, { bold: true }),
+    dataCell(avgPair?.cal != null ? `(посчитано для ${count} из ${total})` : '', C.rowWhite, { fgColor: C.grayText }),
     blankCell(),
   ];
   rows.push(phaseLine('Выдача оценки', stats?.phaseEstimationAvg,    stats?.phaseEstimationCount,    stats?.count));
@@ -345,7 +345,7 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
   if (stats?.fastest) {
     rows.push([dataCell('Самая быстрая:', C.rowGray, { bold: true }),
       { ...dataCell(stats.fastest.key, C.rowWhite, { bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${stats.fastest.key}` } },
-      dataCell(`${stats.fastest._ttm.ttmDays} дн.`, C.rowWhite, { bold: true }),
+      dataCell(fmtPair(stats.fastest._ttm.ttmDays, stats.fastest._ttm.ttmWorkDays), C.rowWhite, { bold: true }),
       dataCell(extractTeam(stats.fastest.fields?.customfield_12800), C.rowWhite),
     ]);
     rows.push([blankCell(), dataCell(stats.fastest.fields?.summary || '', C.rowWhite, { fgColor: C.grayText }), blankCell(), blankCell()]);
@@ -353,7 +353,7 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
   if (stats?.slowest) {
     rows.push([dataCell('Самая долгая:', C.rowGray, { bold: true }),
       { ...dataCell(stats.slowest.key, C.rowRed, { bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${stats.slowest.key}` } },
-      dataCell(`${stats.slowest._ttm.ttmDays} дн.`, C.rowRed, { bold: true, fgColor: C.redText }),
+      dataCell(fmtPair(stats.slowest._ttm.ttmDays, stats.slowest._ttm.ttmWorkDays), C.rowRed, { bold: true, fgColor: C.redText }),
       dataCell(extractTeam(stats.slowest.fields?.customfield_12800), C.rowRed),
     ]);
     rows.push([blankCell(), dataCell(stats.slowest.fields?.summary || '', C.rowRed, { fgColor: C.grayText }), blankCell(), blankCell()]);
@@ -372,13 +372,13 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
     const fbg = i % 2 === 0 ? C.rowWhite : C.rowGray;
     rows.push([
       f ? { ...dataCell(f.key, fbg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${f.key}` } } : dataCell('', fbg),
-      f ? dataCell(`${f._ttm.ttmDays} дн.`, fbg, { align: 'center' }) : dataCell('', fbg),
+      f ? dataCell(fmtPair(f._ttm.ttmDays, f._ttm.ttmWorkDays), fbg, { align: 'center' }) : dataCell('', fbg),
       s ? { ...dataCell(s.key, fbg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: `${jiraBase}/browse/${s.key}` } } : dataCell('', fbg),
-      s ? dataCell(`${s._ttm.ttmDays} дн.`, fbg, { align: 'center', fgColor: C.redText }) : dataCell('', fbg),
+      s ? dataCell(fmtPair(s._ttm.ttmDays, s._ttm.ttmWorkDays), fbg, { align: 'center', fgColor: C.redText }) : dataCell('', fbg),
     ]);
   }
 
-  const ws = buildSheet(rows, [22, 30, 22, 30], [
+  const ws = buildSheet(rows, [22, 30, 26, 30], [
     { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: COLS - 1 } },
