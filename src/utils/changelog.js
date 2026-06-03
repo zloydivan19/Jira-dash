@@ -71,65 +71,108 @@ export function parseStatusHistory(changelog) {
 /**
  * Compute TTM phase durations from a parsed status history.
  *
- * Phase 1 «Выдача оценки»:  Awaiting Moderation → CR в майке
- * Phase 2 «Согласование»:    CR в майке         → Приоритезировано
- * Phase 3 «Разработка»:      Приоритезировано   → Отправлено клиенту
+ * Phase 1 «Выдача оценки»:   AM / на оценку / уточнение требований → CR в майке
+ * Phase 2 «Согласование»:     CR в майке         → Приоритезирован*
+ * Phase 3 «Разработка»:       Приоритезирован*    → Отправлено клиенту
  *
- * Falls back to `issueCreated` if AM is missing (sets `skippedAM: true`).
+ * For multi-cycle tasks (rejected & re-approved), picks the LAST cycle that
+ * actually led to delivery. Algorithm walks from phase3End backward.
  *
  * @param {Array} statusHistory  Output of parseStatusHistory.
  * @param {Date|string} issueCreated  issue.fields.created.
- * @returns {Object|null}  { phaseEstimation, phaseApproval, phaseDevelopment, phaseStart, skippedAM }
- *                          phase values are days with 1 decimal place, or null if undeterminable.
+ * @returns {Object|null}  { phaseEstimation: {cal,work}, phaseApproval: {cal,work},
+ *                          phaseDevelopment: {cal,work}, phaseStart, skippedAM }
  */
 export function calcPhases(statusHistory, issueCreated) {
   if (!Array.isArray(statusHistory) || !issueCreated) return null;
 
   // Phase 1 может стартовать с любого из этих статусов
-  // (задача может миновать AM и сразу попасть в "на оценку" — оба валидны как старт фазы 1)
+  // (задача может миновать AM и сразу попасть в "на оценку")
   const PHASE1_STARTERS = new Set(['awaiting moderation', 'на оценку', 'уточнение требований']);
 
-  // Phase 1 start — первый вход в любой phase-1 статус. Если ни одного нет — fallback на дату создания.
-  const firstStarter = statusHistory.find((e) => PHASE1_STARTERS.has(e.to));
-  const skippedAM    = !statusHistory.some((e) => e.to === 'awaiting moderation');
-  const phase1Start  = firstStarter?.created || new Date(issueCreated);
-
-  // Phase 1 end — первый "CR в майке" ПОСЛЕ phase1Start.
-  // Важно: задача могла пройти несколько циклов оценки (отложено → возврат), и просто
-  // "первый CR в майке" может относиться к более раннему циклу, перед очередным AM/на оценку.
-  const phase1EndEntry = statusHistory.find((e) => e.to === 'cr в майке' && e.created >= phase1Start);
-  const phase1End      = phase1EndEntry?.created || null;
-
-  // Phase 2 start = phase1End. End — первый "Приоритезирован*" после.
-  const phase2Start    = phase1End;
-  const phase2EndEntry = phase2Start
-    ? statusHistory.find((e) => (e.to === 'приоритезировано' || e.to === 'приоритезированы') && e.created >= phase2Start)
-    : null;
-  const phase2End      = phase2EndEntry?.created || null;
-
-  // Phase 3 start = phase2End. End — первый "Отправлено клиенту" после.
-  const phase3Start    = phase2End;
-  const phase3EndEntry = phase3Start
-    ? statusHistory.find((e) => e.to === 'отправлено клиенту' && e.created >= phase3Start)
-    : null;
+  // === Шаг 1: Phase 3 end = первый "отправлено клиенту" в истории ===
+  const phase3EndEntry = statusHistory.find((e) => e.to === 'отправлено клиенту');
   const phase3End      = phase3EndEntry?.created || null;
 
-  const days = (a, b) => {
-    if (!a || !b) return null;
-    const d = (b - a) / 86400000;
-    if (d < 0) return null;
-    return Math.round(d * 10) / 10;
-  };
+  // === Шаг 2: Phase 3 start = последний "Приоритезирован*" ПЕРЕД phase3End ===
+  // Это даёт нам реальный финальный цикл согласования (даже если до этого
+  // были отмены и повторные согласования).
+  // Если phase3End нет — fallback на последний "Приоритезирован*" в истории.
+  const isPrio = (e) => e.to === 'приоритезировано' || e.to === 'приоритезированы';
+  let phase3Start = null;
+  if (phase3End) {
+    for (let i = statusHistory.length - 1; i >= 0; i--) {
+      if (statusHistory[i].created < phase3End && isPrio(statusHistory[i])) {
+        phase3Start = statusHistory[i].created;
+        break;
+      }
+    }
+  } else {
+    // Нет финального "отправлено клиенту" — берём последний прио вообще
+    for (let i = statusHistory.length - 1; i >= 0; i--) {
+      if (isPrio(statusHistory[i])) {
+        phase3Start = statusHistory[i].created;
+        break;
+      }
+    }
+  }
+
+  // === Шаг 3: Phase 2 start = последний "CR в майке" ПЕРЕД phase3Start ===
+  // (если phase3Start есть). Иначе fallback на последний CR в майке вообще.
+  let phase2Start = null;
+  if (phase3Start) {
+    for (let i = statusHistory.length - 1; i >= 0; i--) {
+      if (statusHistory[i].created < phase3Start && statusHistory[i].to === 'cr в майке') {
+        phase2Start = statusHistory[i].created;
+        break;
+      }
+    }
+  } else {
+    for (let i = statusHistory.length - 1; i >= 0; i--) {
+      if (statusHistory[i].to === 'cr в майке') {
+        phase2Start = statusHistory[i].created;
+        break;
+      }
+    }
+  }
+  const phase2End = phase3Start;
+  const phase1End = phase2Start;
+
+  // === Шаг 4: Phase 1 start = последний phase-1 starter ПЕРЕД phase1End ===
+  // Fallback: дата создания задачи.
+  let phase1Start = null;
+  if (phase1End) {
+    for (let i = statusHistory.length - 1; i >= 0; i--) {
+      if (statusHistory[i].created < phase1End && PHASE1_STARTERS.has(statusHistory[i].to)) {
+        phase1Start = statusHistory[i].created;
+        break;
+      }
+    }
+  } else {
+    // Нет phase1End — берём первый phase-1 starter в истории (для backward compat)
+    const firstStarter = statusHistory.find((e) => PHASE1_STARTERS.has(e.to));
+    phase1Start = firstStarter?.created || null;
+  }
+  if (!phase1Start) phase1Start = new Date(issueCreated);
+
+  // skippedAM — флаг «задача не была в Awaiting Moderation за всё время»
+  const skippedAM = !statusHistory.some((e) => e.to === 'awaiting moderation');
+
+  // === Шаг 5: посчитать длительности в днях (cal + work) ===
+  const phasePair = (a, b) => ({
+    cal:  calendarDays(a, b),
+    work: workingDays(a, b),
+  });
 
   return {
-    phaseEstimation:  days(phase1Start, phase1End),
-    phaseApproval:    days(phase2Start, phase2End),
-    phaseDevelopment: days(phase3Start, phase3End),
+    phaseEstimation:  phasePair(phase1Start, phase1End),
+    phaseApproval:    phasePair(phase2Start, phase2End),
+    phaseDevelopment: phasePair(phase3Start, phase3End),
     phaseStart: {
       phase1Start,
       phase2Start: phase2Start || null,
       phase3Start: phase3Start || null,
-      phase3End:   phase3End || null,
+      phase3End:   phase3End   || null,
     },
     skippedAM,
   };
