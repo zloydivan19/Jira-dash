@@ -192,9 +192,35 @@ export function computeTeamStats(valid, globalAvg) {
 }
 
 export function useTTM() {
-  const [issues,    setIssues]    = useState(() => readSession(SS_ISSUES, []));
-  const [stats,     setStats]     = useState(() => readSession(SS_STATS,  null));
-  const [teamStats, setTeamStats] = useState(() => readSession(SS_TEAMS,  []));
+  const [issues, setIssues] = useState(() => {
+    const v = readSession(SS_ISSUES, []);
+    // Стара́я схема: _ttm без ttmWorkDays → выкидываем кеш чтобы не получить NaN в UI
+    if (Array.isArray(v) && v.length > 0 && v[0]?._ttm && v[0]._ttm.ttmWorkDays === undefined) {
+      sessionStorage.removeItem(SS_ISSUES);
+      return [];
+    }
+    return v;
+  });
+
+  const [stats, setStats] = useState(() => {
+    const v = readSession(SS_STATS, null);
+    // Стара́я схема: stats.avg — число, а не объект {cal, work}
+    if (v && (typeof v.avg === 'number' || !v.avg)) {
+      sessionStorage.removeItem(SS_STATS);
+      return null;
+    }
+    return v;
+  });
+
+  const [teamStats, setTeamStats] = useState(() => {
+    const v = readSession(SS_TEAMS, []);
+    // Стара́я схема: teamStats[i].avg — число, а не объект {cal, work}
+    if (Array.isArray(v) && v.length > 0 && typeof v[0]?.avg === 'number') {
+      sessionStorage.removeItem(SS_TEAMS);
+      return [];
+    }
+    return v;
+  });
   const [loading,           setLoading]           = useState(false);
   const [loadingChangelog,  setLoadingChangelog]  = useState(false);
   const [changelogProgress, setChangelogProgress] = useState({ done: 0, total: 0 });
