@@ -12,6 +12,47 @@ function writeSession(key, value) {
   try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
+export function calcTTM(issue) {
+  const fixVersions = issue.fields?.fixVersions || [];
+  const released = fixVersions.filter((v) => v.released && v.releaseDate);
+  if (released.length === 0) return null;
+
+  const latest = released.reduce((max, v) =>
+    new Date(v.releaseDate) > new Date(max.releaseDate) ? v : max
+  );
+  const releaseDate = new Date(latest.releaseDate);
+  const createdDate = new Date(issue.fields.created);
+  const ttmDays = Math.floor((releaseDate - createdDate) / 86400000);
+
+  return {
+    releaseDate,
+    createdDate,
+    releaseName: latest.name,
+    ttmDays,
+    isAnomaly: ttmDays < 0,
+  };
+}
+
+export function extractTeamName(raw) {
+  if (raw == null) return '— Нет команды';
+  if (typeof raw === 'string') return raw;
+  if (Array.isArray(raw)) {
+    const names = raw.map((v) => typeof v === 'object' ? (v?.value ?? v?.name) : v).filter(Boolean);
+    return names.length ? names.join(', ') : '— Нет команды';
+  }
+  if (typeof raw === 'object') return raw.value ?? raw.name ?? '— Нет команды';
+  return String(raw);
+}
+
+export function computeMedian(arr) {
+  if (!arr || arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[mid]
+    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
 export function useTTM() {
   const [issues,    setIssues]    = useState(() => readSession(SS_ISSUES, []));
   const [stats,     setStats]     = useState(() => readSession(SS_STATS,  null));
