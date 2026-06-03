@@ -2,6 +2,81 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 
+const FIXED_COLUMNS = [
+  { id: 'key',         label: 'Ключ',          defaultWidth: 110 },
+  { id: 'client',      label: 'Клиент',         defaultWidth: 180 },
+  { id: 'summary',     label: 'Описание',       defaultWidth: 320 },
+  { id: 'created',     label: 'Дата создания',  defaultWidth: 110 },
+  { id: 'release',     label: 'Релиз',          defaultWidth: 130 },
+  { id: 'releaseDate', label: 'Дата релиза',    defaultWidth: 110 },
+  { id: 'ttmDays',     label: 'TTM (дни)',      defaultWidth: 100 },
+  { id: 'team',        label: 'Команда',        defaultWidth: 110 },
+  { id: 'status',      label: 'Статус',         defaultWidth: 110 },
+  { id: 'assignee',    label: 'Исполнитель',    defaultWidth: 140 },
+];
+
+function fmtDate(date) {
+  if (!date) return '—';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '—';
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
+
+function getClient(issue) {
+  const raw = issue.fields?.customfield_12601;
+  if (raw == null) return '—';
+  if (Array.isArray(raw)) return raw.map((v) => typeof v === 'object' ? (v.value ?? v.name ?? '') : String(v)).filter(Boolean).join(', ') || '—';
+  if (typeof raw === 'object') return raw.value ?? raw.name ?? '—';
+  return String(raw);
+}
+
+function getTeam(issue) {
+  const raw = issue.fields?.customfield_12800;
+  if (raw == null) return '—';
+  if (Array.isArray(raw)) return raw.map((v) => typeof v === 'object' ? (v.value ?? v.name ?? '') : v).filter(Boolean).join(', ') || '—';
+  if (typeof raw === 'object') return raw.value ?? raw.name ?? '—';
+  return String(raw);
+}
+
+function renderTtmCell(colId, issue, helpers) {
+  const { theme, jiraBase } = helpers;
+  switch (colId) {
+    case 'key':
+      return (
+        <a href={`${jiraBase}/browse/${issue.key}`} target="_blank" rel="noreferrer"
+          style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          {issue.key}
+        </a>
+      );
+    case 'client':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getClient(issue)}</span>;
+    case 'summary':
+      return <span style={{ fontSize: '13px', color: theme.textPrimary }}>{issue.fields?.summary || '—'}</span>;
+    case 'created':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{fmtDate(issue._ttm.createdDate)}</span>;
+    case 'release':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary, fontFamily: "'IBM Plex Mono', monospace" }}>{issue._ttm.releaseName}</span>;
+    case 'releaseDate':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{fmtDate(issue._ttm.releaseDate)}</span>;
+    case 'ttmDays': {
+      const color = issue._ttm.isAnomaly ? '#a855f7' : theme.textPrimary;
+      return <span style={{ fontSize: '13px', color, fontWeight: 600 }}>{issue._ttm.ttmDays}</span>;
+    }
+    case 'team':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getTeam(issue)}</span>;
+    case 'status':
+      return (
+        <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', background: theme.bgCard, color: theme.textSecondary, border: `1px solid ${theme.border}` }}>
+          {issue.fields?.status?.name || '—'}
+        </span>
+      );
+    case 'assignee':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{issue.fields?.assignee?.displayName || '—'}</span>;
+    default:
+      return <span>—</span>;
+  }
+}
+
 function StatCard({ title, value, sub, color, theme }) {
   return (
     <div style={{
@@ -68,9 +143,74 @@ function TeamSummary({ teamStats, globalAvg, theme }) {
   );
 }
 
+function IssuesTable({ issues, stats, theme, jiraBase, highlight }) {
+  const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
+
+  const rowBgColor = (issue) => {
+    if (issue._ttm.isAnomaly) return theme.id === 'csi' ? '#faf5ff' : '#2a1a3a';
+    if (!highlight) return null;
+    if (issue._ttm.ttmDays > stats.avg * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
+    if (issue._ttm.ttmDays > stats.avg * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
+    return null;
+  };
+
+  return (
+    <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%', fontSize: '13px', tableLayout: 'fixed' }}>
+      <colgroup>
+        {FIXED_COLUMNS.map((c) => <col key={c.id} style={{ width: c.defaultWidth + 'px' }} />)}
+      </colgroup>
+      <thead>
+        <tr style={{ background: theme.bgThead || theme.bgCard }}>
+          {FIXED_COLUMNS.map((col) => (
+            <th key={col.id} style={{
+              padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
+              color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em',
+              borderBottom: `2px solid ${theme.border}`, whiteSpace: 'nowrap',
+            }}>
+              {col.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {issues.map((issue, idx) => {
+          const customBg = rowBgColor(issue);
+          const bg = customBg || (idx % 2 === 0 ? theme.bgRowEven || theme.bgPage : theme.bgRowOdd || theme.bgCard);
+          return (
+            <tr key={issue.key} style={{ background: bg }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = bg)}>
+              {FIXED_COLUMNS.map((col) => (
+                <td key={col.id} style={col.id === 'summary' || col.id === 'client'
+                  ? { ...tdBase, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+                  : tdBase}>
+                  {renderTtmCell(col.id, issue, { theme, jiraBase })}
+                </td>
+              ))}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 export default function TTMTab({ issues, stats, teamStats, loading, error, onLoad, onExport, exporting, exportLabel, settings }) {
   const { theme } = useTheme();
   const totalIssues = issues.length;
+
+  const [highlight,  setHighlight]  = useState(true);
+  const [sortCol,    setSortCol]    = useState('ttmDays');
+  const [sortDir,    setSortDir]    = useState('desc');
+  const [search,     setSearch]     = useState('');
+
+  const handleSort = useCallback((col) => {
+    setSortCol((prev) => {
+      if (prev === col) { setSortDir((d) => d === 'asc' ? 'desc' : 'asc'); return prev; }
+      setSortDir('desc');
+      return col;
+    });
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -146,7 +286,52 @@ export default function TTMTab({ issues, stats, teamStats, loading, error, onLoa
 
               <TeamSummary teamStats={teamStats} globalAvg={stats.avg} theme={theme} />
 
-              {/* Issues table — Task 13 */}
+              {/* Highlight toggle */}
+              <div style={{ marginBottom: '8px', fontSize: '12px' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: theme.textSecondary }}>
+                  <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)}
+                    style={{ accentColor: theme.accent, cursor: 'pointer' }} />
+                  Подсветить отклонения от среднего (avg = {stats.avg} дн.)
+                </label>
+              </div>
+
+              {(() => {
+                let result = issues;
+                if (search.trim()) {
+                  const q = search.toLowerCase();
+                  result = result.filter((i) => {
+                    const text = [
+                      i.key,
+                      i.fields?.summary,
+                      getClient(i),
+                      getTeam(i),
+                      i.fields?.assignee?.displayName,
+                      i.fields?.status?.name,
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return text.includes(q);
+                  });
+                }
+                const sorted = [...result].sort((a, b) => {
+                  let aVal, bVal;
+                  switch (sortCol) {
+                    case 'key':         aVal = a.key; bVal = b.key; break;
+                    case 'client':      aVal = getClient(a); bVal = getClient(b); break;
+                    case 'summary':     aVal = a.fields?.summary || ''; bVal = b.fields?.summary || ''; break;
+                    case 'created':     aVal = a._ttm.createdDate.getTime(); bVal = b._ttm.createdDate.getTime(); break;
+                    case 'release':     aVal = a._ttm.releaseName; bVal = b._ttm.releaseName; break;
+                    case 'releaseDate': aVal = a._ttm.releaseDate.getTime(); bVal = b._ttm.releaseDate.getTime(); break;
+                    case 'ttmDays':     aVal = a._ttm.ttmDays; bVal = b._ttm.ttmDays; break;
+                    case 'team':        aVal = getTeam(a); bVal = getTeam(b); break;
+                    case 'status':      aVal = a.fields?.status?.name || ''; bVal = b.fields?.status?.name || ''; break;
+                    case 'assignee':    aVal = a.fields?.assignee?.displayName || ''; bVal = b.fields?.assignee?.displayName || ''; break;
+                    default: return 0;
+                  }
+                  const cmp = typeof aVal === 'string' ? aVal.localeCompare(bVal, 'ru') : aVal - bVal;
+                  return sortDir === 'asc' ? cmp : -cmp;
+                });
+
+                return <IssuesTable issues={sorted} stats={stats} theme={theme} jiraBase={jiraBase} highlight={highlight} />;
+              })()}
             </div>
           );
         })()}
