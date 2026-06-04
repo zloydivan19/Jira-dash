@@ -331,14 +331,19 @@ export function useTTM() {
       }));
 
       // Записываем phases в копии issues + корректируем ttmDays/ttmWorkDays на «отложено»
+      // В режиме lastCycle TTM считается от phase1Start последнего цикла, не от createdDate.
+      const phaseMode = settings.ttmPhaseCalcMode || 'aggregate';
       results.forEach(({ key, phases, history, error: phErr }) => {
         const target = enrichedWithPhases.find((iss) => iss.key === key);
         if (!target) return;
         const next = { ...target._ttm, phases, phasesError: phErr || null };
         if (history && target._ttm.createdDate && target._ttm.releaseDate) {
-          const def     = deferredOverlap(history, target._ttm.createdDate, target._ttm.releaseDate);
-          const rawCal  = (target._ttm.releaseDate - target._ttm.createdDate) / 86400000;
-          const rawWork = workingDays(target._ttm.createdDate, target._ttm.releaseDate);
+          const ttmStart = (phaseMode === 'lastCycle' && phases?.phaseStart?.phase1Start)
+            ? phases.phaseStart.phase1Start
+            : target._ttm.createdDate;
+          const def     = deferredOverlap(history, ttmStart, target._ttm.releaseDate);
+          const rawCal  = (target._ttm.releaseDate - ttmStart) / 86400000;
+          const rawWork = workingDays(ttmStart, target._ttm.releaseDate);
           next.ttmDays      = Math.max(0, Math.round((rawCal  - def.cal)  * 10) / 10);
           next.ttmWorkDays  = rawWork != null ? Math.max(0, Math.round((rawWork - def.work) * 10) / 10) : null;
           next.deferredDays = def;
