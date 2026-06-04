@@ -69,7 +69,6 @@ export function computeStats(filtered) {
   if (valid.length === 0) {
     return {
       count: 0, anomalies,
-      avg:    { cal: 0, work: 0 },
       median: { cal: 0, work: 0 },
       min:    { cal: 0, work: 0 },
       max:    { cal: 0, work: 0 },
@@ -110,10 +109,6 @@ export function computeStats(filtered) {
   return {
     count: valid.length,
     anomalies,
-    avg: {
-      cal:  Math.round((cals.reduce((a, b) => a + b, 0) / cals.length) * 10) / 10,
-      work: works.length ? Math.round((works.reduce((a, b) => a + b, 0) / works.length) * 10) / 10 : null,
-    },
     median: {
       cal:  computeMedian(cals),
       work: works.length ? computeMedian(works) : null,
@@ -138,12 +133,12 @@ export function computeStats(filtered) {
 
 /**
  * Compute per-team stats. `valid` is the list of non-anomaly enriched issues.
- * `globalAvg` is either a number (legacy) or `{ cal, work }` (new) — used to compute the
+ * `globalMedian` is `{ cal, work }` (or number for legacy) — used to compute the
  * `problemRatio` threshold on the calendar dimension.
- * Returns array of { team, count, avg:{cal,work}, median:{cal,work}, min:{cal,work},
+ * Returns array of { team, count, median:{cal,work}, min:{cal,work},
  * max:{cal,work}, problemRatio, phase*Avg:{cal,work} } sorted by count desc.
  */
-export function computeTeamStats(valid, globalAvg) {
+export function computeTeamStats(valid, globalMedian) {
   const byTeamIssues = {};
   valid.forEach((i) => {
     const team = extractTeamName(i.fields?.customfield_12800);
@@ -151,7 +146,7 @@ export function computeTeamStats(valid, globalAvg) {
   });
 
   // Accept either legacy number or new { cal, work } shape; threshold uses calendar days.
-  const globalCal = typeof globalAvg === 'object' && globalAvg !== null ? (globalAvg.cal ?? 0) : (globalAvg ?? 0);
+  const globalCal = typeof globalMedian === 'object' && globalMedian !== null ? (globalMedian.cal ?? 0) : (globalMedian ?? 0);
 
   return Object.entries(byTeamIssues).map(([team, issues]) => {
     const cals  = issues.map((i) => i._ttm.ttmDays);
@@ -176,7 +171,6 @@ export function computeTeamStats(valid, globalAvg) {
     return {
       team,
       count: cals.length,
-      avg:    { cal: avgOf(cals), work: avgOf(works) },
       median: {
         cal:  computeMedian(cals),
         work: works.length ? computeMedian(works) : null,
@@ -204,8 +198,8 @@ export function useTTM() {
 
   const [stats, setStats] = useState(() => {
     const v = readSession(SS_STATS, null);
-    // Стара́я схема: stats.avg — число, а не объект {cal, work}
-    if (v && (typeof v.avg === 'number' || !v.avg)) {
+    // Стара́я схема: есть поле avg (новая схема — только median).
+    if (v && (v.avg !== undefined || !v.median)) {
       sessionStorage.removeItem(SS_STATS);
       return null;
     }
@@ -214,8 +208,8 @@ export function useTTM() {
 
   const [teamStats, setTeamStats] = useState(() => {
     const v = readSession(SS_TEAMS, []);
-    // Стара́я схема: teamStats[i].avg — число, а не объект {cal, work}
-    if (Array.isArray(v) && v.length > 0 && typeof v[0]?.avg === 'number') {
+    // Стара́я схема: есть поле avg у элементов (новая схема — только median).
+    if (Array.isArray(v) && v.length > 0 && (v[0]?.avg !== undefined || !v[0]?.median)) {
       sessionStorage.removeItem(SS_TEAMS);
       return [];
     }
@@ -301,7 +295,7 @@ export function useTTM() {
 
     // Группировка по командам — пропускаем аномалии, как и раньше
     const validForTeams = filtered.filter((i) => !i._ttm.isAnomaly);
-    const newTeamStats = computeTeamStats(validForTeams, newStats.avg);
+    const newTeamStats = computeTeamStats(validForTeams, newStats.median);
 
     // Первый снимок: задачи + базовая статистика без фаз (UI уже показывает таблицу)
     setIssues(filtered);
@@ -356,7 +350,7 @@ export function useTTM() {
 
       const recomputedStats = computeStats(enrichedWithPhases);
       const validForTeams = enrichedWithPhases.filter((iss) => !iss._ttm.isAnomaly);
-      const recomputedTeamStats = computeTeamStats(validForTeams, recomputedStats.avg);
+      const recomputedTeamStats = computeTeamStats(validForTeams, recomputedStats.median);
       setIssues([...enrichedWithPhases]);
       setStats(recomputedStats);
       setTeamStats(recomputedTeamStats);

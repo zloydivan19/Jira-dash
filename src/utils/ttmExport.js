@@ -174,13 +174,13 @@ function buildIssuesSheet({ issues, stats, today, jiraUrl, periodStr, filterMode
   rows.push(S1_COLS.map((c) => hdrCell(c.label)));
 
   // Rows 4+
-  const avg = typeof stats?.avg === 'object' && stats.avg !== null ? (stats.avg.cal ?? 0) : (stats?.avg ?? 0);
+  const medCal = typeof stats?.median === 'object' && stats.median !== null ? (stats.median.cal ?? 0) : (stats?.median ?? 0);
   sorted.forEach((issue, idx) => {
     const t = issue._ttm;
-    const bg = rowBgByTtm(t.ttmDays, avg, t.isAnomaly, idx);
+    const bg = rowBgByTtm(t.ttmDays, medCal, t.isAnomaly, idx);
     const fg = t.isAnomaly ? C.purpleText
-      : (avg > 0 && t.ttmDays > avg * 1.5) ? C.redText
-      : (avg > 0 && t.ttmDays > avg * 1.2) ? C.yellowText
+      : (medCal > 0 && t.ttmDays > medCal * 1.5) ? C.redText
+      : (medCal > 0 && t.ttmDays > medCal * 1.2) ? C.yellowText
       : '111827';
     const url = `${jiraBase}/browse/${issue.key}`;
 
@@ -223,11 +223,10 @@ export { buildIssuesSheet };
 const S2_COLS = [
   { label: 'Команда',         w: 26 },
   { label: 'Задач',           w: 12 },
-  { label: 'Средний TTM',     w: 20 },
+  { label: 'Медиана TTM',     w: 20 },
   { label: 'Оценка',          w: 18 },
   { label: 'Согласование',    w: 20 },
   { label: 'Разработка',      w: 20 },
-  { label: 'Медиана',         w: 18 },
   { label: 'Мин TTM',         w: 18 },
   { label: 'Макс TTM',        w: 18 },
   { label: '% проблемных',    w: 16 },
@@ -254,7 +253,7 @@ function buildTeamsSheet({ teamStats, stats, today: _today, periodStr }) {
 
   // Row 1 — meta
   rows.push([
-    metaCell(`Период: ${periodStr}  |  Среднее по всем: ${fmtPair(stats?.avg?.cal, stats?.avg?.work)}  |  Всего задач: ${stats?.count ?? 0}  |  Команд: ${teamStats.length}`),
+    metaCell(`Период: ${periodStr}  |  Медиана по всем: ${fmtPair(stats?.median?.cal, stats?.median?.work)}  |  Всего задач: ${stats?.count ?? 0}  |  Команд: ${teamStats.length}`),
     ...Array(S2_N - 1).fill(blankCell()),
   ]);
 
@@ -265,22 +264,21 @@ function buildTeamsSheet({ teamStats, stats, today: _today, periodStr }) {
   rows.push(S2_COLS.map((c) => summaryHdrCell(c.label)));
 
   // Rows 4+
-  const globalAvgCal = typeof stats?.avg === 'object' && stats.avg !== null ? (stats.avg.cal ?? 0) : (stats?.avg ?? 0);
+  const globalMedCal = typeof stats?.median === 'object' && stats.median !== null ? (stats.median.cal ?? 0) : (stats?.median ?? 0);
   teamStats.forEach((t, idx) => {
-    const teamAvgCal = t.avg?.cal ?? 0;
-    const bg = teamAvgCal > globalAvgCal * 1.5 ? C.rowRed
-      : teamAvgCal > globalAvgCal * 1.2 ? C.rowYellow
+    const teamMedCal = t.median?.cal ?? 0;
+    const bg = (globalMedCal > 0 && teamMedCal > globalMedCal * 1.5) ? C.rowRed
+      : (globalMedCal > 0 && teamMedCal > globalMedCal * 1.2) ? C.rowYellow
       : idx % 2 === 0 ? C.rowWhite : C.rowGray;
     const ratioColor = t.problemRatio >= 0.3 ? C.redText : '111827';
 
     rows.push([
       dataCell(t.team,   bg, { bold: true }),
       dataCell(t.count,  bg, { align: 'center' }),
-      dataCell(fmtPair(t.avg?.cal, t.avg?.work),                                bg, { align: 'center', bold: true }),
+      dataCell(fmtPair(t.median?.cal, t.median?.work), bg, { align: 'center', bold: true }),
       dataCell(fmtPair(t.phaseEstimationAvg?.cal,  t.phaseEstimationAvg?.work),  bg, { align: 'center' }),
       dataCell(fmtPair(t.phaseApprovalAvg?.cal,    t.phaseApprovalAvg?.work),    bg, { align: 'center' }),
       dataCell(fmtPair(t.phaseDevelopmentAvg?.cal, t.phaseDevelopmentAvg?.work), bg, { align: 'center' }),
-      dataCell(fmtPair(t.median?.cal, t.median?.work), bg, { align: 'center' }),
       dataCell(fmtPair(t.min?.cal,    t.min?.work),    bg, { align: 'center' }),
       dataCell(fmtPair(t.max?.cal,    t.max?.work),    bg, { align: 'center' }),
       dataCell(`${Math.round(t.problemRatio * 100)}%`, bg, { align: 'center', fgColor: ratioColor, bold: t.problemRatio >= 0.3 }),
@@ -320,7 +318,6 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
 
   // KPI block
   rows.push([dataCell('Всего выпущено задач:', C.rowGray, { bold: true }), dataCell(stats?.count ?? 0, C.rowWhite, { bold: true, align: 'left' }), blankCell(), blankCell()]);
-  rows.push([dataCell('Средний TTM:',          C.rowGray, { bold: true }), dataCell(fmtPair(stats?.avg?.cal,    stats?.avg?.work),    C.rowWhite, { bold: true }), blankCell(), blankCell()]);
   rows.push([dataCell('Медианный TTM:',        C.rowGray, { bold: true }), dataCell(fmtPair(stats?.median?.cal, stats?.median?.work), C.rowWhite, { bold: true }), blankCell(), blankCell()]);
   if (stats?.anomalies > 0) {
     rows.push([dataCell('Аномалий (исключены):', C.rowPurple, { bold: true }), dataCell(stats.anomalies, C.rowPurple, { bold: true, fgColor: C.purpleText }), blankCell(), blankCell()]);

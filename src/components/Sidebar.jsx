@@ -1731,7 +1731,7 @@ export default function Sidebar({
             {ttmHasData && (
               <div style={{ marginTop: '10px', padding: '8px 10px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px', fontSize: '11px', color: theme.textSecondary }}>
                 Выпущено <b style={{ color: theme.textPrimary }}>{ttmSummary?.count ?? 0}</b> задач за период,
-                {' '}средний TTM: <b style={{ color: theme.textPrimary }}>{fmtDaysPair(ttmSummary?.avg?.cal, ttmSummary?.avg?.work)}</b>
+                {' '}медианный TTM: <b style={{ color: theme.textPrimary }}>{fmtDaysPair(ttmSummary?.median?.cal, ttmSummary?.median?.work)}</b>
               </div>
             )}
           </div>

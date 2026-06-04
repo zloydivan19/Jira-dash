@@ -142,15 +142,16 @@ function IssueLink({ issueKey, jiraBase, theme }) {
   );
 }
 
-function TeamSummary({ teamStats, globalAvg, globalPhaseAvgs, theme }) {
+function TeamSummary({ teamStats, globalMedian, globalPhaseAvgs, theme }) {
   if (!teamStats || teamStats.length === 0) return null;
 
-  // Backward-safe extraction: globalAvg может быть числом (legacy) или { cal, work }
-  const globalAvgCal = typeof globalAvg === 'object' && globalAvg !== null ? (globalAvg.cal ?? 0) : (globalAvg ?? 0);
+  // Backward-safe extraction: globalMedian может быть числом (legacy) или { cal, work }
+  const globalMedCal = typeof globalMedian === 'object' && globalMedian !== null ? (globalMedian.cal ?? 0) : (globalMedian ?? 0);
 
-  const rowBg = (avg) => {
-    if (avg > globalAvgCal * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
-    if (avg > globalAvgCal * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
+  const rowBg = (medCal) => {
+    if (globalMedCal <= 0 || medCal == null) return 'transparent';
+    if (medCal > globalMedCal * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
+    if (medCal > globalMedCal * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
     return 'transparent';
   };
 
@@ -168,7 +169,7 @@ function TeamSummary({ teamStats, globalAvg, globalPhaseAvgs, theme }) {
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px', background: theme.bgCard, border: `1px solid ${theme.borderLight}`, borderRadius: '6px', overflow: 'hidden' }}>
         <thead>
           <tr style={{ background: theme.bgThead || theme.bgPage }}>
-            {['Команда', 'Задач', 'Средний TTM', 'Оценка', 'Согласование', 'Разработка', 'Медиана', 'Мин', 'Макс', '% проблемных'].map((h) => (
+            {['Команда', 'Задач', 'Медиана TTM', 'Оценка', 'Согласование', 'Разработка', 'Мин', 'Макс', '% проблемных'].map((h) => (
               <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: `1px solid ${theme.border}` }}>{h}</th>
             ))}
           </tr>
@@ -179,10 +180,10 @@ function TeamSummary({ teamStats, globalAvg, globalPhaseAvgs, theme }) {
             const appExceeds = phaseExceeds(t.phaseApprovalAvg,    globalPhaseAvgs?.approval);
             const devExceeds = phaseExceeds(t.phaseDevelopmentAvg, globalPhaseAvgs?.development);
             return (
-              <tr key={t.team} style={{ background: rowBg(t.avg?.cal ?? 0) }}>
+              <tr key={t.team} style={{ background: rowBg(t.median?.cal) }}>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, color: theme.textPrimary }}>{t.team}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}` }}>{t.count}</td>
-                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.avg?.cal, t.avg?.work)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.median?.cal, t.median?.work)}</td>
                 <td style={{
                   padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
                   background: estExceeds ? dangerBg : 'transparent',
@@ -201,7 +202,6 @@ function TeamSummary({ teamStats, globalAvg, globalPhaseAvgs, theme }) {
                   color: devExceeds ? '#ef4444' : theme.textPrimary,
                   fontWeight: 500,
                 }}>{fmtDaysPair(t.phaseDevelopmentAvg?.cal, t.phaseDevelopmentAvg?.work)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.median?.cal, t.median?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.min?.cal, t.min?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.max?.cal, t.max?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, color: t.problemRatio >= 0.3 ? '#ef4444' : theme.textSecondary, fontWeight: t.problemRatio >= 0.3 ? 600 : 400 }}>
@@ -431,8 +431,9 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
   const rowBgColor = (issue) => {
     if (issue._ttm.isAnomaly) return theme.id === 'csi' ? '#faf5ff' : '#2a1a3a';
     if (!highlight) return null;
-    if (issue._ttm.ttmDays > stats.avg * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
-    if (issue._ttm.ttmDays > stats.avg * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
+    const medCal = stats?.median?.cal ?? 0;
+    if (medCal > 0 && issue._ttm.ttmDays > medCal * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
+    if (medCal > 0 && issue._ttm.ttmDays > medCal * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
     return null;
   };
 
@@ -645,7 +646,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
   const effectiveTeamStats = useMemo(() => {
     if (excludedKeys.size === 0) return teamStats;
     const valid = effectiveIssues.filter((i) => !i._ttm.isAnomaly);
-    return computeTeamStats(valid, effectiveStats?.avg ?? 0);
+    return computeTeamStats(valid, effectiveStats?.median ?? 0);
   }, [excludedKeys, teamStats, effectiveIssues, effectiveStats]);
 
   const totalIssues = effectiveIssues.length;
@@ -812,7 +813,6 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
               {/* Stat cards */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
                 <StatCard title="Всего задач" value={effectiveStats.count} theme={theme} />
-                <StatCard title="Средний TTM" value={fmtDaysPair(effectiveStats.avg?.cal, effectiveStats.avg?.work)} theme={theme} />
                 <StatCard title="Медианный TTM" value={fmtDaysPair(effectiveStats.median?.cal, effectiveStats.median?.work)} theme={theme} />
                 <StatCard
                   title="Avg Оценка"
@@ -859,7 +859,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
 
               <TeamSummary
                 teamStats={effectiveTeamStats}
-                globalAvg={effectiveStats.avg}
+                globalMedian={effectiveStats.median}
                 globalPhaseAvgs={{
                   estimation:  effectiveStats.phaseEstimationAvg,
                   approval:    effectiveStats.phaseApprovalAvg,
@@ -873,7 +873,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: theme.textSecondary }}>
                   <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)}
                     style={{ accentColor: theme.accent, cursor: 'pointer' }} />
-                  Подсветить отклонения от среднего (avg = {fmtDaysPair(effectiveStats.avg?.cal, effectiveStats.avg?.work)})
+                  Подсветить отклонения от медианы ({fmtDaysPair(effectiveStats.median?.cal, effectiveStats.median?.work)})
                 </label>
               </div>
 
