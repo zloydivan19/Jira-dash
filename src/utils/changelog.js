@@ -172,18 +172,31 @@ export function calcPhases(statusHistory, issueCreated) {
   const phase2End = phase3Start;
   const phase1End = phase2Start;
 
-  // === Шаг 4: Phase 1 start = последний phase-1 starter ПЕРЕД phase1End ===
-  // Fallback: дата создания задачи.
+  // === Шаг 4: Phase 1 start ===
+  // Логика:
+  //  - Ищем LAST "cr в майке" ПЕРЕД phase1End — это конец предыдущего цикла (если есть).
+  //  - Если есть: phase1Start = первый phase-1 starter ПОСЛЕ него (старт текущего цикла).
+  //  - Если нет: phase1Start = первый phase-1 starter за всю историю (одиночный цикл).
+  //  - Fallback: дата создания задачи.
   let phase1Start = null;
   if (phase1End) {
+    let prevCycleCR = null;
     for (let i = statusHistory.length - 1; i >= 0; i--) {
-      if (statusHistory[i].created < phase1End && PHASE1_STARTERS.has(statusHistory[i].to)) {
-        phase1Start = statusHistory[i].created;
+      if (statusHistory[i].created < phase1End && statusHistory[i].to === 'cr в майке') {
+        prevCycleCR = statusHistory[i].created;
         break;
       }
     }
+    for (let i = 0; i < statusHistory.length; i++) {
+      const e = statusHistory[i];
+      if (e.created >= phase1End) break;
+      if (!PHASE1_STARTERS.has(e.to)) continue;
+      if (prevCycleCR && e.created <= prevCycleCR) continue;
+      phase1Start = e.created;
+      break;
+    }
   } else {
-    // Нет phase1End — берём первый phase-1 starter в истории (для backward compat)
+    // Нет phase1End — берём первый phase-1 starter в истории
     const firstStarter = statusHistory.find((e) => PHASE1_STARTERS.has(e.to));
     phase1Start = firstStarter?.created || null;
   }
