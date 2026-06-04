@@ -169,7 +169,6 @@ export function calcPhases(statusHistory, issueCreated) {
       }
     }
   }
-  const phase2End = phase3Start;
   const phase1End = phase2Start;
 
   // === Шаг 4: Phase 1 start ===
@@ -205,7 +204,7 @@ export function calcPhases(statusHistory, issueCreated) {
   // skippedAM — флаг «задача не была в Awaiting Moderation за всё время»
   const skippedAM = !statusHistory.some((e) => e.to === 'awaiting moderation');
 
-  // === Шаг 5: посчитать длительности в днях (cal + work), вычитая «отложено» в окне фазы ===
+  // === Шаг 5: Phase 3 — окно [последний прио → отправлено клиенту], минус «отложено» ===
   const phasePair = (a, b) => {
     const cal  = calendarDays(a, b);
     const work = workingDays(a, b);
@@ -217,9 +216,46 @@ export function calcPhases(statusHistory, issueCreated) {
     };
   };
 
+  // === Шаг 6: Phase 1 и Phase 2 — суммарное время в фазных статусах ===
+  // Phase 1 = сумма всех интервалов, когда задача была в любом из PHASE1_STARTERS статусов.
+  // Phase 2 = сумма всех интервалов, когда задача была в 'cr в майке'.
+  // Верхняя граница накопления — phase3Start (после финального согласования всё в Phase 3).
+  // Если phase3Start нет — берём всю историю до текущего момента.
+  const aggUpperBound = phase3Start || (statusHistory.length > 0 ? statusHistory[statusHistory.length - 1].created : null);
+
+  let p1Cal = 0, p1Work = 0;
+  let p2Cal = 0, p2Work = 0;
+  for (let i = 0; i < statusHistory.length; i++) {
+    const entry = statusHistory[i];
+    const segStart = entry.created;
+    const segEnd   = (i + 1 < statusHistory.length) ? statusHistory[i + 1].created : aggUpperBound;
+    if (!segEnd) continue;
+
+    // Клипуем по верхней границе
+    const clipEnd = (aggUpperBound && segEnd > aggUpperBound) ? aggUpperBound : segEnd;
+    if (clipEnd <= segStart) continue;
+
+    const isP1 = PHASE1_STARTERS.has(entry.to);
+    const isP2 = (entry.to === 'cr в майке');
+    if (!isP1 && !isP2) continue;
+
+    const cal  = calendarDays(segStart, clipEnd) ?? 0;
+    const work = workingDays(segStart, clipEnd) ?? 0;
+    if (isP1) { p1Cal += cal; p1Work += work; }
+    if (isP2) { p2Cal += cal; p2Work += work; }
+  }
+
+  const round1 = (v) => Math.round(v * 10) / 10;
+  const phase1Pair = (p1Cal > 0 || p1Work > 0)
+    ? { cal: round1(p1Cal), work: round1(p1Work) }
+    : { cal: null, work: null };
+  const phase2Pair = (p2Cal > 0 || p2Work > 0)
+    ? { cal: round1(p2Cal), work: round1(p2Work) }
+    : { cal: null, work: null };
+
   return {
-    phaseEstimation:  phasePair(phase1Start, phase1End),
-    phaseApproval:    phasePair(phase2Start, phase2End),
+    phaseEstimation:  phase1Pair,
+    phaseApproval:    phase2Pair,
     phaseDevelopment: phasePair(phase3Start, phase3End),
     phaseStart: {
       phase1Start,
