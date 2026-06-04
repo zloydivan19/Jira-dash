@@ -246,6 +246,9 @@ export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
 
   let p1Cal = 0, p1Work = 0;
   let p2Cal = 0, p2Work = 0;
+  // lastCycle Phase 2 — суммируем cr в майке только в окне [phase1Start, phase3Start].
+  // (Внутри «последнего цикла» может быть несколько попыток cr в майке → отложено → cr в майке).
+  let p2CalLC = 0, p2WorkLC = 0;
   for (let i = 0; i < statusHistory.length; i++) {
     const entry = statusHistory[i];
     const segStart = entry.created;
@@ -263,7 +266,17 @@ export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
     const cal  = calendarDays(segStart, clipEnd) ?? 0;
     const work = workingDays(segStart, clipEnd) ?? 0;
     if (isP1) { p1Cal += cal; p1Work += work; }
-    if (isP2) { p2Cal += cal; p2Work += work; }
+    if (isP2) {
+      p2Cal += cal; p2Work += work;
+      // Для lastCycle — клипуем по нижней границе [phase1Start..]
+      if (phase1Start) {
+        const lcStart = segStart < phase1Start ? phase1Start : segStart;
+        if (lcStart < clipEnd) {
+          p2CalLC  += calendarDays(lcStart, clipEnd) ?? 0;
+          p2WorkLC += workingDays(lcStart, clipEnd) ?? 0;
+        }
+      }
+    }
   }
 
   const round1 = (v) => Math.round(v * 10) / 10;
@@ -273,14 +286,18 @@ export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
   const phase2Pair_agg = (p2Cal > 0 || p2Work > 0)
     ? { cal: round1(p2Cal), work: round1(p2Work) }
     : { cal: null, work: null };
+  const phase2Pair_lc = (p2CalLC > 0 || p2WorkLC > 0)
+    ? { cal: round1(p2CalLC), work: round1(p2WorkLC) }
+    : { cal: null, work: null };
 
   // Mode dispatch:
-  //  - aggregate: суммарные времена в статусах
-  //  - lastCycle: окно [phase1Start..phase1End] и [phase2Start..phase2End] минус paused
+  //  - aggregate: суммарные времена в статусах за всю историю до phase3Start
+  //  - lastCycle: Phase 1 = окно [phase1Start..phase1End] минус paused;
+  //               Phase 2 = сумма cr в майке внутри окна последнего цикла [phase1Start..phase3Start]
   const phaseEstimation =
     mode === 'lastCycle' ? phasePair(phase1Start, phase1End) : phase1Pair_agg;
   const phaseApproval =
-    mode === 'lastCycle' ? phasePair(phase2Start, phase3Start) : phase2Pair_agg;
+    mode === 'lastCycle' ? phase2Pair_lc : phase2Pair_agg;
 
   return {
     phaseEstimation,
