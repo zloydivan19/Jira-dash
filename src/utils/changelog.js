@@ -50,9 +50,23 @@ export function fmtDaysPair(cal, work) {
 }
 
 /**
- * Суммирует все периоды, когда задача была в статусе 'отложено', в пределах окна [from, to].
- * Возвращает { cal, work } — сумму календарных и рабочих дней «откладывания» внутри окна.
- * Используется чтобы вычесть «простой» из TTM и фаз.
+ * Список статусов, которые считаются «простоем» — задача не в работе.
+ * Их длительность вычитается из общего TTM и из Phase 3.
+ * (Phase 1 и Phase 2 — аггрегаты по «своим» статусам, paused-статусы туда и так не попадают.)
+ */
+export const PAUSED_STATUSES = new Set([
+  'отложено',
+  'closed',
+  'cancelled',
+  'отменено',
+  'pause',
+  'на паузе',
+]);
+
+/**
+ * Суммирует все периоды, когда задача была в одном из PAUSED_STATUSES, в пределах окна [from, to].
+ * Возвращает { cal, work } — сумму календарных и рабочих дней «простоя» внутри окна.
+ * Используется чтобы вычесть простой из TTM и фаз.
  */
 export function deferredOverlap(statusHistory, from, to) {
   if (!Array.isArray(statusHistory) || !from || !to) return { cal: 0, work: 0 };
@@ -63,7 +77,7 @@ export function deferredOverlap(statusHistory, from, to) {
 
   for (let i = 0; i < statusHistory.length; i++) {
     const entry = statusHistory[i];
-    if (entry.to !== 'отложено') continue;
+    if (!PAUSED_STATUSES.has(entry.to)) continue;
     const periodStart = entry.created;
     const periodEnd   = i + 1 < statusHistory.length ? statusHistory[i + 1].created : to;
 
