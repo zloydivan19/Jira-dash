@@ -390,7 +390,7 @@ function StatusHistory({ history, onRetry, theme }) {
   return (
     <div>
       <div style={{ fontSize: '13px', fontWeight: 700, color: theme.textPrimary, marginBottom: '8px' }}>🕘 История статусов</div>
-      <table style={{ borderCollapse: 'collapse', fontSize: '12px', width: '100%' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: '12px', width: 'auto' }}>
         <tbody>
           {history.history.map((entry, idx) => {
             const prev = idx > 0 ? history.history[idx - 1] : null;
@@ -405,15 +405,17 @@ function StatusHistory({ history, onRetry, theme }) {
               : '';
             const marker = getPhaseMarker(entry.to);
             const date = new Date(entry.created);
+            const rowBorder = `1px dashed ${theme.borderRow}`;
+            const tdBase = { padding: '5px 10px 5px 0', borderBottom: rowBorder, whiteSpace: 'nowrap' };
             return (
               <tr key={idx}>
-                <td style={{ padding: '4px 12px 4px 0', color: theme.textSecondary, whiteSpace: 'nowrap' }}>
+                <td style={{ ...tdBase, color: theme.textMuted, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
                   {date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} {date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                 </td>
-                <td style={{ padding: '4px 8px', color: theme.textMuted }}>→</td>
-                <td style={{ padding: '4px 12px 4px 0', color: theme.textPrimary, fontWeight: 500 }}>{entry.to}</td>
-                <td style={{ padding: '4px 12px 4px 0', color: theme.textSecondary }}>{duration}</td>
-                <td style={{ padding: '4px 0', color: '#22c55e', fontWeight: 600 }}>{marker || ''}</td>
+                <td style={{ ...tdBase, padding: '5px 6px', color: theme.textMuted }}>→</td>
+                <td style={{ ...tdBase, color: theme.textPrimary, fontWeight: 500 }}>{entry.to}</td>
+                <td style={{ ...tdBase, color: theme.textSecondary, fontSize: '11px' }}>{duration}</td>
+                <td style={{ ...tdBase, padding: '5px 0', color: '#22c55e', fontWeight: 600 }}>{marker || ''}</td>
               </tr>
             );
           })}
