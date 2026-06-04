@@ -322,7 +322,7 @@ export function useTTM() {
             timeout: 15000,
           });
           const history = parseStatusHistory(res.data);
-          const phases = calcPhases(history, issue.fields.created);
+          const phases = calcPhases(history, issue.fields.created, settings.ttmPhaseCalcMode || 'aggregate');
           return { key: issue.key, phases, history };
         } catch (e) {
           return { key: issue.key, phases: null, history: null, error: e?.message || 'Ошибка changelog' };

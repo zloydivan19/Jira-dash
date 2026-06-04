@@ -1597,6 +1597,37 @@ export default function Sidebar({
               </div>
             </div>
 
+            {/* Phase calculation mode */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Расчёт фаз TTM</label>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[
+                  { value: 'aggregate', label: 'Все циклы (сумма)' },
+                  { value: 'lastCycle', label: 'Только последний' },
+                ].map(({ value, label }) => {
+                  const active = (settings.ttmPhaseCalcMode || 'aggregate') === value;
+                  return (
+                    <button key={value}
+                      onClick={() => onSettingsChange({ ttmPhaseCalcMode: value })}
+                      style={{
+                        flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 600,
+                        border: `1px solid ${active ? theme.accent : theme.border}`,
+                        borderRadius: '4px', cursor: 'pointer',
+                        background: active ? (theme.id === 'csi' ? '#e8f0f8' : '#1a2e40') : theme.bgInput,
+                        color: active ? theme.accent : theme.textSecondary,
+                      }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: '10px', color: theme.textMuted, marginTop: '4px' }}>
+                {settings.ttmPhaseCalcMode === 'lastCycle'
+                  ? 'Phase 1/2 — окно последнего цикла до доставки'
+                  : 'Phase 1/2 — суммарное время в фазных статусах'}
+              </div>
+            </div>
+
             {/* Clients multi-select — переиспользуем loadBugControlClients */}
             {renderMultiSelect({
               title: 'Клиенты',

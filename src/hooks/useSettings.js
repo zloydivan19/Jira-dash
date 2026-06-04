@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS = {
   ttmJqlAuto: true,
   ttmDevTypes: [],                          // string[] (selected values of customfield_13999)
   ttmKnownDevTypes: [],                     // string[] (accumulated values seen in loads)
+  ttmPhaseCalcMode: 'aggregate',            // 'aggregate' (sum across cycles) | 'lastCycle'
 };
 
 function loadSettings() {

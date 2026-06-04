@@ -123,15 +123,22 @@ export function parseStatusHistory(changelog) {
  * Phase 2 «Согласование»:     CR в майке         → Приоритезирован*
  * Phase 3 «Разработка»:       Приоритезирован*    → Отправлено клиенту
  *
- * For multi-cycle tasks (rejected & re-approved), picks the LAST cycle that
- * actually led to delivery. Algorithm walks from phase3End backward.
+ * Modes:
+ *  - 'aggregate' (default): Phase 1/2 = сумма времени в соответствующих статусах за всю историю
+ *    (до финального phase3Start). Лучше отражает реальные затраты для многоцикловых задач.
+ *  - 'lastCycle': Phase 1/2 = окно последнего цикла (с обнаружением «сброса» цикла через
+ *    предыдущий cr в майке). Полезно когда нужно показать длительность именно финального
+ *    прохождения, а не суммарных усилий.
+ *
+ * Phase 3 не зависит от mode — всегда «последний прио → отправлено клиенту, минус paused».
  *
  * @param {Array} statusHistory  Output of parseStatusHistory.
  * @param {Date|string} issueCreated  issue.fields.created.
+ * @param {string} [mode='aggregate']  'aggregate' | 'lastCycle'
  * @returns {Object|null}  { phaseEstimation: {cal,work}, phaseApproval: {cal,work},
  *                          phaseDevelopment: {cal,work}, phaseStart, skippedAM }
  */
-export function calcPhases(statusHistory, issueCreated) {
+export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
   if (!Array.isArray(statusHistory) || !issueCreated) return null;
 
   // Phase 1 может стартовать с любого из этих статусов
@@ -260,16 +267,24 @@ export function calcPhases(statusHistory, issueCreated) {
   }
 
   const round1 = (v) => Math.round(v * 10) / 10;
-  const phase1Pair = (p1Cal > 0 || p1Work > 0)
+  const phase1Pair_agg = (p1Cal > 0 || p1Work > 0)
     ? { cal: round1(p1Cal), work: round1(p1Work) }
     : { cal: null, work: null };
-  const phase2Pair = (p2Cal > 0 || p2Work > 0)
+  const phase2Pair_agg = (p2Cal > 0 || p2Work > 0)
     ? { cal: round1(p2Cal), work: round1(p2Work) }
     : { cal: null, work: null };
 
+  // Mode dispatch:
+  //  - aggregate: суммарные времена в статусах
+  //  - lastCycle: окно [phase1Start..phase1End] и [phase2Start..phase2End] минус paused
+  const phaseEstimation =
+    mode === 'lastCycle' ? phasePair(phase1Start, phase1End) : phase1Pair_agg;
+  const phaseApproval =
+    mode === 'lastCycle' ? phasePair(phase2Start, phase3Start) : phase2Pair_agg;
+
   return {
-    phaseEstimation:  phase1Pair,
-    phaseApproval:    phase2Pair,
+    phaseEstimation,
+    phaseApproval,
     phaseDevelopment: phasePair(phase3Start, phase3End),
     phaseStart: {
       phase1Start,
