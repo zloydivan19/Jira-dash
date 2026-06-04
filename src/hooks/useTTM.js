@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
-import { parseStatusHistory, calcPhases, workingDays } from '../utils/changelog.js';
+import { parseStatusHistory, calcPhases, workingDays, deferredOverlap } from '../utils/changelog.js';
 
 const SS_ISSUES = 'ttm_issues';
 const SS_STATS  = 'ttm_stats';
@@ -329,18 +329,26 @@ export function useTTM() {
           });
           const history = parseStatusHistory(res.data);
           const phases = calcPhases(history, issue.fields.created);
-          return { key: issue.key, phases };
+          return { key: issue.key, phases, history };
         } catch (e) {
-          return { key: issue.key, phases: null, error: e?.message || 'Ошибка changelog' };
+          return { key: issue.key, phases: null, history: null, error: e?.message || 'Ошибка changelog' };
         }
       }));
 
-      // Записываем phases в копии issues
-      results.forEach(({ key, phases, error: phErr }) => {
+      // Записываем phases в копии issues + корректируем ttmDays/ttmWorkDays на «отложено»
+      results.forEach(({ key, phases, history, error: phErr }) => {
         const target = enrichedWithPhases.find((iss) => iss.key === key);
-        if (target) {
-          target._ttm = { ...target._ttm, phases, phasesError: phErr || null };
+        if (!target) return;
+        const next = { ...target._ttm, phases, phasesError: phErr || null };
+        if (history && target._ttm.createdDate && target._ttm.releaseDate) {
+          const def     = deferredOverlap(history, target._ttm.createdDate, target._ttm.releaseDate);
+          const rawCal  = (target._ttm.releaseDate - target._ttm.createdDate) / 86400000;
+          const rawWork = workingDays(target._ttm.createdDate, target._ttm.releaseDate);
+          next.ttmDays      = Math.max(0, Math.round((rawCal  - def.cal)  * 10) / 10);
+          next.ttmWorkDays  = rawWork != null ? Math.max(0, Math.round((rawWork - def.work) * 10) / 10) : null;
+          next.deferredDays = def;
         }
+        target._ttm = next;
       });
 
       // Прогресс и пересчёт stats после каждого batch'a

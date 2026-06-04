@@ -50,6 +50,40 @@ export function fmtDaysPair(cal, work) {
 }
 
 /**
+ * Суммирует все периоды, когда задача была в статусе 'отложено', в пределах окна [from, to].
+ * Возвращает { cal, work } — сумму календарных и рабочих дней «откладывания» внутри окна.
+ * Используется чтобы вычесть «простой» из TTM и фаз.
+ */
+export function deferredOverlap(statusHistory, from, to) {
+  if (!Array.isArray(statusHistory) || !from || !to) return { cal: 0, work: 0 };
+  if (to <= from) return { cal: 0, work: 0 };
+
+  let calMs = 0;
+  let workSum = 0;
+
+  for (let i = 0; i < statusHistory.length; i++) {
+    const entry = statusHistory[i];
+    if (entry.to !== 'отложено') continue;
+    const periodStart = entry.created;
+    const periodEnd   = i + 1 < statusHistory.length ? statusHistory[i + 1].created : to;
+
+    // Обрезаем период по окну [from, to]
+    const clipStart = periodStart > from ? periodStart : from;
+    const clipEnd   = periodEnd   < to   ? periodEnd   : to;
+    if (clipEnd <= clipStart) continue;
+
+    calMs += clipEnd - clipStart;
+    const wd = workingDays(clipStart, clipEnd);
+    if (wd != null) workSum += wd;
+  }
+
+  return {
+    cal:  Math.round((calMs / 86400000) * 10) / 10,
+    work: Math.round(workSum * 10) / 10,
+  };
+}
+
+/**
  * Parse status transitions from a Jira changelog response.
  * Returns an array of { created: Date, from: string, to: string } sorted ascending by date.
  * Status names are lowercased + trimmed for downstream comparisons.
@@ -158,11 +192,17 @@ export function calcPhases(statusHistory, issueCreated) {
   // skippedAM — флаг «задача не была в Awaiting Moderation за всё время»
   const skippedAM = !statusHistory.some((e) => e.to === 'awaiting moderation');
 
-  // === Шаг 5: посчитать длительности в днях (cal + work) ===
-  const phasePair = (a, b) => ({
-    cal:  calendarDays(a, b),
-    work: workingDays(a, b),
-  });
+  // === Шаг 5: посчитать длительности в днях (cal + work), вычитая «отложено» в окне фазы ===
+  const phasePair = (a, b) => {
+    const cal  = calendarDays(a, b);
+    const work = workingDays(a, b);
+    if (cal == null && work == null) return { cal: null, work: null };
+    const def = deferredOverlap(statusHistory, a, b);
+    return {
+      cal:  cal  != null ? Math.max(0, Math.round((cal  - def.cal)  * 10) / 10) : null,
+      work: work != null ? Math.max(0, Math.round((work - def.work) * 10) / 10) : null,
+    };
+  };
 
   return {
     phaseEstimation:  phasePair(phase1Start, phase1End),
