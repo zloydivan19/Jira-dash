@@ -73,29 +73,21 @@ export function computeStats(filtered) {
       min:    { cal: 0, work: 0 },
       max:    { cal: 0, work: 0 },
       fastest: null, slowest: null, top5Fastest: [], top5Slowest: [],
-      phaseEstimationAvg:    { cal: null, work: null }, phaseEstimationMedian:    { cal: null, work: null }, phaseEstimationCount:    0,
-      phaseApprovalAvg:      { cal: null, work: null }, phaseApprovalMedian:      { cal: null, work: null }, phaseApprovalCount:      0,
-      phaseDevelopmentAvg:   { cal: null, work: null }, phaseDevelopmentMedian:   { cal: null, work: null }, phaseDevelopmentCount:   0,
+      phaseEstimationMedian:    { cal: null, work: null }, phaseEstimationCount:    0,
+      phaseApprovalMedian:      { cal: null, work: null }, phaseApprovalCount:      0,
+      phaseDevelopmentMedian:   { cal: null, work: null }, phaseDevelopmentCount:   0,
     };
   }
 
   const cals  = valid.map((i) => i._ttm.ttmDays);
   const works = valid.map((i) => i._ttm.ttmWorkDays).filter((v) => v != null);
 
-  const avgOf = (arr) =>
-    arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
-
   const minCal = Math.min(...cals);
   const maxCal = Math.max(...cals);
   const fastest = valid.find((i) => i._ttm.ttmDays === minCal) || null;
   const slowest = valid.find((i) => i._ttm.ttmDays === maxCal) || null;
 
-  // Phases are now { cal, work } objects on _ttm.phases.<key>. Aggregate cal and work independently.
-  const phasePairAvg = (key) => {
-    const cArr = valid.map((i) => i._ttm.phases?.[key]?.cal).filter((v) => v != null);
-    const wArr = valid.map((i) => i._ttm.phases?.[key]?.work).filter((v) => v != null);
-    return { cal: avgOf(cArr), work: avgOf(wArr) };
-  };
+  // Phases are { cal, work } objects on _ttm.phases.<key>. Median per dimension.
   const phasePairMedian = (key) => {
     const cArr = valid.map((i) => i._ttm.phases?.[key]?.cal).filter((v) => v != null);
     const wArr = valid.map((i) => i._ttm.phases?.[key]?.work).filter((v) => v != null);
@@ -119,13 +111,10 @@ export function computeStats(filtered) {
     slowest,
     top5Fastest: [...valid].sort((a, b) => a._ttm.ttmDays - b._ttm.ttmDays).slice(0, 5),
     top5Slowest: [...valid].sort((a, b) => b._ttm.ttmDays - a._ttm.ttmDays).slice(0, 5),
-    phaseEstimationAvg:    phasePairAvg('phaseEstimation'),
     phaseEstimationMedian: phasePairMedian('phaseEstimation'),
     phaseEstimationCount:  phaseCount('phaseEstimation'),
-    phaseApprovalAvg:      phasePairAvg('phaseApproval'),
     phaseApprovalMedian:   phasePairMedian('phaseApproval'),
     phaseApprovalCount:    phaseCount('phaseApproval'),
-    phaseDevelopmentAvg:   phasePairAvg('phaseDevelopment'),
     phaseDevelopmentMedian:phasePairMedian('phaseDevelopment'),
     phaseDevelopmentCount: phaseCount('phaseDevelopment'),
   };
@@ -157,15 +146,15 @@ export function computeTeamStats(valid, globalMedian) {
     const minIssue   = issues.find((i) => i._ttm.ttmDays === teamMinCal);
     const maxIssue   = issues.find((i) => i._ttm.ttmDays === teamMaxCal);
 
-    const avgOf = (arr) =>
-      arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
-
     const problemCount = cals.filter((t) => t > globalCal * 1.5).length;
 
-    const phasePairAvgForTeam = (key) => {
+    const phasePairMedianForTeam = (key) => {
       const cArr = issues.map((i) => i._ttm.phases?.[key]?.cal).filter((v) => v != null);
       const wArr = issues.map((i) => i._ttm.phases?.[key]?.work).filter((v) => v != null);
-      return { cal: avgOf(cArr), work: avgOf(wArr) };
+      return {
+        cal:  cArr.length ? computeMedian(cArr) : null,
+        work: wArr.length ? computeMedian(wArr) : null,
+      };
     };
 
     return {
@@ -178,9 +167,9 @@ export function computeTeamStats(valid, globalMedian) {
       min: { cal: teamMinCal, work: minIssue?._ttm.ttmWorkDays ?? null },
       max: { cal: teamMaxCal, work: maxIssue?._ttm.ttmWorkDays ?? null },
       problemRatio: cals.length > 0 ? problemCount / cals.length : 0,
-      phaseEstimationAvg:  phasePairAvgForTeam('phaseEstimation'),
-      phaseApprovalAvg:    phasePairAvgForTeam('phaseApproval'),
-      phaseDevelopmentAvg: phasePairAvgForTeam('phaseDevelopment'),
+      phaseEstimationMedian:  phasePairMedianForTeam('phaseEstimation'),
+      phaseApprovalMedian:    phasePairMedianForTeam('phaseApproval'),
+      phaseDevelopmentMedian: phasePairMedianForTeam('phaseDevelopment'),
     };
   }).sort((a, b) => b.count - a.count);
 }
@@ -198,8 +187,14 @@ export function useTTM() {
 
   const [stats, setStats] = useState(() => {
     const v = readSession(SS_STATS, null);
-    // Стара́я схема: есть поле avg (новая схема — только median).
-    if (v && (v.avg !== undefined || !v.median)) {
+    // Стара́я схема: есть поле avg / phaseEstimationAvg (новая схема — только median).
+    const stale = v && (
+      v.avg !== undefined ||
+      !v.median ||
+      v.phaseEstimationAvg !== undefined ||
+      v.phaseEstimationMedian === undefined
+    );
+    if (stale) {
       sessionStorage.removeItem(SS_STATS);
       return null;
     }
@@ -208,8 +203,14 @@ export function useTTM() {
 
   const [teamStats, setTeamStats] = useState(() => {
     const v = readSession(SS_TEAMS, []);
-    // Стара́я схема: есть поле avg у элементов (новая схема — только median).
-    if (Array.isArray(v) && v.length > 0 && (v[0]?.avg !== undefined || !v[0]?.median)) {
+    // Стара́я схема: есть поле avg или phaseEstimationAvg у элементов (новая схема — только median).
+    const stale = Array.isArray(v) && v.length > 0 && (
+      v[0]?.avg !== undefined ||
+      !v[0]?.median ||
+      v[0]?.phaseEstimationAvg !== undefined ||
+      v[0]?.phaseEstimationMedian === undefined
+    );
+    if (stale) {
       sessionStorage.removeItem(SS_TEAMS);
       return [];
     }

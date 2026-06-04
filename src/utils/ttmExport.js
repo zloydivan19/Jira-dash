@@ -276,9 +276,9 @@ function buildTeamsSheet({ teamStats, stats, today: _today, periodStr }) {
       dataCell(t.team,   bg, { bold: true }),
       dataCell(t.count,  bg, { align: 'center' }),
       dataCell(fmtPair(t.median?.cal, t.median?.work), bg, { align: 'center', bold: true }),
-      dataCell(fmtPair(t.phaseEstimationAvg?.cal,  t.phaseEstimationAvg?.work),  bg, { align: 'center' }),
-      dataCell(fmtPair(t.phaseApprovalAvg?.cal,    t.phaseApprovalAvg?.work),    bg, { align: 'center' }),
-      dataCell(fmtPair(t.phaseDevelopmentAvg?.cal, t.phaseDevelopmentAvg?.work), bg, { align: 'center' }),
+      dataCell(fmtPair(t.phaseEstimationMedian?.cal,  t.phaseEstimationMedian?.work),  bg, { align: 'center' }),
+      dataCell(fmtPair(t.phaseApprovalMedian?.cal,    t.phaseApprovalMedian?.work),    bg, { align: 'center' }),
+      dataCell(fmtPair(t.phaseDevelopmentMedian?.cal, t.phaseDevelopmentMedian?.work), bg, { align: 'center' }),
       dataCell(fmtPair(t.min?.cal,    t.min?.work),    bg, { align: 'center' }),
       dataCell(fmtPair(t.max?.cal,    t.max?.work),    bg, { align: 'center' }),
       dataCell(`${Math.round(t.problemRatio * 100)}%`, bg, { align: 'center', fgColor: ratioColor, bold: t.problemRatio >= 0.3 }),
@@ -323,18 +323,18 @@ function buildKpiSheet({ stats, today, periodStr, filterModeStr, clientsStr, jir
     rows.push([dataCell('Аномалий (исключены):', C.rowPurple, { bold: true }), dataCell(stats.anomalies, C.rowPurple, { bold: true, fgColor: C.purpleText }), blankCell(), blankCell()]);
   }
 
-  // Средние фазы
+  // Медианные фазы
   rows.push(Array(COLS).fill(blankCell()));
-  rows.push([dataCell('Средние фазы:', C.rowGray, { bold: true }), blankCell(C.rowGray), blankCell(C.rowGray), blankCell(C.rowGray)]);
-  const phaseLine = (label, avgPair, count, total) => [
+  rows.push([dataCell('Медианные фазы:', C.rowGray, { bold: true }), blankCell(C.rowGray), blankCell(C.rowGray), blankCell(C.rowGray)]);
+  const phaseLine = (label, medPair, count, total) => [
     dataCell(`  • ${label}:`, C.rowWhite),
-    dataCell(avgPair?.cal != null ? fmtPair(avgPair.cal, avgPair.work) : '—', C.rowWhite, { bold: true }),
-    dataCell(avgPair?.cal != null ? `(посчитано для ${count} из ${total})` : '', C.rowWhite, { fgColor: C.grayText }),
+    dataCell(medPair?.cal != null ? fmtPair(medPair.cal, medPair.work) : '—', C.rowWhite, { bold: true }),
+    dataCell(medPair?.cal != null ? `(посчитано для ${count} из ${total})` : '', C.rowWhite, { fgColor: C.grayText }),
     blankCell(),
   ];
-  rows.push(phaseLine('Выдача оценки', stats?.phaseEstimationAvg,    stats?.phaseEstimationCount,    stats?.count));
-  rows.push(phaseLine('Согласование',   stats?.phaseApprovalAvg,      stats?.phaseApprovalCount,      stats?.count));
-  rows.push(phaseLine('Разработка',     stats?.phaseDevelopmentAvg,   stats?.phaseDevelopmentCount,   stats?.count));
+  rows.push(phaseLine('Выдача оценки', stats?.phaseEstimationMedian,    stats?.phaseEstimationCount,    stats?.count));
+  rows.push(phaseLine('Согласование',   stats?.phaseApprovalMedian,      stats?.phaseApprovalCount,      stats?.count));
+  rows.push(phaseLine('Разработка',     stats?.phaseDevelopmentMedian,   stats?.phaseDevelopmentCount,   stats?.count));
 
   rows.push(Array(COLS).fill(blankCell()));
 

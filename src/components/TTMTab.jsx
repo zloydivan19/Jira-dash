@@ -142,7 +142,7 @@ function IssueLink({ issueKey, jiraBase, theme }) {
   );
 }
 
-function TeamSummary({ teamStats, globalMedian, globalPhaseAvgs, theme }) {
+function TeamSummary({ teamStats, globalMedian, globalPhaseMedians, theme }) {
   if (!teamStats || teamStats.length === 0) return null;
 
   // Backward-safe extraction: globalMedian может быть числом (legacy) или { cal, work }
@@ -155,8 +155,8 @@ function TeamSummary({ teamStats, globalMedian, globalPhaseAvgs, theme }) {
     return 'transparent';
   };
 
-  const phaseExceeds = (teamPhaseAvg, globalPhase) => {
-    const teamCal   = teamPhaseAvg?.cal;
+  const phaseExceeds = (teamPhase, globalPhase) => {
+    const teamCal   = teamPhase?.cal;
     const globalCal = globalPhase?.cal;
     return teamCal != null && globalCal != null && teamCal > globalCal * 1.5;
   };
@@ -176,9 +176,9 @@ function TeamSummary({ teamStats, globalMedian, globalPhaseAvgs, theme }) {
         </thead>
         <tbody>
           {teamStats.map((t) => {
-            const estExceeds = phaseExceeds(t.phaseEstimationAvg,  globalPhaseAvgs?.estimation);
-            const appExceeds = phaseExceeds(t.phaseApprovalAvg,    globalPhaseAvgs?.approval);
-            const devExceeds = phaseExceeds(t.phaseDevelopmentAvg, globalPhaseAvgs?.development);
+            const estExceeds = phaseExceeds(t.phaseEstimationMedian,  globalPhaseMedians?.estimation);
+            const appExceeds = phaseExceeds(t.phaseApprovalMedian,    globalPhaseMedians?.approval);
+            const devExceeds = phaseExceeds(t.phaseDevelopmentMedian, globalPhaseMedians?.development);
             return (
               <tr key={t.team} style={{ background: rowBg(t.median?.cal) }}>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, fontWeight: 600, color: theme.textPrimary }}>{t.team}</td>
@@ -189,19 +189,19 @@ function TeamSummary({ teamStats, globalMedian, globalPhaseAvgs, theme }) {
                   background: estExceeds ? dangerBg : 'transparent',
                   color: estExceeds ? '#ef4444' : theme.textPrimary,
                   fontWeight: 500,
-                }}>{fmtDaysPair(t.phaseEstimationAvg?.cal, t.phaseEstimationAvg?.work)}</td>
+                }}>{fmtDaysPair(t.phaseEstimationMedian?.cal, t.phaseEstimationMedian?.work)}</td>
                 <td style={{
                   padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
                   background: appExceeds ? dangerBg : 'transparent',
                   color: appExceeds ? '#ef4444' : theme.textPrimary,
                   fontWeight: 500,
-                }}>{fmtDaysPair(t.phaseApprovalAvg?.cal, t.phaseApprovalAvg?.work)}</td>
+                }}>{fmtDaysPair(t.phaseApprovalMedian?.cal, t.phaseApprovalMedian?.work)}</td>
                 <td style={{
                   padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
                   background: devExceeds ? dangerBg : 'transparent',
                   color: devExceeds ? '#ef4444' : theme.textPrimary,
                   fontWeight: 500,
-                }}>{fmtDaysPair(t.phaseDevelopmentAvg?.cal, t.phaseDevelopmentAvg?.work)}</td>
+                }}>{fmtDaysPair(t.phaseDevelopmentMedian?.cal, t.phaseDevelopmentMedian?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.min?.cal, t.min?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.max?.cal, t.max?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, color: t.problemRatio >= 0.3 ? '#ef4444' : theme.textSecondary, fontWeight: t.problemRatio >= 0.3 ? 600 : 400 }}>
@@ -815,23 +815,23 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                 <StatCard title="Всего задач" value={effectiveStats.count} theme={theme} />
                 <StatCard title="Медианный TTM" value={fmtDaysPair(effectiveStats.median?.cal, effectiveStats.median?.work)} theme={theme} />
                 <StatCard
-                  title="Avg Оценка"
-                  value={fmtDaysPair(effectiveStats.phaseEstimationAvg?.cal, effectiveStats.phaseEstimationAvg?.work)}
-                  sub={effectiveStats.phaseEstimationAvg?.cal != null ? `посчитано для ${effectiveStats.phaseEstimationCount} из ${effectiveStats.count}` : null}
+                  title="Медиана оценки"
+                  value={fmtDaysPair(effectiveStats.phaseEstimationMedian?.cal, effectiveStats.phaseEstimationMedian?.work)}
+                  sub={effectiveStats.phaseEstimationMedian?.cal != null ? `посчитано для ${effectiveStats.phaseEstimationCount} из ${effectiveStats.count}` : null}
                   color="#3b82f6"
                   theme={theme}
                 />
                 <StatCard
-                  title="Avg Согласование"
-                  value={fmtDaysPair(effectiveStats.phaseApprovalAvg?.cal, effectiveStats.phaseApprovalAvg?.work)}
-                  sub={effectiveStats.phaseApprovalAvg?.cal != null ? `посчитано для ${effectiveStats.phaseApprovalCount} из ${effectiveStats.count}` : null}
+                  title="Медиана согласования"
+                  value={fmtDaysPair(effectiveStats.phaseApprovalMedian?.cal, effectiveStats.phaseApprovalMedian?.work)}
+                  sub={effectiveStats.phaseApprovalMedian?.cal != null ? `посчитано для ${effectiveStats.phaseApprovalCount} из ${effectiveStats.count}` : null}
                   color="#f59e0b"
                   theme={theme}
                 />
                 <StatCard
-                  title="Avg Разработка"
-                  value={fmtDaysPair(effectiveStats.phaseDevelopmentAvg?.cal, effectiveStats.phaseDevelopmentAvg?.work)}
-                  sub={effectiveStats.phaseDevelopmentAvg?.cal != null ? `посчитано для ${effectiveStats.phaseDevelopmentCount} из ${effectiveStats.count}` : null}
+                  title="Медиана разработки"
+                  value={fmtDaysPair(effectiveStats.phaseDevelopmentMedian?.cal, effectiveStats.phaseDevelopmentMedian?.work)}
+                  sub={effectiveStats.phaseDevelopmentMedian?.cal != null ? `посчитано для ${effectiveStats.phaseDevelopmentCount} из ${effectiveStats.count}` : null}
                   color="#22c55e"
                   theme={theme}
                 />
@@ -860,10 +860,10 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
               <TeamSummary
                 teamStats={effectiveTeamStats}
                 globalMedian={effectiveStats.median}
-                globalPhaseAvgs={{
-                  estimation:  effectiveStats.phaseEstimationAvg,
-                  approval:    effectiveStats.phaseApprovalAvg,
-                  development: effectiveStats.phaseDevelopmentAvg,
+                globalPhaseMedians={{
+                  estimation:  effectiveStats.phaseEstimationMedian,
+                  approval:    effectiveStats.phaseApprovalMedian,
+                  development: effectiveStats.phaseDevelopmentMedian,
                 }}
                 theme={theme}
               />
