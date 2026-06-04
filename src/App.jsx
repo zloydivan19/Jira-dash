@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSettings } from './hooks/useSettings.js';
 import { useJira } from './hooks/useJira.js';
 import { useEvaluation } from './hooks/useEvaluation.js';
@@ -234,7 +234,35 @@ export default function App() {
   }, [ttm.load,
       settings.jiraUrl, settings.jiraEmail, settings.jiraToken,
       settings.ttmFilterMode, settings.ttmPeriodFrom, settings.ttmPeriodTo,
-      settings.ttmClients, settings.ttmProjects, settings.ttmIssueType, settings.ttmJql]);
+      settings.ttmClients, settings.ttmDevTypes, settings.ttmProjects, settings.ttmIssueType, settings.ttmJql]);
+
+  // Накапливаем список «известных» видов доработок из customfield_13999 после каждой TTM-загрузки.
+  // Sidebar показывает их как чекбоксы для фильтра.
+  useEffect(() => {
+    if (!ttm.issues || ttm.issues.length === 0) return;
+    const found = new Set();
+    ttm.issues.forEach((issue) => {
+      const raw = issue.fields?.customfield_13999;
+      if (!raw) return;
+      if (Array.isArray(raw)) {
+        raw.forEach((v) => {
+          const val = typeof v === 'object' ? (v?.value ?? v?.name) : v;
+          if (val) found.add(String(val));
+        });
+      } else if (typeof raw === 'object') {
+        const val = raw.value ?? raw.name;
+        if (val) found.add(String(val));
+      } else {
+        found.add(String(raw));
+      }
+    });
+    const known = new Set(settings.ttmKnownDevTypes || []);
+    let changed = false;
+    found.forEach((v) => { if (!known.has(v)) { known.add(v); changed = true; } });
+    if (changed) {
+      updateSettings({ ttmKnownDevTypes: Array.from(known).sort((a, b) => a.localeCompare(b, 'ru')) });
+    }
+  }, [ttm.issues]);
 
   const handleExportTtm = useCallback(async () => {
     if (ttmExporting) return;

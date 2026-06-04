@@ -133,6 +133,7 @@ export default function Sidebar({
     settings.ttmProjects,
     settings.ttmIssueType,
     settings.ttmClients,
+    settings.ttmDevTypes,
     settings.ttmFilterMode,
     settings.ttmPeriodFrom,
     settings.ttmPeriodTo,
@@ -491,6 +492,12 @@ export default function Sidebar({
     if (clients.length) {
       const inList = clients.map((c) => `"${c}"`).join(', ');
       parts.push(`cf[12601] in (${inList})`);
+    }
+
+    const devTypes = s.ttmDevTypes || [];
+    if (devTypes.length) {
+      const inList = devTypes.map((t) => `"${t.replace(/"/g, '\\"')}"`).join(', ');
+      parts.push(`cf[13999] in (${inList})`);
     }
 
     // В режиме "по дате создания" сужаем выборку в JQL для оптимизации.
@@ -1610,6 +1617,55 @@ export default function Sidebar({
               onApply: () => {},
               searchPlaceholder: 'Поиск клиента...',
             })}
+
+            {/* Dev types — checkboxes for customfield_13999 */}
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={labelStyle}>Виды доработок</label>
+                {(settings.ttmDevTypes || []).length > 0 && (
+                  <button
+                    onClick={() => onSettingsChange({ ttmDevTypes: [] })}
+                    style={{ fontSize: '10px', padding: '2px 8px', border: `1px solid ${theme.border}`, borderRadius: '4px', background: theme.bgInput, color: theme.textSecondary, cursor: 'pointer' }}
+                    title="Сбросить выбор (= все виды)">
+                    ✕ Сбросить
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: '10px', color: theme.textMuted, marginBottom: '4px' }}>
+                Опционально — пусто = все виды
+              </div>
+              {(settings.ttmKnownDevTypes || []).length === 0 ? (
+                <div style={{ padding: '8px 10px', fontSize: '11px', color: theme.textMuted, background: theme.bgInput, border: `1px dashed ${theme.borderLight}`, borderRadius: '4px', fontStyle: 'italic' }}>
+                  Список заполнится после первой загрузки TTM
+                </div>
+              ) : (
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: `1px solid ${theme.borderLight}`, borderRadius: '4px', background: theme.bgInput }}>
+                  {(settings.ttmKnownDevTypes || []).map((type) => {
+                    const checked = (settings.ttmDevTypes || []).includes(type);
+                    return (
+                      <label key={type}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', fontSize: '11px', color: theme.textSecondary, cursor: 'pointer', borderBottom: `1px solid ${theme.borderRow}` }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            onSettingsChange((s) => {
+                              const cur = s.ttmDevTypes || [];
+                              const next = cur.includes(type) ? cur.filter((v) => v !== type) : [...cur, type];
+                              return { ttmDevTypes: next };
+                            });
+                          }}
+                          style={{ accentColor: theme.accent, cursor: 'pointer' }}
+                        />
+                        <span style={{ flex: 1, color: checked ? theme.textPrimary : theme.textSecondary, fontWeight: checked ? 600 : 400 }}>
+                          {type}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Projects */}
             <div style={{ marginBottom: '10px' }}>

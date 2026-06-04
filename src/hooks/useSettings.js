@@ -31,6 +31,8 @@ const DEFAULT_SETTINGS = {
   ttmIssueType: 'CR',
   ttmJql: '',
   ttmJqlAuto: true,
+  ttmDevTypes: [],                          // string[] (selected values of customfield_13999)
+  ttmKnownDevTypes: [],                     // string[] (accumulated values seen in loads)
 };
 
 function loadSettings() {
