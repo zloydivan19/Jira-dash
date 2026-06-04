@@ -229,12 +229,11 @@ export default function App() {
   const [ttmExporting, setTtmExporting] = useState(false);
   const [ttmExportLabel, setTtmExportLabel] = useState('Экспорт Excel');
 
+  // Зависим от всего объекта settings — он пересоздаётся при любом изменении.
+  // Иначе stale closure: например, переключение ttmPhaseCalcMode не применяется до refresh.
   const handleLoadTtm = useCallback(async (jql) => {
     await ttm.load(settings, jql);
-  }, [ttm.load,
-      settings.jiraUrl, settings.jiraEmail, settings.jiraToken,
-      settings.ttmFilterMode, settings.ttmPeriodFrom, settings.ttmPeriodTo,
-      settings.ttmClients, settings.ttmDevTypes, settings.ttmProjects, settings.ttmIssueType, settings.ttmJql]);
+  }, [ttm.load, settings]);
 
   // Накапливаем список «известных» видов доработок из customfield_13999 после каждой TTM-загрузки.
   // Sidebar показывает их как чекбоксы для фильтра.
