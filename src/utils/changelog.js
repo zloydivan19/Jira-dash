@@ -246,8 +246,10 @@ export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
 
   let p1Cal = 0, p1Work = 0;
   let p2Cal = 0, p2Work = 0;
-  // lastCycle Phase 2 — суммируем cr в майке только в окне [phase1Start, phase3Start].
-  // (Внутри «последнего цикла» может быть несколько попыток cr в майке → отложено → cr в майке).
+  // lastCycle Phase 1 — сумма P1 статусов в окне [phase1Start, phase1End].
+  // lastCycle Phase 2 — сумма cr в майке в окне [phase1Start, phase3Start].
+  // (Тот же набор статусов, что и в aggregate — отличается только окном.)
+  let p1CalLC = 0, p1WorkLC = 0;
   let p2CalLC = 0, p2WorkLC = 0;
   for (let i = 0; i < statusHistory.length; i++) {
     const entry = statusHistory[i];
@@ -265,10 +267,23 @@ export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
 
     const cal  = calendarDays(segStart, clipEnd) ?? 0;
     const work = workingDays(segStart, clipEnd) ?? 0;
-    if (isP1) { p1Cal += cal; p1Work += work; }
+
+    if (isP1) {
+      p1Cal += cal; p1Work += work;
+      // lastCycle Phase 1: клипуем по [phase1Start..phase1End]
+      if (phase1Start && phase1End) {
+        const lcStart = segStart < phase1Start ? phase1Start : segStart;
+        const lcEnd   = clipEnd > phase1End ? phase1End : clipEnd;
+        if (lcEnd > lcStart) {
+          p1CalLC  += calendarDays(lcStart, lcEnd) ?? 0;
+          p1WorkLC += workingDays(lcStart, lcEnd) ?? 0;
+        }
+      }
+    }
+
     if (isP2) {
       p2Cal += cal; p2Work += work;
-      // Для lastCycle — клипуем по нижней границе [phase1Start..]
+      // lastCycle Phase 2: клипуем по [phase1Start..]
       if (phase1Start) {
         const lcStart = segStart < phase1Start ? phase1Start : segStart;
         if (lcStart < clipEnd) {
@@ -286,16 +301,20 @@ export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
   const phase2Pair_agg = (p2Cal > 0 || p2Work > 0)
     ? { cal: round1(p2Cal), work: round1(p2Work) }
     : { cal: null, work: null };
-  const phase2Pair_lc = (p2CalLC > 0 || p2WorkLC > 0)
+  // Для lastCycle: окно цикла существует — возвращаем значение даже если оно ~0
+  // (короткий цикл из 2 мин лучше показывать как «0 кд», а не «—»).
+  const phase1Pair_lc = (phase1Start && phase1End)
+    ? { cal: round1(p1CalLC), work: round1(p1WorkLC) }
+    : { cal: null, work: null };
+  const phase2Pair_lc = (phase1Start && phase3Start)
     ? { cal: round1(p2CalLC), work: round1(p2WorkLC) }
     : { cal: null, work: null };
 
   // Mode dispatch:
-  //  - aggregate: суммарные времена в статусах за всю историю до phase3Start
-  //  - lastCycle: Phase 1 = окно [phase1Start..phase1End] минус paused;
-  //               Phase 2 = сумма cr в майке внутри окна последнего цикла [phase1Start..phase3Start]
+  //  - aggregate: суммарные времена в P1/P2 статусах за всю историю до phase3Start
+  //  - lastCycle: те же P1/P2 статусы, но только в окне последнего цикла
   const phaseEstimation =
-    mode === 'lastCycle' ? phasePair(phase1Start, phase1End) : phase1Pair_agg;
+    mode === 'lastCycle' ? phase1Pair_lc : phase1Pair_agg;
   const phaseApproval =
     mode === 'lastCycle' ? phase2Pair_lc : phase2Pair_agg;
 
