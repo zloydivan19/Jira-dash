@@ -1,9 +1,12 @@
 import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -136,6 +139,14 @@ app.get('/api/jira/changelog', async (req, res) => {
   }
 });
 
+// Serve the built frontend (npm run build -> dist/) for on-prem deployment
+// where there is no separate static host (e.g. Netlify) in front.
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
 app.listen(PORT, () => {
-  console.log(`Jira proxy server running on http://localhost:${PORT}`);
+  console.log(`Jira dashboard server running on http://localhost:${PORT}`);
 });
