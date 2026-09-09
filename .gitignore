@@ -3,6 +3,7 @@ dist/
 .env
 *.local
 
-# Mac-only scripts (not for git)
+# Local dev convenience scripts (not for git)
 start.sh
+start.bat
 setup-mac.sh
