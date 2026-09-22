@@ -71,7 +71,12 @@ export default function StatusBadge({ status }) {
         borderRadius: '9999px',
         whiteSpace: 'nowrap',
         display: 'inline-block',
+        maxWidth: '100%',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        verticalAlign: 'bottom',
         letterSpacing: '0.02em',
+        boxSizing: 'border-box',
       }}
       title={status}
     >

@@ -130,9 +130,11 @@ export function useBugControl() {
 
     const headers = credHeaders(settings);
     const fixedFields = ['summary','status','issuetype','fixVersions','customfield_10401','customfield_12601','reporter','assignee','priority','updated'];
+    // Псевдо-поля BugControlTab (вычисляются в коде, не запрашиваются у Jira напрямую).
+    const PSEUDO_FIELD_IDS = new Set(['key', 'client', 'currentFixVersion', 'flag', 'lastChange', 'history']);
     const userFields = (settings.columnsBugControl || [])
       .map((c) => c.id)
-      .filter((id) => id && id.startsWith('customfield_') && !fixedFields.includes(id));
+      .filter((id) => id && !fixedFields.includes(id) && !PSEUDO_FIELD_IDS.has(id));
     const fields = [...fixedFields, ...userFields].join(',');
 
     // Step A — issues (paginated)

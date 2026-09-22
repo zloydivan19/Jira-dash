@@ -15,13 +15,9 @@ function escapeCell(value) {
 }
 
 export function downloadCSV(rows, columns = []) {
-  const fixedCols = [
-    { id: 'issueKey', label: 'Ключ',    type: 'key'  },
-    { id: 'summary',  label: 'Итог',    type: 'text' },
-    { id: 'status',   label: 'Статус',  type: 'text' },
-    { id: 'created',  label: 'Создано', type: 'date' },
-  ];
-  const allCols = [...fixedCols, ...columns];
+  // Системные столбцы (Ключ/Итог/Статус/Создано) теперь приходят прямо в columns
+  // (см. useSettings.js) — отдельно прибивать их здесь больше не нужно.
+  const allCols = columns;
 
   const header = allCols.map((c) => escapeCell(c.label)).join(';');
 

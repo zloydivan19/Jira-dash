@@ -30,12 +30,13 @@ const GROUP_CONFIG = [
 
 const BUILTIN_COLUMNS = [
   { id: 'key',                label: 'Ключ',               defaultWidth: 110 },
+  { id: 'issuetype',          label: 'Тип задачи',         defaultWidth: 110 },
   { id: 'client',             label: 'Клиент',             defaultWidth: 180 },
+  { id: 'priority',           label: 'Приоритет',          defaultWidth: 110 },
   { id: 'status',             label: 'Статус',             defaultWidth: 130 },
   { id: 'summary',            label: 'Описание',           defaultWidth: 320 },
   { id: 'currentFixVersion',  label: 'Фактическая версия', defaultWidth: 140 },
   { id: 'flag',               label: 'Флаг',               defaultWidth: 130 },
-  { id: 'changeCount',        label: 'Изменений',          defaultWidth: 90  },
   { id: 'lastChange',         label: 'Последнее изменение',defaultWidth: 200 },
   { id: 'history',            label: 'История fix version',defaultWidth: 360 },
   { id: 'reporter',           label: 'Reporter',           defaultWidth: 140 },
@@ -70,15 +71,37 @@ function getClient(issue) {
   try { return `[?] ${JSON.stringify(raw).slice(0, 60)}`; } catch { return '—'; }
 }
 
+// Extracts plain text from an Atlassian Document Format (ADF) node tree —
+// used by rich-text custom fields (e.g. multi-line "paragraph" fields).
+function extractADFText(node) {
+  if (!node) return '';
+  if (Array.isArray(node)) return node.map(extractADFText).filter(Boolean).join(' ');
+  if (typeof node === 'object') {
+    if (node.type === 'text' && typeof node.text === 'string') return node.text;
+    if (Array.isArray(node.content)) {
+      return node.content.map(extractADFText).filter(Boolean).join(node.type === 'paragraph' ? '\n' : ' ');
+    }
+  }
+  return '';
+}
+
 // Generic value extractor for custom user-added columns
 function extractFieldValue(raw) {
   if (raw == null) return '—';
+  // Некоторые кастомные поля отдают ADF (rich text) уже сериализованным в строку.
+  if (typeof raw === 'string' && raw.includes('"type":"doc"')) {
+    try { return extractFieldValue(JSON.parse(raw)); } catch { /* fall through as plain string */ }
+  }
   if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') return String(raw);
   if (Array.isArray(raw)) {
     const items = raw.map(extractFieldValue).filter((v) => v && v !== '—');
     return items.length ? items.join(', ') : '—';
   }
   if (typeof raw === 'object') {
+    if (raw.type === 'doc' && Array.isArray(raw.content)) {
+      const text = extractADFText(raw).trim();
+      return text || '—';
+    }
     return raw.value ?? raw.name ?? raw.displayName ?? raw.key ?? raw.title ?? '—';
   }
   return String(raw);
@@ -165,12 +188,14 @@ function BugControlFilterDropdown({ colId, allIssues, historyMap, selected, onCh
 
 function getCellStr(colId, issue, entry) {
   switch (colId) {
-    case 'key':                return issue.key || '—';
+    case 'key':
+    case 'issuekey':           return issue.key || '—';
+    case 'issuetype':          return issue.fields?.issuetype?.name || '—';
     case 'client':             return getClient(issue);
+    case 'priority':           return issue.fields?.priority?.name || '—';
     case 'summary':            return issue.fields?.summary || '—';
     case 'currentFixVersion':  return getCurrentFixVersion(issue);
     case 'flag':               return FLAG_LABELS[entry?.flag || 'none'];
-    case 'changeCount':        return String(entry?.changeCount ?? 0);
     case 'lastChange':         return getLastChange(entry);
     case 'reporter':           return getReporter(issue);
     case 'status':             return issue.fields?.status?.name || '—';
@@ -181,7 +206,6 @@ function getCellStr(colId, issue, entry) {
 function compareCell(colId, a, b, historyMap) {
   const ea = historyMap[a.key];
   const eb = historyMap[b.key];
-  if (colId === 'changeCount') return (ea?.changeCount ?? 0) - (eb?.changeCount ?? 0);
   if (colId === 'flag') {
     const order = { red: 0, yellow: 1, none: 2, error: 3 };
     return (order[ea?.flag || 'none'] ?? 9) - (order[eb?.flag || 'none'] ?? 9);
@@ -257,14 +281,19 @@ function renderBugControlCell(col, issue, entry, helpers) {
   const flag = entry?.flag || 'none';
   switch (col.id) {
     case 'key':
+    case 'issuekey':
       return (
         <a href={`${jiraBase}/browse/${issue.key}`} target="_blank" rel="noreferrer"
           style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", textDecoration: 'none', whiteSpace: 'nowrap' }}>
           {issue.key}
         </a>
       );
+    case 'issuetype':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{issue.fields?.issuetype?.name || '—'}</span>;
     case 'client':
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getClient(issue)}</span>;
+    case 'priority':
+      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{issue.fields?.priority?.name || '—'}</span>;
     case 'status':
       return (
         <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', background: theme.bgCard, color: theme.textSecondary, border: `1px solid ${theme.border}` }}>
@@ -281,8 +310,6 @@ function renderBugControlCell(col, issue, entry, helpers) {
           {FLAG_LABELS[flag] || '—'}
         </span>
       );
-    case 'changeCount':
-      return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{entry ? entry.changeCount : 0}</span>;
     case 'lastChange':
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getLastChange(entry)}</span>;
     case 'history':
@@ -375,7 +402,6 @@ function GroupSection({ group, issues, historyMap, versionsMeta, settings, theme
                   {allColumns.map((col) => (
                     <td key={col.id} style={col.id === 'summary' || col.id === 'client'
                       ? { ...tdBase, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
-                      : col.id === 'changeCount' ? { ...tdBase, textAlign: 'center' }
                       : tdBase}>
                       {renderBugControlCell(col, issue, entry, { theme, jiraBase, versionsMeta, palette, flagColor: c })}
                     </td>
@@ -408,7 +434,7 @@ export default function BugControlTab({ issues, historyMap, versionsMeta, loadin
     });
   }, [columnsBugControl]);
 
-  const [sortCol, setSortCol] = useState('changeCount');
+  const [sortCol, setSortCol] = useState('flag');
   const [sortDir, setSortDir] = useState('desc');
   const [colFilters, setColFilters] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem('bug_control_col_filters')) || {}; } catch { return {}; }

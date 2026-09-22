@@ -72,7 +72,8 @@ export function useJira(storageKey = null) {
     setIssues([]);
 
     const fixedFields = ['summary', 'status', 'created'];
-    const dynamicFields = columns.map((c) => c.id).filter(Boolean);
+    // 'issueKey' — не настоящее поле Jira (это issue.key), запрашивать его в fields не нужно.
+    const dynamicFields = columns.map((c) => c.id).filter((id) => id && id !== 'issueKey');
     const allFields = [...new Set([...fixedFields, ...dynamicFields])];
 
     const limit = parseInt(maxResults, 10) || 0;

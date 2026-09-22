@@ -17,13 +17,15 @@ function formatNumber(val) {
   return num.toLocaleString('ru-RU');
 }
 
-// Fixed columns always present
-const FIXED_COLUMNS = [
-  { id: 'issueKey', label: 'Ключ',    type: 'key',    defaultWidth: 100 },
-  { id: 'summary',  label: 'Итог',    type: 'text',   defaultWidth: 260 },
-  { id: 'status',   label: 'Статус',  type: 'status', defaultWidth: 150 },
-  { id: 'created',  label: 'Создано', type: 'date',   defaultWidth: 110 },
-];
+// Дефолтная ширина для системных столбцов (Ключ/Итог/Статус/Создано), которые раньше
+// были отдельным жёстко прибитым списком FIXED_COLUMNS. Теперь они — обычные записи в
+// settings.columns (см. useSettings.js), управляются на вкладке «Поля» как любые другие.
+const SYSTEM_DEFAULT_WIDTHS = {
+  issueKey: 100,
+  summary:  260,
+  status:   150,
+  created:  110,
+};
 
 function getCellValue(col, row) {
   const raw = row[col.id];
@@ -158,10 +160,9 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
     try { return JSON.parse(localStorage.getItem('jira_dash_col_widths') || '{}'); } catch { return {}; }
   });
 
-  const allColumns = useMemo(() => [
-    ...FIXED_COLUMNS,
-    ...columns.map((c) => ({ ...c, defaultWidth: 160 })),
-  ], [columns]);
+  const allColumns = useMemo(() => (
+    columns.map((c) => ({ ...c, defaultWidth: SYSTEM_DEFAULT_WIDTHS[c.id] ?? 160 }))
+  ), [columns]);
 
   const getWidth = (col) => colWidths[col.id] ?? col.defaultWidth ?? 160;
 
@@ -207,9 +208,16 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
 
   const tdBase = { padding: '8px 10px', color: theme.textPrimary, verticalAlign: 'top', overflow: 'hidden' };
 
+  // table-layout:fixed only actually clamps column widths (rather than growing to fit
+  // unbreakable content, e.g. a nowrap status badge) if the table itself has a real
+  // pixel width — 'max-content' lets the browser expand it to fit content regardless
+  // of the <col> widths, which is why narrowing a column with long nowrap text (like
+  // "Отправлены на согласование") visually did nothing.
+  const totalWidth = allColumns.reduce((sum, col) => sum + getWidth(col), 0);
+
   return (
     <div style={{ overflow: 'auto', width: '100%', height: '100%' }}>
-      <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%', fontSize: '13px', tableLayout: 'fixed' }}>
+      <table style={{ borderCollapse: 'collapse', width: totalWidth + 'px', minWidth: '100%', fontSize: '13px', tableLayout: 'fixed' }}>
         <colgroup>
           {allColumns.map((col) => <col key={col.id} style={{ width: getWidth(col) + 'px' }} />)}
         </colgroup>
@@ -271,7 +279,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
               onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? theme.bgRowEven : theme.bgRowOdd)}
             >
               {allColumns.map((col) => {
-                if (col.type === 'key') return (
+                if (col.type === 'key' || col.id === 'issuekey') return (
                   <td key={col.id} style={tdBase}>
                     <a href={row.issueUrl} target="_blank" rel="noreferrer"
                       style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' }}
