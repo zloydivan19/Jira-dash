@@ -139,12 +139,39 @@ app.get('/api/jira/changelog', async (req, res) => {
   }
 });
 
+// Jira ADF text nodes can't contain literal "\n" — line breaks must be
+// separate hardBreak nodes. Splits `text` on newlines into an array of
+// {type:'text'} nodes interleaved with {type:'hardBreak'} nodes.
+function textToADFNodes(text) {
+  const lines = text.split('\n');
+  const nodes = [];
+  lines.forEach((line, idx) => {
+    if (idx > 0) nodes.push({ type: 'hardBreak' });
+    nodes.push({ type: 'text', text: line });
+  });
+  return nodes;
+}
+
 // POST /api/jira/comment
 // Постит комментарий в задачу. Если передан mentionAccountId — комментарий
 // начинается с @упоминания этого пользователя (ADF mention-нода), чтобы
 // Jira отправила ему штатное уведомление.
+//
+// This is a write route reachable cross-origin (CORS allows all origins), so
+// unlike the read routes above it must NOT fall back to server-side .env
+// credentials — that would let any page a user's browser visits trigger a
+// write authenticated with this server's own configured credentials.
+// Credentials headers are required explicitly here.
 app.post('/api/jira/comment', async (req, res) => {
-  const { url, auth } = getCredentials(req);
+  const jiraUrl = req.headers['x-jira-url'];
+  const jiraEmail = req.headers['x-jira-email'];
+  const jiraToken = req.headers['x-jira-token'];
+  if (!jiraUrl || !jiraEmail || !jiraToken) {
+    return res.status(400).json({ error: 'Missing Jira credentials headers' });
+  }
+  const url = jiraUrl;
+  const auth = 'Basic ' + Buffer.from(`${jiraEmail}:${jiraToken}`).toString('base64');
+
   const { issueKey, text, mentionAccountId } = req.body || {};
   if (!issueKey || !text) {
     return res.status(400).json({ error: 'issueKey and text required' });
@@ -153,9 +180,11 @@ app.post('/api/jira/comment', async (req, res) => {
   const content = [];
   if (mentionAccountId) {
     content.push({ type: 'mention', attrs: { id: mentionAccountId } });
-    content.push({ type: 'text', text: ' ' + text });
+    const textNodes = textToADFNodes(text);
+    textNodes[0] = { type: 'text', text: ' ' + textNodes[0].text };
+    content.push(...textNodes);
   } else {
-    content.push({ type: 'text', text });
+    content.push(...textToADFNodes(text));
   }
 
   const commentBody = {

@@ -383,6 +383,7 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
 
   const [selectedKeys, setSelectedKeys] = useState(() => new Set());
   const [composerOpen, setComposerOpen] = useState(false);
+  const [composerList, setComposerList] = useState([]);
 
   const toggleSelect = useCallback((key) => {
     setSelectedKeys((prev) => {
@@ -409,6 +410,16 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
       assigneeAccountId: i.fields?.assignee?.accountId,
       assigneeName: i.fields?.assignee?.displayName,
     })), [issues, selectedKeys]);
+
+  // Prune selectedKeys when the underlying issue list changes (e.g. after a
+  // reload with a new JQL), so the toolbar count doesn't stay stale.
+  useEffect(() => {
+    setSelectedKeys((prev) => {
+      const validKeys = new Set(issues.map((i) => i.key));
+      const next = new Set([...prev].filter((k) => validKeys.has(k)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [issues]);
 
   const handleSort = useCallback((col) => {
     setSortCol((prev) => {
@@ -591,18 +602,18 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
         </button>
 
         <button
-          onClick={() => setComposerOpen(true)}
-          disabled={selectedKeys.size === 0}
+          onClick={() => { setComposerList(composerIssues); setComposerOpen(true); }}
+          disabled={composerIssues.length === 0}
           style={{
             marginLeft: '8px', padding: '6px 14px',
-            background: selectedKeys.size === 0 ? theme.border : theme.accent,
-            color: selectedKeys.size === 0 ? theme.textMuted : theme.accentText,
+            background: composerIssues.length === 0 ? theme.border : theme.accent,
+            color: composerIssues.length === 0 ? theme.textMuted : theme.accentText,
             border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-            cursor: selectedKeys.size === 0 ? 'not-allowed' : 'pointer',
+            cursor: composerIssues.length === 0 ? 'not-allowed' : 'pointer',
             whiteSpace: 'nowrap',
           }}
         >
-          ✉ Отправить пинг{selectedKeys.size > 0 ? ` (${selectedKeys.size})` : ''}
+          ✉ Отправить пинг{composerIssues.length > 0 ? ` (${composerIssues.length})` : ''}
         </button>
       </div>
 
@@ -665,8 +676,11 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
 
       {composerOpen && (
         <PingComposer
-          issues={composerIssues}
-          onRemove={toggleSelect}
+          issues={composerList}
+          onRemove={(key) => {
+            setComposerList((prev) => prev.filter((i) => i.key !== key));
+            toggleSelect(key);
+          }}
           onClose={() => setComposerOpen(false)}
           onSent={(successKeys) => {
             setSelectedKeys((prev) => {
