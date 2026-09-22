@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { exportSLAViolations } from '../utils/slaExport.js';
+import PingComposer from './PingComposer.jsx';
 
 const GROUP_CONFIG = [
   { id: 'active', label: 'В процессе',                  statuses: ['awaiting moderation', 'на оценку', 'уточнение требований'], description: 'Задачи идут по процессу, таймер SLA активен' },
@@ -191,7 +192,7 @@ function SLABadge({ sla, theme }) {
 }
 
 // ── Group section (table without managing filter state) ──────────────────────
-function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, allColumns, colWidths, startResize }) {
+function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, allColumns, colWidths, startResize, selectedKeys, onToggleSelect, onToggleSelectAllInGroup }) {
   const [collapsed, setCollapsed] = useState(false);
   const headerColors = { active: theme.accent, pause: theme.textMuted, done: '#3b82f6' };
   if (issues.length === 0) return null;
@@ -213,10 +214,19 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
       {!collapsed && (
         <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%', fontSize: '13px', tableLayout: 'fixed' }}>
           <colgroup>
+            <col style={{ width: '32px' }} />
             {allColumns.map((c) => <col key={c.id} style={{ width: (colWidths[c.id] ?? c.defaultWidth ?? 150) + 'px' }} />)}
           </colgroup>
           <thead>
             <tr style={{ background: theme.bgThead || theme.bgCard }}>
+              <th style={{ padding: '8px', textAlign: 'center', borderBottom: `2px solid ${theme.border}`, position: 'sticky', top: 0, background: theme.bgThead || theme.bgCard }}>
+                <input
+                  type="checkbox"
+                  checked={issues.length > 0 && issues.every((i) => selectedKeys.has(i.key))}
+                  onChange={() => onToggleSelectAllInGroup(issues)}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
               {allColumns.map((col) => {
                 const isFiltered = (colFilters[col.id]?.length ?? 0) > 0;
                 return (
@@ -267,6 +277,15 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
                   onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}>
 
+                  {/* select */}
+                  <td style={{ ...tdBase, textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedKeys.has(issue.key)}
+                      onChange={() => onToggleSelect(issue.key)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </td>
                   {/* key */}
                   <td style={tdBase}>
                     <a href={`${jiraBase}/browse/${issue.key}`} target="_blank" rel="noreferrer"
@@ -361,6 +380,46 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
   const [filterAnchor,   setFilterAnchor]   = useState(null);
   const [exporting,      setExporting]      = useState(false);
   const [exportLabel,    setExportLabel]    = useState('Экспорт SLA нарушений');
+
+  const [selectedKeys, setSelectedKeys] = useState(() => new Set());
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerList, setComposerList] = useState([]);
+
+  const toggleSelect = useCallback((key) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllInGroup = useCallback((groupIssues) => {
+    setSelectedKeys((prev) => {
+      const allSelected = groupIssues.length > 0 && groupIssues.every((i) => prev.has(i.key));
+      const next = new Set(prev);
+      groupIssues.forEach((i) => { if (allSelected) next.delete(i.key); else next.add(i.key); });
+      return next;
+    });
+  }, []);
+
+  const composerIssues = useMemo(() => issues
+    .filter((i) => selectedKeys.has(i.key))
+    .map((i) => ({
+      key: i.key,
+      summary: i.fields?.summary || '(без названия)',
+      assigneeAccountId: i.fields?.assignee?.accountId,
+      assigneeName: i.fields?.assignee?.displayName,
+    })), [issues, selectedKeys]);
+
+  // Prune selectedKeys when the underlying issue list changes (e.g. after a
+  // reload with a new JQL), so the toolbar count doesn't stay stale.
+  useEffect(() => {
+    setSelectedKeys((prev) => {
+      const validKeys = new Set(issues.map((i) => i.key));
+      const next = new Set([...prev].filter((k) => validKeys.has(k)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [issues]);
 
   const handleSort = useCallback((col) => {
     setSortCol((prev) => {
@@ -541,6 +600,21 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
             : '↓'}
           {exportLabel}
         </button>
+
+        <button
+          onClick={() => { setComposerList(composerIssues); setComposerOpen(true); }}
+          disabled={composerIssues.length === 0}
+          style={{
+            marginLeft: '8px', padding: '6px 14px',
+            background: composerIssues.length === 0 ? theme.border : theme.accent,
+            color: composerIssues.length === 0 ? theme.textMuted : theme.accentText,
+            border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+            cursor: composerIssues.length === 0 ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ✉ Отправить пинг{composerIssues.length > 0 ? ` (${composerIssues.length})` : ''}
+        </button>
       </div>
 
       {/* Content */}
@@ -579,6 +653,9 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
             allColumns={allColumns}
             colWidths={colWidths}
             startResize={startResize}
+            selectedKeys={selectedKeys}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAllInGroup={toggleSelectAllInGroup}
           />
         ))}
       </div>
@@ -594,6 +671,25 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
           onClose={handleCloseFilter}
           anchorRect={filterAnchor}
           theme={theme}
+        />
+      )}
+
+      {composerOpen && (
+        <PingComposer
+          issues={composerList}
+          onRemove={(key) => {
+            setComposerList((prev) => prev.filter((i) => i.key !== key));
+            toggleSelect(key);
+          }}
+          onClose={() => setComposerOpen(false)}
+          onSent={(successKeys) => {
+            setSelectedKeys((prev) => {
+              const next = new Set(prev);
+              successKeys.forEach((k) => next.delete(k));
+              return next;
+            });
+          }}
+          settings={settings}
         />
       )}
     </div>

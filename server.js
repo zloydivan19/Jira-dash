@@ -139,6 +139,84 @@ app.get('/api/jira/changelog', async (req, res) => {
   }
 });
 
+// Jira ADF text nodes can't contain literal "\n" — line breaks must be
+// separate hardBreak nodes. Splits `text` on newlines into an array of
+// {type:'text'} nodes interleaved with {type:'hardBreak'} nodes.
+function textToADFNodes(text) {
+  const lines = text.split('\n');
+  const nodes = [];
+  lines.forEach((line, idx) => {
+    if (idx > 0) nodes.push({ type: 'hardBreak' });
+    nodes.push({ type: 'text', text: line });
+  });
+  return nodes;
+}
+
+// POST /api/jira/comment
+// Постит комментарий в задачу. Если передан mentionAccountId — комментарий
+// начинается с @упоминания этого пользователя (ADF mention-нода), чтобы
+// Jira отправила ему штатное уведомление.
+//
+// This is a write route reachable cross-origin (CORS allows all origins), so
+// unlike the read routes above it must NOT fall back to server-side .env
+// credentials — that would let any page a user's browser visits trigger a
+// write authenticated with this server's own configured credentials.
+// Credentials headers are required explicitly here.
+app.post('/api/jira/comment', async (req, res) => {
+  const jiraUrl = req.headers['x-jira-url'];
+  const jiraEmail = req.headers['x-jira-email'];
+  const jiraToken = req.headers['x-jira-token'];
+  if (!jiraUrl || !jiraEmail || !jiraToken) {
+    return res.status(400).json({ error: 'Missing Jira credentials headers' });
+  }
+  const url = jiraUrl;
+  const auth = 'Basic ' + Buffer.from(`${jiraEmail}:${jiraToken}`).toString('base64');
+
+  const { issueKey, text, mentionAccountId } = req.body || {};
+  if (!issueKey || !text) {
+    return res.status(400).json({ error: 'issueKey and text required' });
+  }
+
+  const content = [];
+  if (mentionAccountId) {
+    content.push({ type: 'mention', attrs: { id: mentionAccountId } });
+    const textNodes = textToADFNodes(text);
+    textNodes[0] = { type: 'text', text: ' ' + textNodes[0].text };
+    content.push(...textNodes);
+  } else {
+    content.push(...textToADFNodes(text));
+  }
+
+  const commentBody = {
+    body: {
+      type: 'doc',
+      version: 1,
+      content: [{ type: 'paragraph', content }],
+    },
+  };
+
+  try {
+    const response = await axios.post(
+      `${url}/rest/api/3/issue/${issueKey}/comment`,
+      commentBody,
+      { headers: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 }
+    );
+    res.json({ success: true, id: response.data?.id });
+  } catch (err) {
+    console.error('[comment] error:', issueKey, err.response?.status, JSON.stringify(err.response?.data));
+    if (err.response) {
+      const status = err.response.status;
+      if (status === 401) return res.status(401).json({ error: 'Неверные credentials' });
+      const details = err.response.data?.errorMessages?.join('; ')
+        || (err.response.data?.errors && JSON.stringify(err.response.data.errors))
+        || 'Jira API error';
+      return res.status(status).json({ error: details });
+    }
+    if (err.code === 'ECONNABORTED') return res.status(504).json({ error: 'Timeout: Jira не отвечает' });
+    res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
 // Serve the built frontend (npm run build -> dist/) for on-prem deployment
 // where there is no separate static host (e.g. Netlify) in front.
 const distPath = path.join(__dirname, 'dist');
