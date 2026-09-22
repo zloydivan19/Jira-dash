@@ -139,6 +139,55 @@ app.get('/api/jira/changelog', async (req, res) => {
   }
 });
 
+// POST /api/jira/comment
+// Постит комментарий в задачу. Если передан mentionAccountId — комментарий
+// начинается с @упоминания этого пользователя (ADF mention-нода), чтобы
+// Jira отправила ему штатное уведомление.
+app.post('/api/jira/comment', async (req, res) => {
+  const { url, auth } = getCredentials(req);
+  const { issueKey, text, mentionAccountId } = req.body || {};
+  if (!issueKey || !text) {
+    return res.status(400).json({ error: 'issueKey and text required' });
+  }
+
+  const content = [];
+  if (mentionAccountId) {
+    content.push({ type: 'mention', attrs: { id: mentionAccountId } });
+    content.push({ type: 'text', text: ' ' + text });
+  } else {
+    content.push({ type: 'text', text });
+  }
+
+  const commentBody = {
+    body: {
+      type: 'doc',
+      version: 1,
+      content: [{ type: 'paragraph', content }],
+    },
+  };
+
+  try {
+    const response = await axios.post(
+      `${url}/rest/api/3/issue/${issueKey}/comment`,
+      commentBody,
+      { headers: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 }
+    );
+    res.json({ success: true, id: response.data?.id });
+  } catch (err) {
+    console.error('[comment] error:', issueKey, err.response?.status, JSON.stringify(err.response?.data));
+    if (err.response) {
+      const status = err.response.status;
+      if (status === 401) return res.status(401).json({ error: 'Неверные credentials' });
+      const details = err.response.data?.errorMessages?.join('; ')
+        || (err.response.data?.errors && JSON.stringify(err.response.data.errors))
+        || 'Jira API error';
+      return res.status(status).json({ error: details });
+    }
+    if (err.code === 'ECONNABORTED') return res.status(504).json({ error: 'Timeout: Jira не отвечает' });
+    res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
 // Serve the built frontend (npm run build -> dist/) for on-prem deployment
 // where there is no separate static host (e.g. Netlify) in front.
 const distPath = path.join(__dirname, 'dist');
