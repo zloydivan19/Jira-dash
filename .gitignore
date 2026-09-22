@@ -3,6 +3,9 @@ dist/
 .env
 *.local
 
+# Claude Code worktrees (created via EnterWorktree, e.g. during feature work)
+.claude/
+
 # Local dev convenience scripts (not for git)
 start.sh
 start.bat
