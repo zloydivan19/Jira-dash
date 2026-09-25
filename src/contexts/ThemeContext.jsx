@@ -129,11 +129,17 @@ const THEMES = { light: LIGHT, dark: DARK };
 
 const ThemeContext = createContext(null);
 
+// Тёмная тема по умолчанию. THEME_DEFAULT_VERSION один раз переводит всех на тёмную
+// (раньше по умолчанию сохранялась светлая), дальше ручной выбор пользователя сохраняется.
+const THEME_DEFAULT_VERSION = '2';
+
 function initialThemeId() {
-  const stored = localStorage.getItem('jira_dash_theme');
-  if (stored === 'dark') return 'dark';
-  if (stored === 'light' || stored === 'csi') return 'light';
-  return 'light';
+  try {
+    if (localStorage.getItem('jira_dash_theme_default') !== THEME_DEFAULT_VERSION) return 'dark';
+    return localStorage.getItem('jira_dash_theme') === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
 }
 
 export function ThemeProvider({ children }) {
@@ -142,6 +148,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     localStorage.setItem('jira_dash_theme', themeId);
+    localStorage.setItem('jira_dash_theme_default', THEME_DEFAULT_VERSION);
     const root = document.documentElement;
     for (const [k, v] of Object.entries(theme)) {
       if (typeof v === 'string' && k !== 'id') root.style.setProperty(`--t-${k}`, v);

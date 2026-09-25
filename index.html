@@ -12,7 +12,10 @@
     />
     <script>
       (function () {
-        var t = localStorage.getItem('jira_dash_theme') === 'dark' ? 'dark' : 'light';
+        var t = 'dark';
+        try {
+          if (localStorage.getItem('jira_dash_theme_default') === '2' && localStorage.getItem('jira_dash_theme') === 'light') t = 'light';
+        } catch (e) {}
         document.documentElement.dataset.theme = t;
         document.documentElement.style.background = t === 'dark' ? '#14161B' : '#FFFFFF';
       })();
