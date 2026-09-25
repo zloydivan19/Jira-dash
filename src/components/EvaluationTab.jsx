@@ -548,7 +548,7 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
         <div style={{ flex: 1 }} />
 
         {/* Legend */}
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div data-tour="eval-sla" style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '4px 6px' }}>
           {[{ color: 'var(--t-success)', label: '≤ 5 р.д.' }, { color: 'var(--t-warning)', label: '6–8 р.д.' }, { color: 'var(--t-error)', label: '> 8 р.д.' }, { color: 'var(--t-accent)', label: 'Оценена' }, { color: 'var(--t-textMuted)', label: 'Пауза' }].map(({ color, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
@@ -563,7 +563,7 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
           disabled={exporting}
           title={
             'Выгрузить в Excel все задачи всех менеджеров, у которых SLA на оценке превысил 10 рабочих дней.\n' +
-            'Учитывается только активное время (Awaiting Moderation, На оценку, Уточнение требований).\n' +
+            'Учитывается только активное время (Awaiting Moderation, На оценку, Уточнение требований, Product Feature).\n' +
             'Файл: SLA_CR_ГГГГ-ММ-ДД.xlsx'
           }
           style={{
@@ -593,8 +593,10 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
         </button>
 
         <button
+          data-tour="eval-ping"
           onClick={() => { setComposerList(composerIssues); setComposerOpen(true); }}
           disabled={composerIssues.length === 0}
+          title={composerIssues.length === 0 ? 'Отметьте задачи галочками в таблице' : 'Написать одно сообщение во все отмеченные задачи'}
           style={{
             marginLeft: '8px', padding: '6px 14px',
             background: composerIssues.length === 0 ? theme.border : theme.accent,

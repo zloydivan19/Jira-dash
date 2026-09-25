@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useTheme } from '../contexts/ThemeContext.jsx';
+import Icon from './Icon.jsx';
 import { usePings } from '../hooks/usePings.js';
 
 /**
- * Modal for composing one message and sending it as a Jira comment
- * (with @mention of the assignee, when known) to multiple issues at once.
+ * Одно сообщение уходит комментарием во все выбранные задачи;
+ * в каждой задаче комментарий начинается с @упоминания её исполнителя.
  */
 export default function PingComposer({ issues, onRemove, onClose, onSent, settings }) {
-  const { theme } = useTheme();
   const [text, setText] = useState('');
   const { sending, results, sendPings } = usePings();
 
   const canSend = text.trim().length > 0 && issues.length > 0 && !sending;
+  const withoutAssignee = issues.filter((i) => !i.assigneeAccountId).length;
+  const sample = issues.find((i) => i.assigneeName) || issues[0];
 
   const handleSend = async () => {
     const items = issues.map((i) => ({
@@ -21,95 +22,78 @@ export default function PingComposer({ issues, onRemove, onClose, onSent, settin
       mentionAccountId: i.assigneeAccountId || undefined,
     }));
     const finalResults = await sendPings(settings, items);
-    const successKeys = Object.entries(finalResults)
-      .filter(([, r]) => r.ok)
-      .map(([key]) => key);
+    const successKeys = Object.entries(finalResults).filter(([, r]) => r.ok).map(([key]) => key);
     if (successKeys.length > 0) onSent(successKeys);
   };
 
   return createPortal(
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{
-        width: '520px', maxWidth: '92vw', maxHeight: '82vh', overflow: 'hidden',
-        display: 'flex', flexDirection: 'column',
-        background: theme.bgCard || theme.bgPage, border: `1px solid ${theme.border}`,
-        borderRadius: '10px', boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
-      }}>
-        <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '14px', fontWeight: 700, color: theme.textPrimary }}>
-            Отправить пинг ({issues.length})
-          </span>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: theme.textSecondary, fontSize: '16px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+    <div className="ping-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ping" role="dialog" aria-label="Отправить пинг">
+        <div className="ping-head">
+          <div>
+            <h3>Отправить пинг</h3>
+            <p>Одно сообщение уйдёт комментарием в {issues.length} {plural(issues.length, 'задачу', 'задачи', 'задач')}. В каждой задаче будет упомянут её исполнитель, и Jira пришлёт ему уведомление.</p>
+          </div>
+          <button className="icon-btn" onClick={onClose} title="Закрыть"><Icon name="x" /></button>
         </div>
 
-        <div style={{ padding: '12px 16px', overflowY: 'auto', flex: '0 1 auto' }}>
+        <div className="ping-list">
           {issues.map((issue) => {
             const result = results[issue.key];
             return (
-              <div key={issue.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 0', borderBottom: `1px solid ${theme.borderLight}` }}>
+              <div key={issue.key} className="ping-row">
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontFamily: 'var(--t-fontMono)', color: theme.accent }}>
-                    {issue.key}
-                    {!issue.assigneeAccountId && (
-                      <span title="Без исполнителя — уйдёт без упоминания" style={{ marginLeft: '6px', color: 'var(--t-warning)' }}>⚠</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '12px', color: theme.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {issue.summary}
-                  </div>
+                  <div className="ping-key">{issue.key}<span className="ping-sum">{issue.summary}</span></div>
+                  {issue.assigneeAccountId ? (
+                    <span className="ping-mention">@{issue.assigneeName || 'исполнитель'}</span>
+                  ) : (
+                    <span className="ping-nomention">Нет исполнителя, комментарий уйдёт без упоминания</span>
+                  )}
                   {result && (
-                    <div style={{ fontSize: '11px', color: result.ok ? 'var(--t-success)' : 'var(--t-error)', marginTop: '2px' }}>
-                      {result.ok ? '✓ отправлено' : `✗ ${result.error}`}
-                    </div>
+                    <div className={`ping-result ${result.ok ? 'ok' : 'err'}`}>{result.ok ? 'Отправлено' : `Не отправлено: ${result.error}`}</div>
                   )}
                 </div>
                 {!result?.ok && (
-                  <button onClick={() => onRemove(issue.key)} title="Убрать из отправки"
-                    style={{ background: 'transparent', border: 'none', color: theme.error || 'var(--t-error)', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>×</button>
+                  <button className="icon-btn rm" onClick={() => onRemove(issue.key)} title="Убрать из отправки"><Icon name="x" size={16} /></button>
                 )}
               </div>
             );
           })}
-          {issues.length === 0 && (
-            <div style={{ padding: '20px 0', textAlign: 'center', color: theme.textMuted, fontSize: '13px' }}>
-              Все задачи убраны из отправки
-            </div>
-          )}
+          {issues.length === 0 && <p className="empty-note" style={{ textAlign: 'center' }}>Все задачи убраны из отправки</p>}
         </div>
 
-        <div style={{ padding: '12px 16px', borderTop: `1px solid ${theme.borderLight}` }}>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Текст сообщения — уйдёт как комментарий во все задачи выше"
-            rows={4}
-            style={{
-              width: '100%', boxSizing: 'border-box', resize: 'vertical',
-              padding: '8px 10px', fontSize: '13px', fontFamily: 'inherit',
-              background: theme.bgInput, color: theme.textPrimary,
-              border: `1px solid ${theme.border}`, borderRadius: '6px',
-            }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
-            <button onClick={onClose} style={{
-              padding: '7px 16px', background: 'transparent', color: theme.textSecondary,
-              border: `1px solid ${theme.border}`, borderRadius: '6px', fontSize: '13px', cursor: 'pointer',
-            }}>Закрыть</button>
-            <button onClick={handleSend} disabled={!canSend} style={{
-              padding: '7px 16px', background: canSend ? theme.accent : theme.border,
-              color: canSend ? theme.accentText : theme.textMuted,
-              border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600,
-              cursor: canSend ? 'pointer' : 'not-allowed',
-            }}>
-              {sending ? 'Отправка…' : 'Отправить'}
+        <div className="ping-foot">
+          <textarea className="jql-area" style={{ fontFamily: 'inherit', fontSize: 13.5 }} value={text} onChange={(e) => setText(e.target.value)}
+            placeholder="Текст сообщения, например: «Коллеги, подскажите, когда будет оценка?»" rows={4} />
+          {sample && (
+            <div className="ping-preview">
+              <span className="ping-preview-cap">Так комментарий будет выглядеть в {sample.key}:</span>
+              <div>
+                {sample.assigneeAccountId && <span className="ping-mention">@{sample.assigneeName || 'исполнитель'}</span>}{' '}
+                <span style={{ whiteSpace: 'pre-wrap' }}>{text.trim() || '…'}</span>
+              </div>
+            </div>
+          )}
+          {withoutAssignee > 0 && (
+            <p className="hint" style={{ margin: 0 }}>Без исполнителя: {withoutAssignee}. В этих задачах комментарий будет без упоминания.</p>
+          )}
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button className="btn ghost" onClick={onClose}>Закрыть</button>
+            <button className="btn primary" onClick={handleSend} disabled={!canSend}>
+              {sending ? 'Отправляем…' : `Отправить в ${issues.length} ${plural(issues.length, 'задачу', 'задачи', 'задач')}`}
             </button>
           </div>
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }
