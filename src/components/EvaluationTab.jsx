@@ -11,21 +11,14 @@ const GROUP_CONFIG = [
 ];
 
 const SLA_COLORS = {
-  green:   { bg: '#1a3a1a', border: '#2d6a2d', text: '#4ade80', dot: '#22c55e' },
-  yellow:  { bg: '#3a3010', border: '#6a5a10', text: '#fbbf24', dot: '#f59e0b' },
-  red:     { bg: '#3a1a1a', border: '#6a2020', text: '#f87171', dot: '#ef4444' },
-  pause:   { bg: '#1e2030', border: '#353a50', text: '#94a3b8', dot: '#64748b' },
-  done:    { bg: '#0f2040', border: '#1e4080', text: '#60a5fa', dot: '#3b82f6' },
-  unknown: { bg: '#1e1e1e', border: '#333',    text: '#888',    dot: '#555'    },
+  green:   { bg: 'var(--t-successBg)',  border: 'transparent', text: 'var(--t-success)',   dot: 'var(--t-success)' },
+  yellow:  { bg: 'var(--t-warningBg)',  border: 'transparent', text: 'var(--t-warning)',   dot: 'var(--t-warning)' },
+  red:     { bg: 'var(--t-errorBg)',    border: 'transparent', text: 'var(--t-error)',     dot: 'var(--t-error)' },
+  pause:   { bg: 'var(--t-bgSunk)',     border: 'transparent', text: 'var(--t-textMuted)', dot: 'var(--t-textMuted)' },
+  done:    { bg: 'var(--t-accentSoft)', border: 'transparent', text: 'var(--t-accent)',    dot: 'var(--t-accent)' },
+  unknown: { bg: 'var(--t-bgSunk)',     border: 'transparent', text: 'var(--t-textMuted)', dot: 'var(--t-border)' },
 };
-const SLA_COLORS_CSI = {
-  green:   { bg: '#f0fdf4', border: '#86efac', text: '#166534', dot: '#22c55e' },
-  yellow:  { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', dot: '#f59e0b' },
-  red:     { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', dot: '#ef4444' },
-  pause:   { bg: '#f8fafc', border: '#cbd5e1', text: '#64748b', dot: '#94a3b8' },
-  done:    { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af', dot: '#3b82f6' },
-  unknown: { bg: '#f9fafb', border: '#e5e7eb', text: '#9ca3af', dot: '#d1d5db' },
-};
+const SLA_COLORS_CSI = SLA_COLORS;
 
 const SLA_STATUS_LABELS = {
   green: 'Всё по плану', yellow: 'Скоро дедлайн', red: 'SLA нарушен',
@@ -142,7 +135,7 @@ function EvalFilterDropdown({ colId, allIssues, slaMap, selected, onChange, onCl
     <div ref={ref} style={{
       position: 'fixed', top, left, zIndex: 9999,
       background: theme.bgDropdown, border: `1px solid ${theme.border}`,
-      borderRadius: '7px', boxShadow: theme.id === 'dark' ? '0 8px 32px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.15)',
+      borderRadius: '7px', boxShadow: theme.shadowPop,
       minWidth: '180px', maxWidth: '260px', overflow: 'hidden',
     }}>
       <div style={{ display: 'flex', borderBottom: `1px solid ${theme.borderLight}` }}>
@@ -172,12 +165,12 @@ function EvalFilterDropdown({ colId, allIssues, slaMap, selected, onChange, onCl
 
 // ── SLA badge ────────────────────────────────────────────────────────────────
 function SLABadge({ sla, theme }) {
-  const palette = theme.id === 'csi' ? SLA_COLORS_CSI : SLA_COLORS;
+  const palette = theme.id === 'light' ? SLA_COLORS_CSI : SLA_COLORS;
   const { color, totalActiveDays, _error } = sla;
   if (color === 'error') {
     return (
       <div title={_error} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 8px', borderRadius: '12px', background: palette.unknown.bg, border: '1px solid #ef4444', cursor: 'help' }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444' }}>⚠ {_error}</span>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--t-error)' }}>⚠ {_error}</span>
       </div>
     );
   }
@@ -194,7 +187,7 @@ function SLABadge({ sla, theme }) {
 // ── Group section (table without managing filter state) ──────────────────────
 function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, allColumns, colWidths, startResize, selectedKeys, onToggleSelect, onToggleSelectAllInGroup }) {
   const [collapsed, setCollapsed] = useState(false);
-  const headerColors = { active: theme.accent, pause: theme.textMuted, done: '#3b82f6' };
+  const headerColors = { active: theme.accent, pause: theme.textMuted, done: 'var(--t-accent)' };
   if (issues.length === 0) return null;
   const jiraBase = (settings.jiraUrl || '').replace(/\/$/, '');
 
@@ -205,9 +198,9 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
       {/* Group header */}
       <div onClick={() => setCollapsed((p) => !p)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 16px', cursor: 'pointer', borderBottom: `2px solid ${headerColors[group.id] || theme.border}`, userSelect: 'none' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: headerColors[group.id] || theme.textPrimary }}>
-          {collapsed ? '▶' : '▼'} {group.label}
+          {collapsed ? '›' : '⌄'} {group.label}
         </span>
-        <span style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: headerColors[group.id] || theme.border, color: theme.id === 'csi' ? '#fff' : '#000' }}>{issues.length}</span>
+        <span style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: headerColors[group.id] || theme.border, color: theme.accentText }}>{issues.length}</span>
         <span style={{ fontSize: '11px', color: theme.textMuted }}>{group.description}</span>
       </div>
 
@@ -231,10 +224,9 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
                 const isFiltered = (colFilters[col.id]?.length ?? 0) > 0;
                 return (
                   <th key={col.id} style={{
-                    padding: '8px 8px 8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
+                    padding: '8px 8px 8px 12px', textAlign: 'left', fontSize: '12.5px', fontWeight: 600,
                     color: isFiltered ? theme.accent : (sortCol === col.id ? theme.accent : theme.textSecondary),
-                    textTransform: 'uppercase', letterSpacing: '0.05em',
-                    borderBottom: `2px solid ${isFiltered ? theme.accent : theme.border}`,
+                    borderBottom: `1px solid ${isFiltered ? theme.accent : theme.border}`,
                     position: 'sticky', top: 0, background: theme.bgThead || theme.bgCard,
                     userSelect: 'none', whiteSpace: 'nowrap', overflow: 'hidden',
                   }}>
@@ -242,8 +234,8 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
                       <span onClick={() => onSort(col.id)} style={{ cursor: 'pointer', flex: 1 }}>
                         {col.label}
                         {sortCol === col.id
-                          ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '▲' : '▼'}</span>
-                          : <span style={{ fontSize: '9px', marginLeft: '3px', color: theme.textMuted }}>⇅</span>}
+                          ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '↑' : null}</span>
+                          : null}
                       </span>
                       <span
                         onClick={(e) => onFilterClick(e, col.id)}
@@ -270,7 +262,7 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
               const sla = slaMap[issue.key];
               const statusName = issue.fields?.status?.name || '—';
               const color = sla?.color || 'unknown';
-              const palette2 = theme.id === 'csi' ? SLA_COLORS_CSI : SLA_COLORS;
+              const palette2 = theme.id === 'light' ? SLA_COLORS_CSI : SLA_COLORS;
               const rowBg = idx % 2 === 0 ? theme.bgRowEven || theme.bgPage : theme.bgRowOdd || theme.bgCard;
               return (
                 <tr key={issue.key} style={{ background: rowBg }}
@@ -289,7 +281,7 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
                   {/* key */}
                   <td style={tdBase}>
                     <a href={`${jiraBase}/browse/${issue.key}`} target="_blank" rel="noreferrer"
-                      style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                      style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: 'var(--t-fontMono)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                       {issue.key}
                     </a>
                   </td>
@@ -303,8 +295,8 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
                   </td>
                   {/* status */}
                   <td style={tdBase}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', background: palette2[color]?.bg || palette2.unknown.bg, color: palette2[color]?.text || palette2.unknown.text, border: `1px solid ${palette2[color]?.border || palette2.unknown.border}` }}>
-                      {statusName}
+                    <span className="st" title={statusName}>
+                      <i style={{ background: palette2[color]?.dot || palette2.unknown.dot }} /><span>{statusName}</span>
                     </span>
                   </td>
                   {/* days in current status */}
@@ -537,10 +529,8 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Toolbar */}
       <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderLight}`, background: theme.bgToolbar, display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: theme.textPrimary }}>Контроль оценки</span>
-
         {loadingChangelogs && totalIssues > 0 && (
-          <span style={{ fontSize: '12px', color: theme.textSecondary }}>⏳ Загрузка SLA: {loadedSLA} / {totalIssues}</span>
+          <span style={{ fontSize: '12px', color: theme.textSecondary }}>Загружаем SLA: {loadedSLA} / {totalIssues}</span>
         )}
         {!loadingIssues && !loadingChangelogs && totalIssues > 0 && (
           <span style={{ fontSize: '12px', color: theme.textMuted }}>
@@ -549,8 +539,8 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
         )}
         {activeFilterCount > 0 && (
           <button onClick={() => { setColFilters({}); sessionStorage.removeItem('eval_col_filters'); }}
-            style={{ fontSize: '11px', color: theme.error || '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0' }}>
-            ✕ Сбросить фильтры ({activeFilterCount})
+            style={{ fontSize: '11px', color: theme.error || 'var(--t-error)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0' }}>
+            Сбросить фильтры ({activeFilterCount})
           </button>
         )}
 
@@ -558,7 +548,7 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
 
         {/* Legend */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {[{ color: '#22c55e', label: '≤ 5 р.д.' }, { color: '#f59e0b', label: '6–8 р.д.' }, { color: '#ef4444', label: '> 8 р.д.' }, { color: '#3b82f6', label: 'Оценена' }, { color: '#64748b', label: 'Пауза' }].map(({ color, label }) => (
+          {[{ color: 'var(--t-success)', label: '≤ 5 р.д.' }, { color: 'var(--t-warning)', label: '6–8 р.д.' }, { color: 'var(--t-error)', label: '> 8 р.д.' }, { color: 'var(--t-accent)', label: 'Оценена' }, { color: 'var(--t-textMuted)', label: 'Пауза' }].map(({ color, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
               <span style={{ fontSize: '11px', color: theme.textMuted }}>{label}</span>
@@ -578,9 +568,9 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
           style={{
             marginLeft: '8px',
             padding: '6px 14px',
-            background: exporting ? (theme.id === 'dark' ? '#1a2a1a' : '#f0fdf4') : (theme.id === 'dark' ? '#14290e' : '#dcfce7'),
-            color: exporting ? (theme.id === 'dark' ? '#4ade80' : '#166534') : (theme.id === 'dark' ? '#4ade80' : '#15803d'),
-            border: `1px solid ${exporting ? (theme.id === 'dark' ? '#2d5a2d' : '#86efac') : (theme.id === 'dark' ? '#22c55e' : '#22c55e')}`,
+            background: exporting ? theme.bgDisabled : theme.bgPage,
+            color: exporting ? theme.textMuted : theme.textPrimary,
+            border: `1px solid ${theme.border}`,
             borderRadius: '6px',
             fontSize: '12px',
             fontWeight: 600,
@@ -597,7 +587,7 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
         >
           {exporting
             ? <span style={{ width: '11px', height: '11px', borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', display: 'inline-block', animation: 'jira-spin 0.7s linear infinite', flexShrink: 0 }} />
-            : '↓'}
+            : null}
           {exportLabel}
         </button>
 
@@ -613,14 +603,14 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
             whiteSpace: 'nowrap',
           }}
         >
-          ✉ Отправить пинг{composerIssues.length > 0 ? ` (${composerIssues.length})` : ''}
+          Отправить пинг{composerIssues.length > 0 ? ` (${composerIssues.length})` : ''}
         </button>
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
         {error && (
-          <div style={{ padding: '16px', color: '#f87171', background: '#3a1a1a', border: '1px solid #6a2020', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>⚠ {error}</div>
+          <div style={{ padding: '16px', color: 'var(--t-error)', background: 'var(--t-errorBg)', border: 'none', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>
         )}
         {loadingIssues && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '12px', color: theme.textSecondary, fontSize: '14px' }}>
@@ -630,7 +620,6 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
         )}
         {!loadingIssues && totalIssues === 0 && !error && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '12px' }}>
-            <span style={{ fontSize: '32px' }}>✓</span>
             <span style={{ color: theme.textSecondary, fontSize: '14px' }}>Нет задач в процессе оценки</span>
             <button onClick={onLoad} style={{ padding: '8px 20px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Обновить</button>
           </div>

@@ -51,24 +51,24 @@ export default function PingComposer({ issues, onRemove, onClose, onSent, settin
             return (
               <div key={issue.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 0', borderBottom: `1px solid ${theme.borderLight}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontFamily: "'IBM Plex Mono', monospace", color: theme.accent }}>
+                  <div style={{ fontSize: '12px', fontFamily: 'var(--t-fontMono)', color: theme.accent }}>
                     {issue.key}
                     {!issue.assigneeAccountId && (
-                      <span title="Без исполнителя — уйдёт без упоминания" style={{ marginLeft: '6px', color: '#f59e0b' }}>⚠</span>
+                      <span title="Без исполнителя — уйдёт без упоминания" style={{ marginLeft: '6px', color: 'var(--t-warning)' }}>⚠</span>
                     )}
                   </div>
                   <div style={{ fontSize: '12px', color: theme.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {issue.summary}
                   </div>
                   {result && (
-                    <div style={{ fontSize: '11px', color: result.ok ? '#22c55e' : '#ef4444', marginTop: '2px' }}>
+                    <div style={{ fontSize: '11px', color: result.ok ? 'var(--t-success)' : 'var(--t-error)', marginTop: '2px' }}>
                       {result.ok ? '✓ отправлено' : `✗ ${result.error}`}
                     </div>
                   )}
                 </div>
                 {!result?.ok && (
                   <button onClick={() => onRemove(issue.key)} title="Убрать из отправки"
-                    style={{ background: 'transparent', border: 'none', color: theme.error || '#ef4444', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>×</button>
+                    style={{ background: 'transparent', border: 'none', color: theme.error || 'var(--t-error)', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>×</button>
                 )}
               </div>
             );

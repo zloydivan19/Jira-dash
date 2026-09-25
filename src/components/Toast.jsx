@@ -7,7 +7,7 @@ function ToastItem({ toast, removeToast }) {
   const styles = {
     success: { bg: theme.successBg, border: theme.successBorder, icon: '✓', iconColor: theme.success },
     error:   { bg: theme.errorBg,   border: theme.errorBorder,   icon: '✕', iconColor: theme.error },
-    info:    { bg: theme.id === 'dark' ? '#1a2040' : '#e8f0fb', border: theme.accent, icon: 'ℹ', iconColor: theme.accent },
+    info:    { bg: theme.accentSoft, border: theme.accent, icon: 'ℹ', iconColor: theme.accent },
   };
   const s = styles[toast.type] || styles.info;
 
@@ -21,7 +21,7 @@ function ToastItem({ toast, removeToast }) {
       backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: '8px',
       padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
       minWidth: '240px', maxWidth: '360px',
-      boxShadow: theme.id === 'dark' ? '0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.12)',
+      boxShadow: theme.shadowPop,
       animation: 'slideIn 0.2s ease',
     }}>
       <span style={{ color: s.iconColor, fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{s.icon}</span>

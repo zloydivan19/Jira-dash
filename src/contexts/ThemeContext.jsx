@@ -1,137 +1,138 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const DARK = {
-  id: 'dark',
-  // Backgrounds
-  bgPage:         '#0d0f12',
-  bgSidebar:      '#141720',
-  bgToolbar:      '#141720',
-  bgCard:         '#1a1f30',
-  bgInput:        '#0d0f12',
-  bgRowEven:      '#0d0f12',
-  bgRowOdd:       '#111420',
-  bgRowHover:     '#1a2040',
-  bgThead:        '#1a1f30',
-  bgDropdown:     '#141720',
-  bgDropdownHov:  '#1a2040',
-  bgDisabled:     '#1a2e26',
-  // Borders
-  border:         '#2a3050',
-  borderLight:    '#1f2535',
-  borderRow:      '#1a2030',
-  borderActive:   '#4f8ef7',
-  // Text
-  textPrimary:    '#e2e8f4',
-  textSecondary:  '#8892aa',
-  textMuted:      '#4a5570',
-  textAccent:     '#4f8ef7',
-  // Accent
-  accent:         '#4f8ef7',
-  accentText:     '#0d0f12',
-  // Tabs
-  tabActiveBg:    '#4f8ef7',
-  tabActiveText:  '#0d0f12',
-  tabInactiveText:'#8892aa',
-  tabBorder:      '1px solid #2a3050',
-  // States
-  success:        '#2dd4a0',
-  successBg:      '#1a2e26',
-  successBorder:  '#2dd4a0',
-  error:          '#f75f5f',
-  errorBg:        '#2e1a1a',
-  errorBorder:    '#f75f5f',
-  warning:        '#f5c842',
-  warningBg:      '#2a2200',
-  warningBorder:  '#f5c842',
-  // Export button (active)
-  exportBg:       '#2dd4a0',
-  exportText:     '#0d0f12',
-  exportDisabledBg:   '#1a2e26',
-  exportDisabledText: '#4a7060',
-  // Filter icon
-  filterIconDim:  '#3a4560',
-  // Scrollbar (CSS class set on body)
-  scrollbarTrack: '#141720',
-  scrollbarThumb: '#3a4060',
-  // Logo: null = show text "J"
-  logoSrc: null,
+const FONT_SANS = "'Onest', 'Segoe UI', system-ui, -apple-system, sans-serif";
+const FONT_MONO = "'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace";
+
+const LIGHT = {
+  id: 'light',
+  bgPage:         '#FFFFFF',
+  bgChrome:       '#F5F6F8',
+  bgSunk:         '#ECEEF2',
+  bgSidebar:      '#F5F6F8',
+  bgToolbar:      '#FFFFFF',
+  bgCard:         '#FFFFFF',
+  bgInput:        '#FFFFFF',
+  bgRowEven:      '#FFFFFF',
+  bgRowOdd:       '#FFFFFF',
+  bgRowHover:     '#F5F6F8',
+  bgThead:        '#FFFFFF',
+  bgDropdown:     '#FFFFFF',
+  bgDropdownHov:  '#F5F6F8',
+  bgDisabled:     '#ECEEF2',
+  border:         '#DFE2E9',
+  borderLight:    '#ECEEF2',
+  borderRow:      '#ECEEF2',
+  borderActive:   '#2E3BC9',
+  textPrimary:    '#151922',
+  textSecondary:  '#545C6D',
+  textMuted:      '#697084',
+  textAccent:     '#2E3BC9',
+  accent:         '#2E3BC9',
+  accentText:     '#FFFFFF',
+  accentSoft:     '#ECEEFC',
+  tabActiveBg:    '#2E3BC9',
+  tabActiveText:  '#FFFFFF',
+  tabInactiveText:'#545C6D',
+  tabBorder:      '1px solid #ECEEF2',
+  success:        '#1E7F47',
+  successBg:      '#E2F2E9',
+  successBorder:  '#1E7F47',
+  error:          '#BF3329',
+  errorBg:        '#FBE6E4',
+  errorBorder:    '#BF3329',
+  warning:        '#A2640C',
+  warningBg:      '#FBF0DC',
+  warningBorder:  '#A2640C',
+  exportBg:       '#2E3BC9',
+  exportText:     '#FFFFFF',
+  exportDisabledBg:   '#ECEEF2',
+  exportDisabledText: '#697084',
+  filterIconDim:  '#B4BAC7',
+  scrollbarTrack: '#F5F6F8',
+  scrollbarThumb: '#C9CED8',
+  shadowPop:      '0 10px 30px rgba(21, 25, 40, 0.14)',
+  fontSans:       FONT_SANS,
+  fontMono:       FONT_MONO,
 };
 
-const CSI = {
-  id: 'csi',
-  // Backgrounds
-  bgPage:         '#f0f4f3',
-  bgSidebar:      '#ffffff',
-  bgToolbar:      '#ffffff',
-  bgCard:         '#ffffff',
-  bgInput:        '#ffffff',
-  bgRowEven:      '#ffffff',
-  bgRowOdd:       '#f7faf9',
-  bgRowHover:     '#e4eeea',
-  bgThead:        '#f0f4f3',
-  bgDropdown:     '#ffffff',
-  bgDropdownHov:  '#f0f4f3',
-  bgDisabled:     '#e8f0ee',
-  // Borders
-  border:         '#d0dbd8',
-  borderLight:    '#e0e8e5',
-  borderRow:      '#e8edeb',
-  borderActive:   '#1976d2',
-  // Text
-  textPrimary:    '#1a2b35',
-  textSecondary:  '#5a7280',
-  textMuted:      '#8a9fa8',
-  textAccent:     '#1976d2',
-  // Accent
-  accent:         '#1976d2',
-  accentText:     '#ffffff',
-  // Tabs
-  tabActiveBg:    '#1976d2',
-  tabActiveText:  '#ffffff',
-  tabInactiveText:'#5a7280',
-  tabBorder:      '1px solid #e0e8e5',
-  // States
-  success:        '#1b7a52',
-  successBg:      '#e6f4ef',
-  successBorder:  '#1b7a52',
-  error:          '#c62828',
-  errorBg:        '#fdecea',
-  errorBorder:    '#c62828',
-  warning:        '#e65100',
-  warningBg:      '#fff3e0',
-  warningBorder:  '#e65100',
-  // Export button (active)
-  exportBg:       '#1976d2',
-  exportText:     '#ffffff',
-  exportDisabledBg:   '#e0e8e5',
-  exportDisabledText: '#8a9fa8',
-  // Filter icon
-  filterIconDim:  '#a0b8b4',
-  // Scrollbar (CSS class set on body)
-  scrollbarTrack: '#e8edeb',
-  scrollbarThumb: '#b0c4c0',
-  // Logo: path to logo image
-  logoSrc: '/logo.png',
+const DARK = {
+  id: 'dark',
+  bgPage:         '#14161B',
+  bgChrome:       '#1A1D23',
+  bgSunk:         '#0F1115',
+  bgSidebar:      '#1A1D23',
+  bgToolbar:      '#14161B',
+  bgCard:         '#1A1D23',
+  bgInput:        '#14161B',
+  bgRowEven:      '#14161B',
+  bgRowOdd:       '#14161B',
+  bgRowHover:     '#1A1D23',
+  bgThead:        '#14161B',
+  bgDropdown:     '#1A1D23',
+  bgDropdownHov:  '#22252C',
+  bgDisabled:     '#22252C',
+  border:         '#2B2F38',
+  borderLight:    '#22252C',
+  borderRow:      '#22252C',
+  borderActive:   '#9AA3F5',
+  textPrimary:    '#E7E9EE',
+  textSecondary:  '#A7ADBA',
+  textMuted:      '#8E95A4',
+  textAccent:     '#9AA3F5',
+  accent:         '#9AA3F5',
+  accentText:     '#0F1224',
+  accentSoft:     '#252A4C',
+  tabActiveBg:    '#9AA3F5',
+  tabActiveText:  '#0F1224',
+  tabInactiveText:'#A7ADBA',
+  tabBorder:      '1px solid #22252C',
+  success:        '#55C68F',
+  successBg:      '#1B2F26',
+  successBorder:  '#55C68F',
+  error:          '#F2776F',
+  errorBg:        '#3A1F1D',
+  errorBorder:    '#F2776F',
+  warning:        '#E3B35E',
+  warningBg:      '#342A18',
+  warningBorder:  '#E3B35E',
+  exportBg:       '#9AA3F5',
+  exportText:     '#0F1224',
+  exportDisabledBg:   '#22252C',
+  exportDisabledText: '#8E95A4',
+  filterIconDim:  '#4A505C',
+  scrollbarTrack: '#14161B',
+  scrollbarThumb: '#2F343E',
+  shadowPop:      '0 10px 30px rgba(0, 0, 0, 0.5)',
+  fontSans:       FONT_SANS,
+  fontMono:       FONT_MONO,
 };
+
+const THEMES = { light: LIGHT, dark: DARK };
 
 const ThemeContext = createContext(null);
 
-export function ThemeProvider({ children }) {
-  const [themeId, setThemeId] = useState(() => {
-    return localStorage.getItem('jira_dash_theme') || 'dark';
-  });
+function initialThemeId() {
+  const stored = localStorage.getItem('jira_dash_theme');
+  if (stored === 'dark') return 'dark';
+  if (stored === 'light' || stored === 'csi') return 'light';
+  return 'light';
+}
 
-  const theme = themeId === 'csi' ? CSI : DARK;
+export function ThemeProvider({ children }) {
+  const [themeId, setThemeId] = useState(initialThemeId);
+  const theme = THEMES[themeId];
 
   useEffect(() => {
     localStorage.setItem('jira_dash_theme', themeId);
-    // Update body class for CSS scrollbar variables
-    document.body.classList.remove('theme-dark', 'theme-csi');
-    document.body.classList.add(`theme-${themeId}`);
-    document.body.style.background = theme.bgPage;
-  }, [themeId, theme.bgPage]);
+    const root = document.documentElement;
+    for (const [k, v] of Object.entries(theme)) {
+      if (typeof v === 'string' && k !== 'id') root.style.setProperty(`--t-${k}`, v);
+    }
+    root.dataset.theme = themeId;
+    root.style.colorScheme = themeId;
+  }, [themeId, theme]);
 
-  const toggleTheme = () => setThemeId((t) => (t === 'dark' ? 'csi' : 'dark'));
+  const toggleTheme = () => setThemeId((t) => (t === 'dark' ? 'light' : 'dark'));
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

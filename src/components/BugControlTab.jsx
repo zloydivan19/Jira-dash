@@ -3,27 +3,22 @@ import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 
 const FLAG_COLORS = {
-  red:     { bg: '#3a1a1a', border: '#6a2020', text: '#f87171', dot: '#ef4444' },
-  yellow:  { bg: '#3a3010', border: '#6a5a10', text: '#fbbf24', dot: '#f59e0b' },
-  none:    { bg: '#1e1e1e', border: '#333',    text: '#888',    dot: '#555'    },
-  error:   { bg: '#1e1e1e', border: '#ef4444', text: '#ef4444', dot: '#ef4444' },
+  red:     { bg: 'var(--t-errorBg)',   border: 'transparent', text: 'var(--t-error)',     dot: 'var(--t-error)' },
+  yellow:  { bg: 'var(--t-warningBg)', border: 'transparent', text: 'var(--t-warning)',   dot: 'var(--t-warning)' },
+  none:    { bg: 'var(--t-bgSunk)',    border: 'transparent', text: 'var(--t-textMuted)', dot: 'var(--t-border)' },
+  error:   { bg: 'var(--t-errorBg)',   border: 'var(--t-error)', text: 'var(--t-error)',  dot: 'var(--t-error)' },
 };
-const FLAG_COLORS_CSI = {
-  red:     { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', dot: '#ef4444' },
-  yellow:  { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', dot: '#f59e0b' },
-  none:    { bg: '#f9fafb', border: '#e5e7eb', text: '#9ca3af', dot: '#d1d5db' },
-  error:   { bg: '#fef2f2', border: '#ef4444', text: '#991b1b', dot: '#ef4444' },
-};
+const FLAG_COLORS_CSI = FLAG_COLORS;
 
 const FLAG_LABELS = {
-  red:    '⚠ Сдвиг вправо',
+  red:    'Сдвиг вправо',
   yellow: '↻ Менялось',
   none:   '—',
-  error:  '⚠ Ошибка',
+  error:  'Ошибка',
 };
 
 const GROUP_CONFIG = [
-  { id: 'red',    label: '⚠ Сдвиг вправо',         flag: 'red',    description: 'fix version сдвигалась на более позднюю' },
+  { id: 'red',    label: 'Сдвиг вправо',         flag: 'red',    description: 'fix version сдвигалась на более позднюю' },
   { id: 'yellow', label: '↻ Менялось без сдвига',  flag: 'yellow', description: 'История изменений есть, но без сдвига вправо' },
   { id: 'none',   label: '— Без изменений',         flag: 'none',   description: 'fix version никогда не менялась' },
 ];
@@ -182,7 +177,7 @@ function BugControlFilterDropdown({ colId, allIssues, historyMap, selected, onCh
     <div ref={ref} style={{
       position: 'fixed', top, left, zIndex: 9999,
       background: theme.bgDropdown, border: `1px solid ${theme.border}`,
-      borderRadius: '7px', boxShadow: theme.id === 'dark' ? '0 8px 32px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.15)',
+      borderRadius: '7px', boxShadow: theme.shadowPop,
       minWidth: '180px', maxWidth: '260px', overflow: 'hidden',
     }}>
       <div style={{ display: 'flex', borderBottom: `1px solid ${theme.borderLight}` }}>
@@ -268,7 +263,7 @@ function HistoryCell({ history, versionsMeta, theme }) {
 
         const maxTo = pickLatest(entry.toList);
         const isShiftRight = maxTo && allTimeMax && compare(allTimeMax, maxTo) < 0;
-        const arrowColor = isShiftRight ? '#ef4444' : theme.textMuted;
+        const arrowColor = isShiftRight ? 'var(--t-error)' : theme.textMuted;
 
         if (maxTo && (!allTimeMax || compare(allTimeMax, maxTo) < 0)) {
           allTimeMax = maxTo;
@@ -280,7 +275,7 @@ function HistoryCell({ history, versionsMeta, theme }) {
 
         return (
           <div key={idx} title={`${dateStr} ${timeStr} · ${entry.author}`} style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '4px 6px', background: theme.bgInput, borderRadius: '4px', border: `1px solid ${theme.borderLight}` }}>
-            <div style={{ fontSize: '11px', fontFamily: "'IBM Plex Mono', monospace", color: theme.textPrimary }}>
+            <div style={{ fontSize: '11px', fontFamily: 'var(--t-fontMono)', color: theme.textPrimary }}>
               <span>{fromStr}</span>
               <span style={{ color: arrowColor, fontWeight: 700, margin: '0 4px' }}>→</span>
               <span>{toStr}</span>
@@ -303,7 +298,7 @@ function renderBugControlCell(col, issue, entry, helpers) {
     case 'issuekey':
       return (
         <a href={`${jiraBase}/browse/${issue.key}`} target="_blank" rel="noreferrer"
-          style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: 'var(--t-fontMono)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
           {issue.key}
         </a>
       );
@@ -344,7 +339,7 @@ function renderBugControlCell(col, issue, entry, helpers) {
             <React.Fragment key={k}>
               {i > 0 && ', '}
               <a href={`${jiraBase}/browse/${k}`} target="_blank" rel="noreferrer"
-                style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace" }}>
+                style={{ color: theme.accent, textDecoration: 'none', fontFamily: 'var(--t-fontMono)' }}>
                 {k}
               </a>
             </React.Fragment>
@@ -363,7 +358,7 @@ function renderBugControlCell(col, issue, entry, helpers) {
 function GroupSection({ group, issues, historyMap, versionsMeta, settings, theme, sortCol, sortDir, onSort, colFilters, openFilterCol, onFilterClick, allColumns, jiraBase, colWidths, startResize }) {
   const [collapsed, setCollapsed] = useState(group.id === 'none');
   if (issues.length === 0) return null;
-  const palette = theme.id === 'csi' ? FLAG_COLORS_CSI : FLAG_COLORS;
+  const palette = theme.id === 'light' ? FLAG_COLORS_CSI : FLAG_COLORS;
   const headerColor = palette[group.flag]?.text || theme.textPrimary;
 
   const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
@@ -373,7 +368,7 @@ function GroupSection({ group, issues, historyMap, versionsMeta, settings, theme
       <div onClick={() => setCollapsed((p) => !p)}
         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 16px', cursor: 'pointer', borderBottom: `2px solid ${palette[group.flag]?.border || theme.border}`, userSelect: 'none' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: headerColor }}>
-          {collapsed ? '▶' : '▼'} {group.label}
+          {collapsed ? '›' : '⌄'} {group.label}
         </span>
         <span style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: palette[group.flag]?.dot || theme.border, color: '#fff' }}>{issues.length}</span>
         <span style={{ fontSize: '11px', color: theme.textMuted }}>{group.description}</span>
@@ -392,16 +387,15 @@ function GroupSection({ group, issues, historyMap, versionsMeta, settings, theme
                 return (
                   <th key={col.id} style={{
                     padding: '8px 8px 8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
-                    color: headerColor, textTransform: 'uppercase', letterSpacing: '0.05em',
-                    borderBottom: `2px solid ${isFiltered ? theme.accent : theme.border}`,
+                    color: headerColor, borderBottom: `1px solid ${isFiltered ? theme.accent : theme.border}`,
                     whiteSpace: 'nowrap', overflow: 'hidden',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                       <span onClick={() => onSort(col.id)} style={{ cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {col.label}
                         {sortCol === col.id
-                          ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '▲' : '▼'}</span>
-                          : <span style={{ fontSize: '9px', marginLeft: '3px', color: theme.textMuted }}>⇅</span>}
+                          ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '↑' : null}</span>
+                          : null}
                       </span>
                       <span
                         onClick={(e) => onFilterClick(e, col.id)}
@@ -548,22 +542,21 @@ export default function BugControlTab({ issues, historyMap, versionsMeta, loadin
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Toolbar — Task 14 */}
       <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderLight}`, background: theme.bgToolbar, display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: theme.textPrimary }}>Контроль ошибок</span>
 
         {loadingHistory && totalIssues > 0 && (
-          <span style={{ fontSize: '12px', color: theme.textSecondary }}>⏳ История: {loadedHistory} / {totalIssues}</span>
+          <span style={{ fontSize: '12px', color: theme.textSecondary }}>Загружаем историю: {loadedHistory} / {totalIssues}</span>
         )}
 
         {!loadingIssues && !loadingHistory && totalIssues > 0 && (
           <span style={{ fontSize: '12px', color: theme.textMuted }}>
-            ⚠ <b style={{ color: '#ef4444' }}>{counts.red}</b> · ↻ <b style={{ color: '#f59e0b' }}>{counts.yellow}</b> · из {counts.total}
+            Со сдвигом <b style={{ color: 'var(--t-error)' }}>{counts.red}</b>, с изменениями <b style={{ color: 'var(--t-warning)' }}>{counts.yellow}</b>, всего {counts.total}
           </span>
         )}
 
         {activeFilterCount > 0 && (
           <button onClick={() => { setColFilters({}); sessionStorage.removeItem('bug_control_col_filters'); }}
-            style={{ fontSize: '11px', color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-            ✕ Сбросить фильтры ({activeFilterCount})
+            style={{ fontSize: '11px', color: 'var(--t-error)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Сбросить фильтры ({activeFilterCount})
           </button>
         )}
 
@@ -586,7 +579,7 @@ export default function BugControlTab({ issues, historyMap, versionsMeta, loadin
         <div style={{ flex: 1 }} />
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {[{ color: '#ef4444', label: 'Сдвиг вправо' }, { color: '#f59e0b', label: 'Менялось' }, { color: '#9ca3af', label: 'Без изменений' }].map(({ color, label }) => (
+          {[{ color: 'var(--t-error)', label: 'Сдвиг вправо' }, { color: 'var(--t-warning)', label: 'Менялось' }, { color: 'var(--t-textMuted)', label: 'Без изменений' }].map(({ color, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
               <span style={{ fontSize: '11px', color: theme.textMuted }}>{label}</span>
@@ -600,24 +593,24 @@ export default function BugControlTab({ issues, historyMap, versionsMeta, loadin
           title="Выгрузить отчёт в Excel со стилизацией"
           style={{
             padding: '6px 14px',
-            background: (exporting || totalIssues === 0 || loadingHistory) ? theme.border : (theme.id === 'dark' ? '#14290e' : '#dcfce7'),
-            color: (exporting || totalIssues === 0 || loadingHistory) ? theme.textSecondary : (theme.id === 'dark' ? '#4ade80' : '#15803d'),
-            border: `1px solid ${(exporting || totalIssues === 0 || loadingHistory) ? theme.border : '#22c55e'}`,
+            background: (exporting || totalIssues === 0 || loadingHistory) ? theme.bgDisabled : theme.bgPage,
+            color: (exporting || totalIssues === 0 || loadingHistory) ? theme.textMuted : theme.textPrimary,
+            border: `1px solid ${theme.border}`,
             borderRadius: '6px', fontSize: '12px', fontWeight: 600,
             cursor: (exporting || totalIssues === 0 || loadingHistory) ? 'not-allowed' : 'pointer',
             whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px',
           }}>
           {exporting
             ? <span style={{ width: '11px', height: '11px', borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', display: 'inline-block', animation: 'jira-spin 0.7s linear infinite' }} />
-            : '↓'}
+            : null}
           {exportLabel || 'Экспорт Excel'}
         </button>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
         {error && (
-          <div style={{ padding: '16px', color: '#f87171', background: '#3a1a1a', border: '1px solid #6a2020', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
-            ⚠ {error}
+          <div style={{ padding: '16px', color: 'var(--t-error)', background: 'var(--t-errorBg)', border: 'none', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
+            {error}
             <div style={{ marginTop: '8px' }}>
               <button onClick={onLoad} style={{ padding: '6px 14px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '5px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Повторить</button>
             </div>
@@ -633,9 +626,8 @@ export default function BugControlTab({ issues, historyMap, versionsMeta, loadin
 
         {!loadingIssues && totalIssues === 0 && !error && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '12px' }}>
-            <span style={{ fontSize: '32px' }}>📋</span>
             <span style={{ color: theme.textSecondary, fontSize: '14px' }}>Нет загруженных задач</span>
-            <span style={{ color: theme.textMuted, fontSize: '12px' }}>Настройте фильтр в сайдбаре и нажмите «Загрузить задачи»</span>
+            <span style={{ color: theme.textMuted, fontSize: '12px' }}>Откройте «Параметры» над таблицей и нажмите «Загрузить задачи»</span>
           </div>
         )}
 

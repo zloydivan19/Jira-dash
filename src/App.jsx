@@ -7,74 +7,52 @@ import BugControlTab from './components/BugControlTab.jsx';
 import { useTTM, computeStats, computeTeamStats } from './hooks/useTTM.js';
 import TTMTab from './components/TTMTab.jsx';
 import { downloadXLSX } from './utils/crExport.js';
-import { useTheme } from './contexts/ThemeContext.jsx';
-import Sidebar from './components/Sidebar.jsx';
+import NavRail from './components/NavRail.jsx';
+import QueryPanel from './components/QueryPanel.jsx';
+import ConnectionPage from './components/ConnectionPage.jsx';
+import FieldsPage from './components/FieldsPage.jsx';
+import StatusStrip from './components/StatusStrip.jsx';
+import Icon from './components/Icon.jsx';
 import DashboardTable from './components/DashboardTable.jsx';
 import EvaluationTab from './components/EvaluationTab.jsx';
 import Toast from './components/Toast.jsx';
 
 let toastIdCounter = 0;
 
-function Spinner({ theme }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '60px' }}>
-      <div style={{
-        width: '40px', height: '40px',
-        border: `3px solid ${theme.border}`,
-        borderTopColor: theme.accent,
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite',
-      }} />
-      <span style={{ color: theme.textSecondary, fontSize: '14px' }}>Загружаем задачи из Jira...</span>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
+const PAGE_META = {
+  queries:    { title: 'CR Запросы',      sub: 'Запросы на изменение по вашему JQL' },
+  bugs:       { title: 'Задачи/Ошибки',   sub: 'Задачи и ошибки команд разработки' },
+  eval:       { title: 'Контроль оценки', sub: 'CR в процессе оценки и сроки по SLA' },
+  bugControl: { title: 'Контроль ошибок', sub: 'Сдвиги версии исправления в ваших ошибках' },
+  ttm:        { title: 'TTM анализ',      sub: 'Время от создания CR до фактического релиза' },
+};
 
-function EmptyState({ theme, status, error, onRetry }) {
-  if (status === 'idle') return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '20px' }}>
-      <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: theme.bgCard, border: `2px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>📋</div>
-      <div style={{ textAlign: 'center', maxWidth: '420px' }}>
-        <div style={{ fontSize: '18px', fontWeight: 700, color: theme.textPrimary, marginBottom: '12px' }}>Добро пожаловать в Jira PM Radar</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {[
-            { icon: '1', text: 'Зайдите на вкладку Вход и введите URL вашей Jira, email и API-токен' },
-            { icon: '2', text: 'Перейдите на CR Запросы или Задачи/Ошибки — выберите шаблон или напишите свой JQL' },
-            { icon: '3', text: 'Нажмите «Загрузить задачи» — таблица появится здесь' },
-            { icon: '4', text: 'Во вкладке Поля добавьте нужные колонки и настройте их отдельно для каждого типа запросов' },
-          ].map(({ icon, text }) => (
-            <div key={icon} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', textAlign: 'left' }}>
-              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: theme.accent, color: theme.accentText, fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>{icon}</div>
-              <div style={{ fontSize: '13px', color: theme.textSecondary, lineHeight: '1.5' }}>{text}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+function EmptyState({ status, error, onRetry }) {
+  if (status === 'loading') return (
+    <div className="state"><div className="spinner" /><p>Загружаем задачи из Jira…</p></div>
   );
-  if (status === 'loading') return <Spinner theme={theme} />;
   if (status === 'error') return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px' }}>
-      <div style={{ background: theme.errorBg, border: `1px solid ${theme.errorBorder}`, borderRadius: '10px', padding: '20px 28px', maxWidth: '480px', textAlign: 'center' }}>
-        <div style={{ color: theme.error, fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>Ошибка загрузки</div>
-        <div style={{ color: theme.textPrimary, fontSize: '13px', lineHeight: '1.6' }}>{error}</div>
-      </div>
-      <button onClick={onRetry} style={{ padding: '8px 20px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Повторить запрос</button>
+    <div className="state">
+      <h2>Не удалось загрузить задачи</h2>
+      <p style={{ color: 'var(--t-error)' }}>{error}</p>
+      <button className="btn primary" onClick={onRetry}>Повторить запрос</button>
     </div>
   );
   if (status === 'empty') return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px' }}>
-      <div style={{ fontSize: '32px' }}>🔍</div>
-      <div style={{ fontSize: '15px', color: theme.textPrimary, fontWeight: 500 }}>Задачи не найдены</div>
-      <div style={{ fontSize: '13px', color: theme.textSecondary }}>Попробуйте изменить JQL-запрос</div>
+    <div className="state">
+      <h2>Под этот запрос задач нет</h2>
+      <p>Выберите другой шаблон или поправьте JQL в панели «JQL и фильтры».</p>
     </div>
   );
-  return null;
+  return (
+    <div className="state">
+      <h2>Выберите шаблон над таблицей</h2>
+      <p>Задачи загрузятся сразу. Свой запрос можно написать в панели «JQL и фильтры».</p>
+    </div>
+  );
 }
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme();
   const { settings, updateSettings } = useSettings();
 
   // Two independent Jira data stores
@@ -356,149 +334,126 @@ export default function App() {
     if (isBugsActive) handleLoadBugs(settings.jqlBugs, columnsBugs);
   };
 
-  const isDark = theme.id === 'dark';
   const showTable = isDataTab && currentStatus === 'success';
   const showCounter = isDataTab && (currentStatus === 'success' || currentStatus === 'empty');
 
-  return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: theme.bgPage }}>
-      <Sidebar
-        settings={settings}
-        onSettingsChange={updateSettings}
-        onLoadCR={handleLoadCR}
-        onLoadBugs={handleLoadBugs}
-        onFetchFields={handleFetchFields}
-        onFetchMyself={handleFetchMyself}
-        userInfo={userInfo}
-        jiraFields={jiraFields}
-        addToast={addToast}
-        columns={columns}
-        onColumnsChange={handleColumnsChange}
-        columnsBugs={columnsBugs}
-        onColumnsBugsChange={handleColumnsBugsChange}
-        activeTab={activeTab}
-        onTabChange={(tab) => { setActiveTab(tab); localStorage.setItem('jira_dash_active_tab', tab); }}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen((v) => { const next = !v; localStorage.setItem('jira_dash_sidebar', next ? 'open' : 'closed'); return next; })}
-        onLoadEval={handleLoadEval}
-        evalLoading={evaluation.loadingIssues || evaluation.loadingChangelogs}
-        evalManagerFilter={evalManagerFilter}
-        onEvalManagerFilterChange={setEvalManagerFilter}
-        evalHasData={evaluation.issues.length > 0}
-        columnsEval={columnsEval}
-        onColumnsEvalChange={handleColumnsEvalChange}
-        columnsBugControl={columnsBugControl}
-        onColumnsBugControlChange={handleColumnsBugControlChange}
-        onLoadBugControl={handleLoadBugControl}
-        bugControlLoading={bugControl.loadingIssues || bugControl.loadingHistory}
-        bugControlHasData={bugControl.issues.length > 0}
-        bugControlSummary={bugControlSummary}
-        onLoadTtm={handleLoadTtm}
-        ttmLoading={ttm.loading}
-        ttmHasData={ttm.issues.length > 0}
-        ttmSummary={ttm.stats}
-      />
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+  const stripIssues = useMemo(() => {
+    let result = currentIssues;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter((issue) => Object.values(issue).some((v) => v !== null && v !== undefined && String(v).toLowerCase().includes(q)));
+    }
+    for (const [id, values] of Object.entries(currentFilters)) {
+      if (id === 'status' || !values || values.length === 0) continue;
+      result = result.filter((issue) => {
+        const cell = issue[id];
+        return values.includes(cell === null || cell === undefined ? '(пусто)' : String(cell));
+      });
+    }
+    return result;
+  }, [currentIssues, search, currentFilters]);
+  const hasStatusColumn = currentColumns.some((c) => c.id === 'status');
 
-        {/* Toolbar */}
-        <div style={{
-          padding: '12px 20px',
-          borderBottom: `1px solid ${theme.borderLight}`,
-          background: theme.bgToolbar,
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
-          boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
-        }}>
-          <div style={{ position: 'relative', flex: 1, maxWidth: '420px' }}>
-            <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: theme.textSecondary, fontSize: '14px', pointerEvents: 'none' }}>⌕</span>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск по всем полям..."
-              style={{
-                width: '100%', background: theme.bgInput, border: `1px solid ${theme.border}`,
-                borderRadius: '6px', color: theme.textPrimary, fontSize: '13px',
-                padding: '7px 10px 7px 32px', outline: 'none', fontFamily: "'IBM Plex Sans', sans-serif",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = theme.accent)}
-              onBlur={(e) => (e.target.style.borderColor = theme.border)}
-            />
-          </div>
+  const changeTab = (tab) => { setActiveTab(tab); localStorage.setItem('jira_dash_active_tab', tab); setSearch(''); };
+  const collapsed = !sidebarOpen;
+  const toggleCollapsed = () => setSidebarOpen((v) => { const next = !v; localStorage.setItem('jira_dash_sidebar', next ? 'open' : 'closed'); return next; });
+  const meta = PAGE_META[activeTab];
 
-          <div style={{ color: theme.textSecondary, fontSize: '13px', whiteSpace: 'nowrap' }}>
-            {showCounter ? (
-              <span>
-                Показано <span style={{ color: theme.textPrimary, fontWeight: 600 }}>{filteredIssues.length}</span>
-                {' '}из <span style={{ color: theme.textPrimary, fontWeight: 600 }}>{currentIssues.length}</span>
-              </span>
-            ) : <span>Нет данных</span>}
-          </div>
+  let page;
+  if (activeTab === 'connection') {
+    page = (
+      <ConnectionPage settings={settings} onSettingsChange={updateSettings} onFetchMyself={handleFetchMyself}
+        onConnected={() => setTimeout(() => changeTab('queries'), 600)} />
+    );
+  } else if (activeTab === 'fields') {
+    page = (
+      <FieldsPage settings={settings} jiraFields={jiraFields} onFetchFields={handleFetchFields} addToast={addToast}
+        columns={columns} onColumnsChange={handleColumnsChange}
+        columnsBugs={columnsBugs} onColumnsBugsChange={handleColumnsBugsChange}
+        columnsEval={columnsEval} onColumnsEvalChange={handleColumnsEvalChange}
+        columnsBugControl={columnsBugControl} onColumnsBugControlChange={handleColumnsBugControlChange} />
+    );
+  } else {
+    page = (
+      <>
+        {!fullscreen && meta && (
+          <header className="page-head">
+            <div>
+              <h1>{meta.title}</h1>
+              <p className="sub">
+                {showCounter
+                  ? <>Показано <b className="num" style={{ color: 'var(--t-textPrimary)' }}>{filteredIssues.length}</b> из <span className="num">{currentIssues.length}</span></>
+                  : meta.sub}
+              </p>
+            </div>
+            {isDataTab && (
+              <div className="page-actions">
+                {currentIssues.length > 0 && (
+                  <button className="btn ghost" onClick={isCRActive ? handleRefreshCR : handleRefreshBugs}
+                    disabled={currentStatus === 'loading'} title="Обновить данные, не сбрасывая фильтры таблицы">
+                    <Icon name="refresh" />Обновить
+                  </button>
+                )}
+                <button className="btn" onClick={handleExportXLSX} disabled={filteredIssues.length === 0}>
+                  <Icon name="download" />Экспорт Excel
+                </button>
+              </div>
+            )}
+          </header>
+        )}
 
-          <div style={{ flex: 1 }} />
+        <QueryPanel
+          settings={settings}
+          onSettingsChange={updateSettings}
+          onLoadCR={handleLoadCR}
+          onLoadBugs={handleLoadBugs}
+          addToast={addToast}
+          columns={columns}
+          columnsBugs={columnsBugs}
+          activeTab={activeTab}
+          onTabChange={changeTab}
+          search={search}
+          onSearch={setSearch}
+          fullscreen={fullscreen}
+          onToggleFullscreen={() => setFullscreen((v) => !v)}
+          crHasData={crJira.issues.length > 0}
+          bugsHasData={bugsJira.issues.length > 0}
+          onLoadEval={handleLoadEval}
+          evalLoading={evaluation.loadingIssues || evaluation.loadingChangelogs}
+          evalManagerFilter={evalManagerFilter}
+          onEvalManagerFilterChange={setEvalManagerFilter}
+          evalHasData={evaluation.issues.length > 0}
+          onLoadBugControl={handleLoadBugControl}
+          bugControlLoading={bugControl.loadingIssues || bugControl.loadingHistory}
+          bugControlHasData={bugControl.issues.length > 0}
+          bugControlSummary={bugControlSummary}
+          onLoadTtm={handleLoadTtm}
+          ttmLoading={ttm.loading}
+          ttmHasData={ttm.issues.length > 0}
+          ttmSummary={ttm.stats}
+        />
 
-          {currentIssues.length > 0 && (
-            <button
-              onClick={isCRActive ? handleRefreshCR : handleRefreshBugs}
-              disabled={currentStatus === 'loading'}
-              title="Обновить данные, не сбрасывая фильтры таблицы"
-              style={{
-                padding: '7px 14px', border: `1px solid ${theme.border}`, borderRadius: '6px',
-                background: theme.bgCard, color: theme.textSecondary, fontSize: '13px',
-                fontWeight: 600, cursor: currentStatus === 'loading' ? 'not-allowed' : 'pointer',
-                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px', opacity: currentStatus === 'loading' ? 0.5 : 1,
-              }}
-              onMouseEnter={(e) => { if (currentStatus !== 'loading') { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; } }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}
-            >
-              ↻ Обновить
-            </button>
-          )}
+        {showTable && hasStatusColumn && (
+          <StatusStrip issues={stripIssues} selected={currentFilters.status}
+            onSelect={(vals) => currentOnFilterChange('status', vals)} />
+        )}
 
-          <button
-            onClick={handleExportXLSX}
-            disabled={filteredIssues.length === 0}
-            style={{
-              padding: '7px 16px',
-              background: filteredIssues.length > 0 ? theme.exportBg : theme.exportDisabledBg,
-              color: filteredIssues.length > 0 ? theme.exportText : theme.exportDisabledText,
-              border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600,
-              cursor: filteredIssues.length > 0 ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
-            }}
-          >
-            Экспорт Excel
-          </button>
-
-          <button
-            onClick={toggleTheme}
-            title={isDark ? 'Переключить на тему CSI' : 'Переключить на тёмную тему'}
-            style={{
-              padding: '6px 12px', border: `1px solid ${theme.border}`, borderRadius: '6px',
-              background: theme.bgCard, color: theme.textSecondary, fontSize: '12px',
-              fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex',
-              alignItems: 'center', gap: '5px',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}
-          >
-            {isDark ? '☀ CSI' : '🌙 Тёмная'}
-          </button>
-        </div>
-
-        {/* Dirty columns banner */}
         {currentColumnsDirty && (
-          <div style={{ background: theme.warningBg, borderBottom: `1px solid ${theme.warningBorder}`, padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-            <span style={{ color: theme.warning, fontSize: '13px', flex: 1 }}>⚠ Состав колонок изменился — обновите данные</span>
-            <button
-              onClick={handleRefreshDirty}
-              style={{ padding: '5px 14px', background: theme.warning, color: '#0d0f12', border: 'none', borderRadius: '5px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              Обновить
-            </button>
+          <div className="banner">
+            <span>Состав колонок изменился. Обновите данные, чтобы подтянуть новые поля.</span>
+            <button className="btn" onClick={handleRefreshDirty}>Обновить</button>
           </div>
         )}
 
-        {/* Content area */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {activeTab === 'ttm' ? (
             <TTMTab
               issues={ttm.issues}
@@ -549,22 +504,21 @@ export default function App() {
               onFilterChange={currentOnFilterChange}
             />
           ) : (
-            isDataTab
-              ? <EmptyState theme={theme} status={currentStatus} error={currentError} onRetry={handleRetry} />
-              : <EmptyState theme={theme} status="idle" />
+            <EmptyState status={currentStatus} error={currentError} onRetry={handleRetry} />
           )}
         </div>
-      </div>
+      </>
+    );
+  }
 
+  return (
+    <div className="shell">
+      {!fullscreen && (
+        <NavRail activeTab={activeTab} onTabChange={changeTab} collapsed={collapsed} onToggleCollapsed={toggleCollapsed}
+          userInfo={userInfo} jiraUrl={settings.jiraUrl} />
+      )}
+      <main className="shell-main">{page}</main>
       <Toast toasts={toasts} removeToast={removeToast} />
-
-      <div style={{
-        position: 'fixed', bottom: '10px', right: '14px',
-        textAlign: 'right', pointerEvents: 'none', zIndex: 10,
-      }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: theme.textMuted }}>v1.4.0</div>
-        <div style={{ fontSize: '12px', color: theme.textMuted, opacity: 0.7 }}>by PM Fenix Team</div>
-      </div>
     </div>
   );
 }

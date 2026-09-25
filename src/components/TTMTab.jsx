@@ -83,7 +83,7 @@ function renderTtmCell(colId, issue, helpers) {
     case 'key':
       return (
         <a href={`${jiraBase}/browse/${issue.key}`} target="_blank" rel="noreferrer"
-          style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          style={{ color: theme.accent, fontSize: '12px', fontWeight: 700, fontFamily: 'var(--t-fontMono)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
           {issue.key}
         </a>
       );
@@ -94,7 +94,7 @@ function renderTtmCell(colId, issue, helpers) {
     case 'created':
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{fmtDate(issue._ttm.createdDate)}</span>;
     case 'release':
-      return <span style={{ fontSize: '12px', color: theme.textSecondary, fontFamily: "'IBM Plex Mono', monospace" }}>{issue._ttm.releaseName}</span>;
+      return <span style={{ fontSize: '12px', color: theme.textSecondary, fontFamily: 'var(--t-fontMono)' }}>{issue._ttm.releaseName}</span>;
     case 'releaseDate':
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{fmtDate(issue._ttm.releaseDate)}</span>;
     case 'ttmDays': {
@@ -126,7 +126,7 @@ function StatCard({ title, value, sub, color, theme }) {
       borderRadius: '8px',
       display: 'flex', flexDirection: 'column', gap: '4px',
     }}>
-      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: theme.textMuted, fontWeight: 600 }}>{title}</div>
+      <div style={{ fontSize: '11px', color: theme.textMuted, fontWeight: 600 }}>{title}</div>
       <div style={{ fontSize: '24px', fontWeight: 700, color: color || theme.textPrimary }}>{value}</div>
       {sub && <div style={{ fontSize: '12px', color: theme.textSecondary }}>{sub}</div>}
     </div>
@@ -136,7 +136,7 @@ function StatCard({ title, value, sub, color, theme }) {
 function IssueLink({ issueKey, jiraBase, theme }) {
   return (
     <a href={`${jiraBase}/browse/${issueKey}`} target="_blank" rel="noreferrer"
-      style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>
+      style={{ color: theme.accent, textDecoration: 'none', fontFamily: 'var(--t-fontMono)', fontWeight: 700 }}>
       {issueKey}
     </a>
   );
@@ -150,8 +150,8 @@ function TeamSummary({ teamStats, globalMedian, globalPhaseMedians, theme }) {
 
   const rowBg = (medCal) => {
     if (globalMedCal <= 0 || medCal == null) return 'transparent';
-    if (medCal > globalMedCal * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
-    if (medCal > globalMedCal * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
+    if (medCal > globalMedCal * 1.5) return theme.id === 'light' ? 'var(--t-errorBg)' : 'var(--t-errorBg)';
+    if (medCal > globalMedCal * 1.2) return theme.id === 'light' ? 'var(--t-warningBg)' : 'var(--t-warningBg)';
     return 'transparent';
   };
 
@@ -161,7 +161,7 @@ function TeamSummary({ teamStats, globalMedian, globalPhaseMedians, theme }) {
     return teamCal != null && globalCal != null && teamCal > globalCal * 1.5;
   };
 
-  const dangerBg = theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
+  const dangerBg = theme.id === 'light' ? 'var(--t-errorBg)' : 'var(--t-errorBg)';
 
   return (
     <div style={{ marginBottom: '24px' }}>
@@ -170,7 +170,7 @@ function TeamSummary({ teamStats, globalMedian, globalPhaseMedians, theme }) {
         <thead>
           <tr style={{ background: theme.bgThead || theme.bgPage }}>
             {['Команда', 'Задач', 'Медиана TTM', 'Оценка', 'Согласование', 'Разработка', 'Мин', 'Макс', '% проблемных'].map((h) => (
-              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: `1px solid ${theme.border}` }}>{h}</th>
+              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: theme.textSecondary, borderBottom: `1px solid ${theme.border}` }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -187,24 +187,24 @@ function TeamSummary({ teamStats, globalMedian, globalPhaseMedians, theme }) {
                 <td style={{
                   padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
                   background: estExceeds ? dangerBg : 'transparent',
-                  color: estExceeds ? '#ef4444' : theme.textPrimary,
+                  color: estExceeds ? 'var(--t-error)' : theme.textPrimary,
                   fontWeight: 500,
                 }}>{fmtDaysPair(t.phaseEstimationMedian?.cal, t.phaseEstimationMedian?.work)}</td>
                 <td style={{
                   padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
                   background: appExceeds ? dangerBg : 'transparent',
-                  color: appExceeds ? '#ef4444' : theme.textPrimary,
+                  color: appExceeds ? 'var(--t-error)' : theme.textPrimary,
                   fontWeight: 500,
                 }}>{fmtDaysPair(t.phaseApprovalMedian?.cal, t.phaseApprovalMedian?.work)}</td>
                 <td style={{
                   padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap',
                   background: devExceeds ? dangerBg : 'transparent',
-                  color: devExceeds ? '#ef4444' : theme.textPrimary,
+                  color: devExceeds ? 'var(--t-error)' : theme.textPrimary,
                   fontWeight: 500,
                 }}>{fmtDaysPair(t.phaseDevelopmentMedian?.cal, t.phaseDevelopmentMedian?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.min?.cal, t.min?.work)}</td>
                 <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, whiteSpace: 'nowrap' }}>{fmtDaysPair(t.max?.cal, t.max?.work)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, color: t.problemRatio >= 0.3 ? '#ef4444' : theme.textSecondary, fontWeight: t.problemRatio >= 0.3 ? 600 : 400 }}>
+                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, color: t.problemRatio >= 0.3 ? 'var(--t-error)' : theme.textSecondary, fontWeight: t.problemRatio >= 0.3 ? 600 : 400 }}>
                   {Math.round(t.problemRatio * 100)}%
                 </td>
               </tr>
@@ -263,7 +263,7 @@ function TtmFilterDropdown({ colId, allIssues, selected, onChange, onClose, anch
     <div ref={ref} style={{
       position: 'fixed', top, left, zIndex: 9999,
       background: theme.bgDropdown, border: `1px solid ${theme.border}`,
-      borderRadius: '7px', boxShadow: theme.id === 'dark' ? '0 8px 32px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.15)',
+      borderRadius: '7px', boxShadow: theme.shadowPop,
       minWidth: '180px', maxWidth: '260px', overflow: 'hidden',
     }}>
       <div style={{ display: 'flex', borderBottom: `1px solid ${theme.borderLight}` }}>
@@ -292,7 +292,7 @@ function ExpandedPanel({ issue, history, onRetry, theme }) {
   return (
     <div style={{
       padding: '16px 20px',
-      background: theme.id === 'csi' ? '#f9fafb' : '#13151c',
+      background: theme.bgChrome,
       border: `1px solid ${theme.borderLight}`,
       borderRadius: '6px',
       margin: '4px 8px 8px',
@@ -331,33 +331,33 @@ function PhaseBar({ phases, ttmDays, theme }) {
         Разбивка TTM по фазам
         {phases.skippedAM && (
           <span title="Задача не была в Awaiting Moderation, фаза 1 от даты создания"
-            style={{ marginLeft: '8px', fontSize: '11px', color: '#f59e0b' }}>
+            style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--t-warning)' }}>
             ⚠ AM пропущена
           </span>
         )}
       </div>
       <div style={{ display: 'flex', height: '22px', borderRadius: '4px', overflow: 'hidden', border: `1px solid ${theme.borderLight}` }}>
-        <div style={{ width: w(e), background: e?.cal != null ? '#3b82f6' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+        <div style={{ width: w(e), background: e?.cal != null ? 'var(--t-accent)' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
           title={e?.cal != null ? `Оценка: ${e.cal} кд / ${e.work ?? '?'} рд` : 'Фаза не определена'}>
           {segLabel(e)}
         </div>
-        <div style={{ width: w(a), background: a?.cal != null ? '#f59e0b' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+        <div style={{ width: w(a), background: a?.cal != null ? 'var(--t-warning)' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
           title={a?.cal != null ? `Согласование: ${a.cal} кд / ${a.work ?? '?'} рд` : 'Фаза не определена'}>
           {segLabel(a)}
         </div>
-        <div style={{ width: w(d), background: d?.cal != null ? '#22c55e' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
+        <div style={{ width: w(d), background: d?.cal != null ? 'var(--t-success)' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}
           title={d?.cal != null ? `Разработка: ${d.cal} кд / ${d.work ?? '?'} рд` : 'Фаза не определена'}>
           {segLabel(d)}
         </div>
       </div>
       <ul style={{ marginTop: '8px', marginBottom: 0, padding: 0, listStyle: 'none', fontSize: '12px', color: theme.textSecondary, lineHeight: '1.7' }}>
-        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#3b82f6', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
+        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--t-accent)', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
           Выдача оценки (AM → CR в майке): <b style={{ color: theme.textPrimary }}>{fmtDaysPair(e?.cal, e?.work)}</b>{pct(e)}
         </li>
-        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#f59e0b', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
+        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--t-warning)', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
           Согласование (CR в майке → Приоритезировано): <b style={{ color: theme.textPrimary }}>{fmtDaysPair(a?.cal, a?.work)}</b>{pct(a)}
         </li>
-        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#22c55e', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
+        <li><span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--t-success)', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }} />
           Разработка (Приоритезировано → Отправлено клиенту): <b style={{ color: theme.textPrimary }}>{fmtDaysPair(d?.cal, d?.work)}</b>{pct(d)}
         </li>
       </ul>
@@ -377,7 +377,7 @@ function StatusHistory({ history, onRetry, theme }) {
   }
   if (history.error) {
     return (
-      <div style={{ fontSize: '12px', color: '#ef4444' }}>
+      <div style={{ fontSize: '12px', color: 'var(--t-error)' }}>
         ⚠ Не удалось загрузить историю: {history.error}
         {onRetry && <button onClick={onRetry} style={{ marginLeft: '8px', fontSize: '11px', padding: '2px 8px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Повторить</button>}
       </div>
@@ -409,13 +409,13 @@ function StatusHistory({ history, onRetry, theme }) {
             const tdBase = { padding: '5px 10px 5px 0', borderBottom: rowBorder, whiteSpace: 'nowrap' };
             return (
               <tr key={idx}>
-                <td style={{ ...tdBase, color: theme.textMuted, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
+                <td style={{ ...tdBase, color: theme.textMuted, fontFamily: 'var(--t-fontMono)', fontSize: '11px' }}>
                   {date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} {date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                 </td>
                 <td style={{ ...tdBase, padding: '5px 6px', color: theme.textMuted }}>→</td>
                 <td style={{ ...tdBase, color: theme.textPrimary, fontWeight: 500 }}>{entry.to}</td>
                 <td style={{ ...tdBase, color: theme.textSecondary, fontSize: '11px' }}>{duration}</td>
-                <td style={{ ...tdBase, padding: '5px 0', color: '#22c55e', fontWeight: 600 }}>{marker || ''}</td>
+                <td style={{ ...tdBase, padding: '5px 0', color: 'var(--t-success)', fontWeight: 600 }}>{marker || ''}</td>
               </tr>
             );
           })}
@@ -429,11 +429,11 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
   const tdBase = { padding: '8px 12px', borderBottom: `1px solid ${theme.borderRow}`, verticalAlign: 'top', overflow: 'hidden' };
 
   const rowBgColor = (issue) => {
-    if (issue._ttm.isAnomaly) return theme.id === 'csi' ? '#faf5ff' : '#2a1a3a';
+    if (issue._ttm.isAnomaly) return theme.id === 'light' ? '#faf5ff' : '#2a1a3a';
     if (!highlight) return null;
     const medCal = stats?.median?.cal ?? 0;
-    if (medCal > 0 && issue._ttm.ttmDays > medCal * 1.5) return theme.id === 'csi' ? '#fef2f2' : '#3a1a1a';
-    if (medCal > 0 && issue._ttm.ttmDays > medCal * 1.2) return theme.id === 'csi' ? '#fffbeb' : '#3a3010';
+    if (medCal > 0 && issue._ttm.ttmDays > medCal * 1.5) return theme.id === 'light' ? 'var(--t-errorBg)' : 'var(--t-errorBg)';
+    if (medCal > 0 && issue._ttm.ttmDays > medCal * 1.2) return theme.id === 'light' ? 'var(--t-warningBg)' : 'var(--t-warningBg)';
     return null;
   };
 
@@ -451,16 +451,15 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
             return (
               <th key={col.id} style={{
                 padding: '8px 8px 8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
-                color: headerColor, textTransform: 'uppercase', letterSpacing: '0.05em',
-                borderBottom: `2px solid ${isFiltered ? theme.accent : theme.border}`,
+                color: headerColor, borderBottom: `1px solid ${isFiltered ? theme.accent : theme.border}`,
                 whiteSpace: 'nowrap', overflow: 'hidden',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                   <span onClick={() => onSort(col.id)} style={{ cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {col.label}
                     {sortCol === col.id
-                      ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '▲' : '▼'}</span>
-                      : <span style={{ fontSize: '9px', marginLeft: '3px', color: theme.textMuted }}>⇅</span>}
+                      ? <span style={{ fontSize: '9px', marginLeft: '3px' }}>{sortDir === 'asc' ? '↑' : null}</span>
+                      : null}
                   </span>
                   <span
                     onClick={(e) => onFilterClick(e, col.id)}
@@ -503,7 +502,7 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
               <td style={{ ...tdBase, padding: '8px 6px', textAlign: 'center' }}>
                 <button onClick={() => onExclude(issue.key)} title="Исключить из расчёта"
                   style={{ background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', fontSize: '14px', padding: '2px 6px', borderRadius: '4px' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = theme.id === 'csi' ? '#fef2f2' : '#3a1a1a'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--t-error)'; e.currentTarget.style.background = theme.id === 'light' ? 'var(--t-errorBg)' : 'var(--t-errorBg)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = 'transparent'; }}>
                   ✕
                 </button>
@@ -702,7 +701,6 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderLight}`, background: theme.bgToolbar, display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '14px', fontWeight: 700, color: theme.textPrimary }}>TTM анализ</span>
 
         {!loading && totalIssues > 0 && effectiveStats && (
           <span style={{ fontSize: '12px', color: theme.textMuted }}>
@@ -716,7 +714,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
 
         {loadingChangelog && changelogProgress?.total > 0 && (
           <span style={{ fontSize: '12px', color: theme.textSecondary }}>
-            ⏳ История: <b style={{ color: theme.textPrimary }}>{changelogProgress.done}</b> / {changelogProgress.total}
+            Загружаем историю: <b style={{ color: theme.textPrimary }}>{changelogProgress.done}</b> / {changelogProgress.total}
           </span>
         )}
 
@@ -732,8 +730,8 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
 
         {activeFilterCount > 0 && (
           <button onClick={() => { setColFilters({}); sessionStorage.removeItem('ttm_col_filters'); }}
-            style={{ fontSize: '11px', color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-            ✕ Сбросить фильтры ({activeFilterCount})
+            style={{ fontSize: '11px', color: 'var(--t-error)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Сбросить фильтры ({activeFilterCount})
           </button>
         )}
 
@@ -759,24 +757,24 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
           title="Выгрузить отчёт в Excel со стилизацией"
           style={{
             padding: '6px 14px',
-            background: (exporting || totalIssues === 0) ? theme.border : (theme.id === 'dark' ? '#14290e' : '#dcfce7'),
-            color: (exporting || totalIssues === 0) ? theme.textSecondary : (theme.id === 'dark' ? '#4ade80' : '#15803d'),
-            border: `1px solid ${(exporting || totalIssues === 0) ? theme.border : '#22c55e'}`,
+            background: (exporting || totalIssues === 0) ? theme.bgDisabled : theme.bgPage,
+            color: (exporting || totalIssues === 0) ? theme.textMuted : theme.textPrimary,
+            border: `1px solid ${theme.border}`,
             borderRadius: '6px', fontSize: '12px', fontWeight: 600,
             cursor: (exporting || totalIssues === 0) ? 'not-allowed' : 'pointer',
             whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px',
           }}>
           {exporting
             ? <span style={{ width: '11px', height: '11px', borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', display: 'inline-block', animation: 'jira-spin 0.7s linear infinite' }} />
-            : '↓'}
+            : null}
           {exportLabel || 'Экспорт Excel'}
         </button>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
         {error && (
-          <div style={{ padding: '16px', color: '#f87171', background: '#3a1a1a', border: '1px solid #6a2020', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
-            ⚠ {error}
+          <div style={{ padding: '16px', color: 'var(--t-error)', background: 'var(--t-errorBg)', border: 'none', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
+            {error}
             <div style={{ marginTop: '8px' }}>
               <button onClick={onLoad} style={{ padding: '6px 14px', background: theme.accent, color: theme.accentText, border: 'none', borderRadius: '5px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Повторить</button>
             </div>
@@ -792,7 +790,6 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
 
         {!loading && issues.length === 0 && !error && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '12px' }}>
-            <span style={{ fontSize: '32px' }}>📊</span>
             <span style={{ color: theme.textSecondary, fontSize: '14px' }}>Нет данных</span>
             <span style={{ color: theme.textMuted, fontSize: '12px' }}>Настройте период и нажмите «Рассчитать TTM»</span>
           </div>
@@ -853,7 +850,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
                   />
                 )}
                 {effectiveStats.anomalies > 0 && (
-                  <StatCard title="⚠ Аномалий" value={effectiveStats.anomalies} sub="created > releaseDate, исключены из расчёта" color="#a855f7" theme={theme} />
+                  <StatCard title="Аномалий" value={effectiveStats.anomalies} sub="created > releaseDate, исключены из расчёта" color="#a855f7" theme={theme} />
                 )}
               </div>
 

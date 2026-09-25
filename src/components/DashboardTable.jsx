@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import StatusBadge from './StatusBadge.jsx';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import Icon from './Icon.jsx';
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
@@ -113,7 +114,7 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
       style={{
         position: 'fixed', top, left, zIndex: 9999,
         background: theme.bgDropdown, border: `1px solid ${theme.border}`,
-        borderRadius: '7px', boxShadow: theme.id === 'dark' ? '0 8px 32px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.15)',
+        borderRadius: '8px', boxShadow: theme.shadowPop,
         minWidth: '180px', maxWidth: '260px', overflow: 'hidden',
       }}
     >
@@ -206,7 +207,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
     return <div style={{ textAlign: 'center', padding: '48px', color: theme.textSecondary }}>Нет данных для отображения</div>;
   }
 
-  const tdBase = { padding: '8px 10px', color: theme.textPrimary, verticalAlign: 'top', overflow: 'hidden' };
+  const tdBase = { padding: '10px 12px', color: theme.textPrimary, verticalAlign: 'top', overflow: 'hidden', borderBottom: `1px solid ${theme.borderRow}` };
 
   // table-layout:fixed only actually clamps column widths (rather than growing to fit
   // unbreakable content, e.g. a nowrap status badge) if the table itself has a real
@@ -217,42 +218,42 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
 
   return (
     <div style={{ overflow: 'auto', width: '100%', height: '100%' }}>
-      <table style={{ borderCollapse: 'collapse', width: totalWidth + 'px', minWidth: '100%', fontSize: '13px', tableLayout: 'fixed' }}>
+      <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: totalWidth + 'px', minWidth: '100%', fontSize: '13.5px', tableLayout: 'fixed' }}>
         <colgroup>
           {allColumns.map((col) => <col key={col.id} style={{ width: getWidth(col) + 'px' }} />)}
         </colgroup>
         <thead>
           <tr>
-            {allColumns.map((col) => {
+            {allColumns.map((col, ci) => {
               const isFiltered = (columnFilters[col.id]?.length ?? 0) > 0;
               const isOpen = openFilter === col.id;
               return (
                 <th key={col.id} style={{
-                  padding: '8px 8px 8px 10px', textAlign: 'left',
+                  padding: ci === 0 ? '10px 6px 10px 20px' : '10px 6px 10px 12px', textAlign: col.type === 'number' ? 'right' : 'left',
                   background: theme.bgThead,
-                  color: isFiltered ? theme.accent : theme.textSecondary,
-                  fontWeight: 600, fontSize: '11px', textTransform: 'uppercase',
-                  letterSpacing: '0.06em', userSelect: 'none',
-                  borderBottom: `2px solid ${isFiltered ? theme.borderActive : theme.border}`,
-                  position: 'sticky', top: 0, overflow: 'hidden',
+                  color: isFiltered ? theme.accent : theme.textMuted,
+                  fontWeight: 600, fontSize: '12.5px', userSelect: 'none', verticalAlign: 'bottom',
+                  borderBottom: `1px solid ${isFiltered ? theme.borderActive : theme.border}`,
+                  position: 'sticky', top: 0, zIndex: 1, overflow: 'hidden',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <span onClick={() => handleSort(col)} style={{ cursor: 'pointer', flex: 1, wordBreak: 'break-word' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
+                    <span onClick={() => handleSort(col)} title="Сортировать" style={{ cursor: 'pointer', flex: 1, wordBreak: 'break-word', lineHeight: 1.3, color: sortKey === col.id ? theme.textPrimary : undefined }}>
                       {col.label}
-                      {sortKey === col.id && <span style={{ marginLeft: '4px', fontSize: '10px' }}>{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                      {sortKey === col.id && <span style={{ marginLeft: '4px' }}>{sortDir === 'asc' ? '↑' : '↓'}</span>}
                     </span>
-                    <span
+                    <button
                       onClick={(e) => handleFilterClick(e, col.id)}
-                      title="Фильтр"
-                      style={{ cursor: 'pointer', fontSize: '12px', color: isFiltered ? theme.accent : theme.filterIconDim, padding: '1px 2px', borderRadius: '3px', background: isOpen ? theme.border : 'transparent', flexShrink: 0 }}
+                      title={isFiltered ? 'Фильтр включён' : 'Фильтр по значениям'}
+                      style={{ cursor: 'pointer', color: isFiltered ? theme.accent : theme.filterIconDim, padding: '1px', borderRadius: '4px', background: isOpen || isFiltered ? theme.accentSoft : 'transparent', border: 0, flexShrink: 0, display: 'inline-flex' }}
                       onMouseEnter={(e) => (e.currentTarget.style.color = theme.accent)}
                       onMouseLeave={(e) => (e.currentTarget.style.color = isFiltered ? theme.accent : theme.filterIconDim)}
-                    >▾</span>
+                    ><Icon name="chevD" size={15} /></button>
                     <div
                       onMouseDown={(e) => startResize(e, col.id)}
-                      style={{ width: '5px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: `2px solid ${theme.border}`, marginRight: '-8px' }}
+                      title="Потяните, чтобы изменить ширину"
+                      style={{ width: '6px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: '2px solid transparent', marginRight: '-6px' }}
                       onMouseEnter={(e) => (e.currentTarget.style.borderRightColor = theme.accent)}
-                      onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = theme.border)}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = 'transparent')}
                     />
                   </div>
                   {isOpen && filterAnchor && (
@@ -274,27 +275,29 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
           {sorted.map((row, idx) => (
             <tr
               key={row.issueKey || idx}
-              style={{ background: idx % 2 === 0 ? theme.bgRowEven : theme.bgRowOdd, borderBottom: `1px solid ${theme.borderRow}` }}
+              style={{ background: theme.bgRowEven }}
               onMouseEnter={(e) => (e.currentTarget.style.background = theme.bgRowHover)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? theme.bgRowEven : theme.bgRowOdd)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = theme.bgRowEven)}
             >
-              {allColumns.map((col) => {
+              {allColumns.map((col, ci) => {
+                const td = ci === 0 ? { ...tdBase, paddingLeft: '20px' } : tdBase;
+                const empty = row[col.id] == null || row[col.id] === '';
                 if (col.type === 'key' || col.id === 'issuekey') return (
-                  <td key={col.id} style={tdBase}>
+                  <td key={col.id} style={td}>
                     <a href={row.issueUrl} target="_blank" rel="noreferrer"
-                      style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' }}
+                      style={{ color: theme.accent, textDecoration: 'none', fontFamily: theme.fontMono, fontSize: '12.5px', fontWeight: 500, whiteSpace: 'nowrap' }}
                       onMouseEnter={(e) => (e.target.style.textDecoration = 'underline')}
                       onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
                     >{row.issueKey}</a>
                   </td>
                 );
                 if (col.id === 'issuelinks') return (
-                  <td key={col.id} style={{ ...tdBase, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {(row.issuelinksCP || []).length === 0 ? '—' : row.issuelinksCP.map((l, i) => (
+                  <td key={col.id} style={{ ...td, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {(row.issuelinksCP || []).length === 0 ? <span style={{ color: theme.textMuted }}>—</span> : row.issuelinksCP.map((l, i) => (
                       <React.Fragment key={l.key}>
                         {i > 0 && ', '}
                         <a href={l.url} target="_blank" rel="noreferrer"
-                          style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px' }}
+                          style={{ color: theme.accent, textDecoration: 'none', fontFamily: theme.fontMono, fontSize: '12.5px' }}
                           onMouseEnter={(e) => (e.target.style.textDecoration = 'underline')}
                           onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
                         >{l.key}</a>
@@ -303,15 +306,15 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                   </td>
                 );
                 if (col.type === 'status') return (
-                  <td key={col.id} style={tdBase}><StatusBadge status={row.status} /></td>
+                  <td key={col.id} style={td}><StatusBadge status={row.status} /></td>
                 );
                 if (col.type === 'number') return (
-                  <td key={col.id} style={{ ...tdBase, textAlign: 'right', fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'nowrap' }}>
+                  <td key={col.id} style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', color: empty ? theme.textMuted : theme.textPrimary }}>
                     {getCellValue(col, row)}
                   </td>
                 );
                 return (
-                  <td key={col.id} style={{ ...tdBase, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  <td key={col.id} style={{ ...td, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: empty ? theme.textMuted : theme.textPrimary }}>
                     {getCellValue(col, row)}
                   </td>
                 );
