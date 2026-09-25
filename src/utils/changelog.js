@@ -1,3 +1,4 @@
+import { EVAL_ACTIVE_STATUSES } from './evalStatuses.js';
 /**
  * Календарные дни между двумя моментами времени.
  * Округление до 1 знака после точки. null если входные данные некорректны или from > to.
@@ -119,7 +120,7 @@ export function parseStatusHistory(changelog) {
 /**
  * Compute TTM phase durations from a parsed status history.
  *
- * Phase 1 «Выдача оценки»:   AM / на оценку / уточнение требований → CR в майке
+ * Phase 1 «Выдача оценки»:   AM / на оценку / уточнение требований / product feature → CR в майке
  * Phase 2 «Согласование»:     CR в майке         → Приоритезирован*
  * Phase 3 «Разработка»:       Приоритезирован*    → Отправлено клиенту
  *
@@ -143,7 +144,7 @@ export function calcPhases(statusHistory, issueCreated, mode = 'aggregate') {
 
   // Phase 1 может стартовать с любого из этих статусов
   // (задача может миновать AM и сразу попасть в "на оценку")
-  const PHASE1_STARTERS = new Set(['awaiting moderation', 'на оценку', 'уточнение требований']);
+  const PHASE1_STARTERS = new Set(EVAL_ACTIVE_STATUSES);
 
   // === Шаг 1: Phase 3 end = первый "отправлено клиенту" в истории ===
   const phase3EndEntry = statusHistory.find((e) => e.to === 'отправлено клиенту');

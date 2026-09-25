@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
+import { EVAL_ACTIVE_STATUSES, EVAL_ACTIVE_STATUSES_JQL } from '../utils/evalStatuses.js';
 
-const ACTIVE_STATUSES = ['awaiting moderation', 'на оценку', 'уточнение требований'];
+const ACTIVE_STATUSES = EVAL_ACTIVE_STATUSES;
 const PAUSE_STATUSES  = ['pause', 'отложено'];
 const DONE_STATUSES   = ['cr в майке'];
 const HIDDEN_STATUSES = ['черновик', 'закрыто', 'closed', 'draft'];
 
-export const EVAL_STATUSES_JQL = '"Awaiting Moderation", "На оценку", "Уточнение требований", "Pause", "Отложено", "CR в майке"';
+export const EVAL_STATUSES_JQL = `${EVAL_ACTIVE_STATUSES_JQL}, "Pause", "Отложено", "CR в майке"`;
 
 // Count working days from `from` (inclusive) to `to` (exclusive)
 function workingDaysInPeriod(from, to) {

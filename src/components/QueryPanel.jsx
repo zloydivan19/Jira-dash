@@ -954,7 +954,7 @@ export default function QueryPanel({
 
     if (activeTab === 'eval') return (
       <>
-        <p className="drawer-note">CR в процессе оценки. SLA: 3 рабочих дня на модерацию, 10 рабочих дней на всю оценку.</p>
+        <p className="drawer-note">CR в процессе оценки: модерация, «На оценку», «Уточнение требований» и Product Feature. SLA: 3 рабочих дня на модерацию, 10 рабочих дней на всю оценку.</p>
         <div className="drawer-grid">
           {renderMultiSelect({
             title: 'Менеджеры', subtitle: 'Пусто — только ваши задачи',
@@ -1089,7 +1089,7 @@ export default function QueryPanel({
                 <div className="fld-label">Расчёт фаз</div>
                 {segButtons([{ value: 'aggregate', label: 'Все циклы' }, { value: 'lastCycle', label: 'Последний цикл' }], settings.ttmPhaseCalcMode || 'aggregate', (v) => onSettingsChange({ ttmPhaseCalcMode: v }))}
                 <div className="hint" style={{ maxWidth: '46ch', lineHeight: 1.5, display: 'grid', gap: 2 }}>
-                  <span><b style={{ fontWeight: 600 }}>Фаза 1, оценка:</b> от модерации, «На оценку» или уточнения требований до «CR в майке».</span>
+                  <span><b style={{ fontWeight: 600 }}>Фаза 1, оценка:</b> от модерации, «На оценку», уточнения требований или Product Feature до «CR в майке».</span>
                   <span><b style={{ fontWeight: 600 }}>Фаза 2, согласование:</b> от «CR в майке» до «Приоритезирован».</span>
                   <span><b style={{ fontWeight: 600 }}>Фаза 3, разработка:</b> от «Приоритезирован» до «Отправлено клиенту», от этой настройки не зависит.</span>
                 </div>

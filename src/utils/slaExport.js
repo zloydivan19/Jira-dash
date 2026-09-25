@@ -1,12 +1,13 @@
 import XLSX from 'xlsx-js-style';
 import axios from 'axios';
+import { EVAL_ACTIVE_STATUSES, EVAL_ACTIVE_STATUSES_JQL } from './evalStatuses.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const SLA_THRESHOLD = 10;
-const ACTIVE_STATUSES = ['awaiting moderation', 'на оценку', 'уточнение требований'];
+const ACTIVE_STATUSES = EVAL_ACTIVE_STATUSES;
 const EXPORT_JQL =
-  'cf[12606] is not EMPTY AND status in ("Awaiting Moderation", "На оценку", "Уточнение требований") ' +
+  `cf[12606] is not EMPTY AND status in (${EVAL_ACTIVE_STATUSES_JQL}) ` +
   'AND issuetype != "Complex project" ORDER BY created DESC';
 
 // ── Color palette ─────────────────────────────────────────────────────────────

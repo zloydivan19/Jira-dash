@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { exportSLAViolations } from '../utils/slaExport.js';
 import PingComposer from './PingComposer.jsx';
+import { EVAL_ACTIVE_STATUSES } from '../utils/evalStatuses.js';
 
 const GROUP_CONFIG = [
-  { id: 'active', label: 'В процессе',                  statuses: ['awaiting moderation', 'на оценку', 'уточнение требований'], description: 'Задачи идут по процессу, таймер SLA активен' },
+  { id: 'active', label: 'В процессе',                  statuses: EVAL_ACTIVE_STATUSES, description: 'Задачи идут по процессу, таймер SLA активен' },
   { id: 'pause',  label: 'На паузе',                    statuses: ['pause', 'отложено'],                                        description: 'Таймер заморожен, ждут возобновления' },
   { id: 'done',   label: 'Оценены, ждут приоритизации', statuses: ['cr в майке'],                                               description: 'Оценка получена, передаётся заказчику' },
 ];
