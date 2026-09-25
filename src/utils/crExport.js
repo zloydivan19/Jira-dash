@@ -52,6 +52,7 @@ function formatDate(dateStr) {
 
 function colWidth(col) {
   if (col.id === 'summary') return 50;
+  if (col.id === '_attention') return 40;
   if (col.id === 'issueKey') return 13;
   return Math.max(12, Math.min(32, (col.label || col.id).length + 6));
 }

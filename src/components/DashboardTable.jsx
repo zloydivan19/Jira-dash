@@ -26,6 +26,8 @@ const SYSTEM_DEFAULT_WIDTHS = {
   summary:  260,
   status:   150,
   created:  110,
+  _attention: 250,
+  customfield_13999: 180,
   updated:  110,
   issuetype: 110,
   priority: 110,
@@ -306,6 +308,26 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                         >{l.key}</a>
                       </React.Fragment>
                     ))}
+                  </td>
+                );
+                if (col.type === 'attention') {
+                  const flags = row._attentionFlags || [];
+                  return (
+                    <td key={col.id} style={td}>
+                      {flags.length === 0 ? <span style={{ color: theme.textMuted }}>—</span> : (
+                        <div className="chips">
+                          {flags.map((f) => <span key={f.id} className={`chip ${f.level}`}><i />{f.text}</span>)}
+                        </div>
+                      )}
+                    </td>
+                  );
+                }
+                if (col.id === 'fixVersions' && row._releaseDate) return (
+                  <td key={col.id} style={{ ...td, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {getCellValue(col, row)}
+                    <span style={{ display: 'block', fontSize: '12px', color: theme.textMuted, marginTop: 2 }}>
+                      релиз {formatDate(row._releaseDate)}
+                    </span>
                   </td>
                 );
                 if (col.type === 'status') return (

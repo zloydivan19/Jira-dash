@@ -30,7 +30,7 @@ function workingDaysSince(from) {
   return workingDaysInPeriod(from, tomorrow);
 }
 
-function parseChangelog(changelog) {
+export function parseChangelog(changelog) {
   return (changelog?.values || [])
     .flatMap((entry) => entry.items
       .filter((item) =>
@@ -47,7 +47,7 @@ function parseChangelog(changelog) {
     .sort((a, b) => a.created - b.created);
 }
 
-function calcSLA(statusHistory, currentStatus, issueCreated) {
+export function calcSLA(statusHistory, currentStatus, issueCreated) {
   const now = new Date();
   const normalCurrent = (currentStatus || '').toLowerCase().trim();
 

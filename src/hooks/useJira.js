@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { extractIssueData } from '../utils/fieldExtractor.js';
+import { ATTENTION_FIELDS, attentionInput, formatSpecSigning, latestReleaseDate } from '../utils/crAttention.js';
 
 function sessionSave(key, data) {
   if (!key) return;
@@ -15,7 +16,7 @@ function sessionLoad(key) {
   } catch { return null; }
 }
 
-export function useJira(storageKey = null) {
+export function useJira(storageKey = null, { attention = false } = {}) {
   const saved = sessionLoad(storageKey);
 
   const [status, setStatus] = useState(saved?.status || 'idle');
@@ -73,8 +74,8 @@ export function useJira(storageKey = null) {
 
     const fixedFields = ['summary', 'status', 'created'];
     // 'issueKey' — не настоящее поле Jira (это issue.key), запрашивать его в fields не нужно.
-    const dynamicFields = columns.map((c) => c.id).filter((id) => id && id !== 'issueKey');
-    const allFields = [...new Set([...fixedFields, ...dynamicFields])];
+    const dynamicFields = columns.map((c) => c.id).filter((id) => id && id !== 'issueKey' && !id.startsWith('_'));
+    const allFields = [...new Set([...fixedFields, ...dynamicFields, ...(attention ? ATTENTION_FIELDS : [])])];
 
     const limit = parseInt(maxResults, 10) || 0;
     const pageSize = 100;
@@ -103,7 +104,15 @@ export function useJira(storageKey = null) {
         if (!nextPageToken) break;
       }
 
-      const extracted = allRaw.map((issue) => extractIssueData(issue, columns, credentials.jiraUrl));
+      const extracted = allRaw.map((issue) => {
+        const row = extractIssueData(issue, columns, credentials.jiraUrl);
+        if (!attention) return row;
+        const input = attentionInput(issue);
+        row._attnInput = input;
+        row._releaseDate = latestReleaseDate(issue.fields?.fixVersions);
+        if ('customfield_14050' in row) row.customfield_14050 = input.specs.length && issue.fields?.customfield_14050 ? formatSpecSigning(input.specs) : row.customfield_14050;
+        return row;
+      });
       const nextStatus = extracted.length === 0 ? 'empty' : 'success';
       setIssues(extracted);
       setStatus(nextStatus);
@@ -116,7 +125,7 @@ export function useJira(storageKey = null) {
       setStatus('error');
       setIssues([]);
     }
-  }, [storageKey]);
+  }, [storageKey, attention]);
 
   return { status, issues, error, userInfo, jiraFields, fetchMyself, fetchFields, fetchIssues };
 }

@@ -11,16 +11,17 @@ const STORAGE_KEY = 'jira_dashboard_settings';
 // версии — дальше ничего принудительно не возвращается, это и есть личное
 // представление пользователя. Хочет вернуть дефолт целиком — для этого есть
 // отдельная кнопка «Восстановить поля по умолчанию» (restoreDefaultColumns).
-export const CR_COLUMNS_VERSION = 1;
+export const CR_COLUMNS_VERSION = 2;
+// v2: «Этап проекта» и «Влияние на этап проекта» переезжают в конец, перед «Создано».
+const CR_MOVE_BEFORE_CREATED = { 2: ['customfield_14451', 'customfield_14452'] };
 export const DEFAULT_CR_COLUMNS = [
   { id: 'issueKey',          label: 'Ключ',                                   type: 'key',    since: 1 },
   { id: 'summary',           label: 'Итог',                                   type: 'text',   since: 1 },
   { id: 'status',            label: 'Статус',                                 type: 'status', since: 1 },
   { id: 'customfield_12601', label: 'Clients',                                type: 'text',   since: 1 },
   { id: 'customfield_12800', label: 'Teams',                                  type: 'text',   since: 1 },
+  { id: 'customfield_13999', label: 'Вид платной / обоснование бесплатной доработки', type: 'text', since: 2 },
   { id: 'customfield_14054', label: 'Оценка для клиента в часах',             type: 'number', since: 1 },
-  { id: 'customfield_14451', label: 'Этап проекта',                          type: 'text',   since: 1 },
-  { id: 'customfield_14452', label: 'Влияние на этап проекта',               type: 'text',   since: 1 },
   { id: 'fixVersions',       label: 'Версии исправления',                    type: 'text',   since: 1 },
   { id: 'customfield_13902', label: 'План аналитики',                        type: 'text',   since: 1 },
   { id: 'customfield_14000', label: 'Спецификация 1С',                       type: 'text',   since: 1 },
@@ -28,6 +29,8 @@ export const DEFAULT_CR_COLUMNS = [
   { id: 'customfield_14001', label: 'Стоимость по спецификации 1С',          type: 'number', since: 1 },
   { id: 'customfield_14007', label: 'Срок обязательств по спецификации',     type: 'date',   since: 1 },
   { id: 'issuelinks',        label: 'Связанные задачи (Complex Project)',    type: 'text',   since: 1 },
+  { id: 'customfield_14451', label: 'Этап проекта',                          type: 'text',   since: 1 },
+  { id: 'customfield_14452', label: 'Влияние на этап проекта',               type: 'text',   since: 1 },
   { id: 'created',           label: 'Создано',                               type: 'date',   since: 1 },
 ];
 
@@ -161,6 +164,7 @@ const DEFAULT_SETTINGS = {
   ttmTeams: DEFAULT_TTM_TEAMS,              // string[] выбранные команды (cf 12800); пусто = все
   ttmTeamsVersion: TTM_TEAMS_VERSION,
   pinsVersion: PINS_VERSION,
+  crAttentionVisible: true,                 // колонка «Внимание» и сводка над таблицей CR
   ttmKnownTeams: DEFAULT_TTM_TEAMS,         // string[] список команд, загруженный из CR
   ttmKnownClients: [],                      // string[] список клиентов, загруженный из CR
   ttmJql: '',
@@ -177,6 +181,17 @@ function loadSettings() {
     const parsed = JSON.parse(raw);
 
     const cr = migrateVersionedColumns(parsed.columns, parsed.crColumnsVersion, DEFAULT_CR_COLUMNS, CR_COLUMNS_VERSION);
+    if ((parsed.crColumnsVersion || 0) < CR_COLUMNS_VERSION && Array.isArray(parsed.columns) && parsed.columns.length) {
+      for (let v = (parsed.crColumnsVersion || 0) + 1; v <= CR_COLUMNS_VERSION; v++) {
+        const ids = CR_MOVE_BEFORE_CREATED[v] || [];
+        const moving = ids.map((id) => cr.columns.find((c) => c.id === id)).filter(Boolean);
+        if (!moving.length) continue;
+        const rest = cr.columns.filter((c) => !ids.includes(c.id));
+        const at = rest.findIndex((c) => c.id === 'created');
+        rest.splice(at === -1 ? rest.length : at, 0, ...moving);
+        cr.columns = rest;
+      }
+    }
     const bug = migrateVersionedColumns(parsed.columnsBugControl, parsed.bugColumnsVersion, DEFAULT_BUG_COLUMNS, BUG_COLUMNS_VERSION, BUG_COLUMNS_REMOVED);
 
     // «Задачи/Ошибки», v1: убрать Teams и дублирующий «Приоритет» (не системный priority).

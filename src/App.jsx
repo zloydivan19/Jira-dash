@@ -12,6 +12,11 @@ import QueryPanel from './components/QueryPanel.jsx';
 import ConnectionPage from './components/ConnectionPage.jsx';
 import FieldsPage from './components/FieldsPage.jsx';
 import StatusStrip from './components/StatusStrip.jsx';
+import AttentionStrip from './components/AttentionStrip.jsx';
+import { useCrStatusDays } from './hooks/useCrStatusDays.js';
+import { attentionFlags, hasAttention } from './utils/crAttention.js';
+
+const ATTENTION_COLUMN = { id: '_attention', label: 'Внимание', type: 'attention' };
 import Icon from './components/Icon.jsx';
 import DashboardTable from './components/DashboardTable.jsx';
 import EvaluationTab from './components/EvaluationTab.jsx';
@@ -56,7 +61,14 @@ export default function App() {
   const { settings, updateSettings } = useSettings();
 
   // Two independent Jira data stores
-  const crJira = useJira('jira_session_cr');
+  const crJira = useJira('jira_session_cr', { attention: true });
+  const crDays = useCrStatusDays(crJira.issues, settings);
+  const crRows = useMemo(() => crJira.issues.map((row) => {
+    const flags = attentionFlags(row._attnInput, crDays[row.issueKey]);
+    return { ...row, _attentionFlags: flags, _attention: flags.map((f) => f.text).join('; ') || null };
+  }), [crJira.issues, crDays]);
+  const attentionVisible = settings.crAttentionVisible !== false;
+  const [attnFilter, setAttnFilter] = useState(null);
   const bugsJira = useJira('jira_session_bugs');
   const evaluation = useEvaluation();
   const bugControl = useBugControl();
@@ -292,9 +304,9 @@ export default function App() {
   const isBugsActive = activeTab === 'bugs';
 
   const currentStatus = isCRActive ? crJira.status : isBugsActive ? bugsJira.status : null;
-  const currentIssues = isCRActive ? crJira.issues : isBugsActive ? bugsJira.issues : [];
+  const currentIssues = isCRActive ? crRows : isBugsActive ? bugsJira.issues : [];
   const currentError = isCRActive ? crJira.error : isBugsActive ? bugsJira.error : null;
-  const currentColumns = isCRActive ? columns : isBugsActive ? columnsBugs : [];
+  const currentColumns = isCRActive ? (attentionVisible ? [ATTENTION_COLUMN, ...columns] : columns) : isBugsActive ? columnsBugs : [];
   const currentFilters = isCRActive ? columnFiltersCR : isBugsActive ? columnFiltersBugs : {};
   const currentOnFilterChange = isCRActive ? handleFilterChangeCR : handleFilterChangeBugs;
   const currentColumnsDirty = isCRActive ? columnsDirtyCR : isBugsActive ? columnsDirtyBugs : false;
@@ -315,8 +327,11 @@ export default function App() {
         return values.includes(cellStr);
       });
     }
+    if (isCRActive && attentionVisible && attnFilter) {
+      result = result.filter((issue) => hasAttention(issue._attentionFlags || [], attnFilter));
+    }
     return result;
-  }, [currentIssues, search, currentFilters]);
+  }, [currentIssues, search, currentFilters, isCRActive, attentionVisible, attnFilter]);
 
   const handleExportXLSX = () => {
     if (filteredIssues.length === 0) { addToast('Нет данных для экспорта', 'error'); return; }
@@ -424,6 +439,10 @@ export default function App() {
           onSearch={setSearch}
           fullscreen={fullscreen}
           onToggleFullscreen={() => setFullscreen((v) => !v)}
+          attention={isCRActive ? {
+            on: attentionVisible,
+            toggle: () => { setAttnFilter(null); updateSettings({ crAttentionVisible: !attentionVisible }); },
+          } : null}
           crHasData={crJira.issues.length > 0}
           bugsHasData={bugsJira.issues.length > 0}
           onLoadEval={handleLoadEval}
@@ -441,7 +460,11 @@ export default function App() {
           ttmSummary={ttm.stats}
         />
 
-        {showTable && hasStatusColumn && (
+        {showTable && isCRActive && attentionVisible && (
+          <AttentionStrip rows={stripIssues} selected={attnFilter} onSelect={setAttnFilter} />
+        )}
+
+        {showTable && hasStatusColumn && !(isCRActive && attentionVisible) && (
           <StatusStrip issues={stripIssues} selected={currentFilters.status}
             onSelect={(vals) => currentOnFilterChange('status', vals)} />
         )}

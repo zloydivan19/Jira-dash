@@ -19,7 +19,7 @@ function writeCache(key, value) {
 export default function QueryPanel({
   settings, onSettingsChange, onLoadCR, onLoadBugs, addToast,
   columns, columnsBugs, activeTab, onTabChange,
-  search, onSearch, fullscreen, onToggleFullscreen,
+  search, onSearch, fullscreen, onToggleFullscreen, attention,
   crHasData, bugsHasData,
   onLoadEval, evalLoading, evalManagerFilter, onEvalManagerFilterChange, evalHasData,
   onLoadBugControl, bugControlLoading, bugControlHasData, bugControlSummary,
@@ -1259,6 +1259,12 @@ export default function QueryPanel({
           <button className={`btn ghost${drawerOpen ? ' on' : ''}`} onClick={() => setDrawerOpen(!drawerOpen)} aria-expanded={drawerOpen}>
             <Icon name="sliders" />{drawerLabel}
           </button>
+          {attention && (
+            <button className={`btn ghost${attention.on ? ' on' : ''}`} onClick={attention.toggle} aria-pressed={attention.on}
+              title={attention.on ? 'Скрыть колонку «Внимание» и сводку' : 'Показать колонку «Внимание» и сводку'}>
+              <Icon name="flag" />Внимание
+            </button>
+          )}
           {isQueryTab && (
             <label className="searchbox">
               <Icon name="search" />
