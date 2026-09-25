@@ -30,18 +30,26 @@ export default function StatusStrip({ issues, selected, onSelect }) {
 
   return (
     <div className="strip">
-      <div className={`strip-bars${filtering ? ' filtering' : ''}`}>
-        {groups.map((g) => {
-          const on = filtering && selected.includes(g.name);
-          return (
-            <button key={g.name} className="strip-bar" data-cat={g.cat} aria-pressed={on} style={{ flex: g.n }}
-              title={on ? 'Снять фильтр' : `Показать только «${g.name}»`}
-              onClick={() => onSelect(on ? [] : [g.name])}>
-              <span className="lab">{g.name}<b>{g.n}</b></span>
-              <span className="fill" />
-            </button>
-          );
-        })}
+      <div className={`strip-main${filtering ? ' filtering' : ''}`}>
+        <div className="strip-track">
+          {groups.map((g) => (
+            <button key={g.name} className="strip-seg" data-cat={g.cat} aria-pressed={filtering && selected.includes(g.name)}
+              style={{ flexGrow: g.n }} title={`${g.name}: ${g.n}`}
+              onClick={() => onSelect(filtering && selected.includes(g.name) ? [] : [g.name])} />
+          ))}
+        </div>
+        <div className="strip-legend">
+          {groups.map((g) => {
+            const on = filtering && selected.includes(g.name);
+            return (
+              <button key={g.name} className="strip-item" data-cat={g.cat} aria-pressed={on}
+                title={on ? 'Снять фильтр' : `Показать только «${g.name}»`}
+                onClick={() => onSelect(on ? [] : [g.name])}>
+                <i />{g.name}<b>{g.n}</b>
+              </button>
+            );
+          })}
+        </div>
       </div>
       {filtering && (
         <div className="strip-side">
