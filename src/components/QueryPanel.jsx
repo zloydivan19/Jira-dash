@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Icon from './Icon.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
+import { getInList, setInList, setManagers } from '../utils/jqlFilters.js';
 
 const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
 // CR живут в проекте CR (ключи CR-XXXX); Complex Project там же, но в TTM не участвует.
@@ -28,12 +29,10 @@ export default function QueryPanel({
   // CR Queries tab state
   const [clientSearch, setClientSearch] = useState('');
   const [clientOptions, setClientOptions] = useState(() => readCache('pick_clients_cr'));
-  const [selectedClients, setSelectedClients] = useState([]);
   const [clientsLoading, setClientsLoading] = useState(false);
 
   const [managerSearch, setManagerSearch] = useState('');
   const [managerOptions, setManagerOptions] = useState(() => readCache('pick_managers'));
-  const [selectedManagers, setSelectedManagers] = useState([]);
   const [managersLoading, setManagersLoading] = useState(false);
 
   // Eval tab: separate manager selection
@@ -41,7 +40,6 @@ export default function QueryPanel({
 
   const [crReporterSearch, setCrReporterSearch] = useState('');
   const [crReporterOptions, setCrReporterOptions] = useState(() => readCache('pick_cr_reporters'));
-  const [selectedCrReporters, setSelectedCrReporters] = useState([]);
   const [crReportersLoading, setCrReportersLoading] = useState(false);
 
   const [loadingIssues, setLoadingIssues] = useState(false);
@@ -54,12 +52,10 @@ export default function QueryPanel({
   const [loadingBugs, setLoadingBugs] = useState(false);
   const [engineerSearch, setEngineerSearch] = useState('');
   const [engineerOptions, setEngineerOptions] = useState(() => readCache('pick_engineers'));
-  const [selectedEngineers, setSelectedEngineers] = useState([]);
   const [engineersLoading, setEngineersLoading] = useState(false);
 
   const [reporterSearch, setReporterSearch] = useState('');
   const [reporterOptions, setReporterOptions] = useState(() => readCache('pick_bugs_reporters'));
-  const [selectedReporters, setSelectedReporters] = useState([]);
   const [reportersLoading, setReportersLoading] = useState(false);
 
   const [bugControlReporterOptions, setBugControlReporterOptions] = useState(() => readCache('pick_bug_control_reporters'));
@@ -72,7 +68,6 @@ export default function QueryPanel({
 
   const [bugsClientSearch, setBugsClientSearch] = useState('');
   const [bugsClientOptions, setBugsClientOptions] = useState(() => readCache('pick_bugs_clients'));
-  const [selectedBugsClients, setSelectedBugsClients] = useState([]);
   const [bugsClientsLoading, setBugsClientsLoading] = useState(false);
 
 
@@ -147,22 +142,7 @@ export default function QueryPanel({
     setClientsLoading(false);
   };
 
-  const toggleClient = (val) => setSelectedClients((p) => p.includes(val) ? p.filter((v) => v !== val) : [...p, val]);
 
-  const applyClientFilter = () => {
-    if (!selectedClients.length) return;
-    const inList = selectedClients.map((c) => `"${c}"`).join(', ');
-    const base = settings.jql || 'cf[12606] is not EMPTY';
-    // remove existing cf[12601] condition if any
-    const stripped = base.replace(/\s+AND\s+cf\[12601\]\s+in\s*\([^)]*\)/gi, '').trim();
-    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) {
-      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
-      onSettingsChange({ jql: `${before} AND cf[12601] in (${inList})${orderMatch[1]}` });
-    } else {
-      onSettingsChange({ jql: `${stripped} AND cf[12601] in (${inList})` });
-    }
-  };
 
   // ── CR tab: reporters (авторы CR) ──
   const loadCrReporters = async () => {
@@ -193,37 +173,8 @@ export default function QueryPanel({
     setCrReportersLoading(false);
   };
 
-  const toggleCrReporter = (id) => setSelectedCrReporters((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
 
-  const applyCrReporterFilter = () => {
-    if (!selectedCrReporters.length) return;
-    const inList = selectedCrReporters.map((id) => `"${id}"`).join(', ');
-    const base = settings.jql || 'cf[12606] is not EMPTY';
-    const stripped = base.replace(/\s+AND\s+reporter\s+in\s*\([^)]*\)/gi, '').trim();
-    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) {
-      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
-      onSettingsChange({ jql: `${before} AND reporter in (${inList})${orderMatch[1]}` });
-    } else {
-      onSettingsChange({ jql: `${stripped} AND reporter in (${inList})` });
-    }
-  };
 
-  // Inject CR reporter into template JQL
-  const applyCRTemplate = (jql) => {
-    if (!selectedCrReporters.length) {
-      onSettingsChange({ jql });
-      return;
-    }
-    const inList = selectedCrReporters.map((id) => `"${id}"`).join(', ');
-    const orderMatch = jql.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) {
-      const base = jql.slice(0, jql.length - orderMatch[1].length);
-      onSettingsChange({ jql: `${base} AND reporter in (${inList})${orderMatch[1]}` });
-    } else {
-      onSettingsChange({ jql: `${jql} AND reporter in (${inList})` });
-    }
-  };
 
   // ── CR tab: managers ──
   const loadManagers = async () => {
@@ -254,19 +205,7 @@ export default function QueryPanel({
     setManagersLoading(false);
   };
 
-  const toggleManager = (id) => setSelectedManagers((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
 
-  const applyManagerFilter = () => {
-    if (!selectedManagers.length) return;
-    const inList = selectedManagers.map((id) => `"${id}"`).join(', ');
-    const cur = settings.jql || 'cf[12606] is not EMPTY ORDER BY updated DESC';
-    // Replace any existing cf[12606] condition with the selected managers
-    const replaced = cur
-      .replace(/cf\[12606\]\s*=\s*currentUser\(\)/gi, `cf[12606] in (${inList})`)
-      .replace(/cf\[12606\]\s+is\s+not\s+EMPTY/gi, `cf[12606] in (${inList})`)
-      .replace(/cf\[12606\]\s+in\s*\([^)]*\)/gi, `cf[12606] in (${inList})`);
-    onSettingsChange({ jql: replaced });
-  };
 
   // ── Bugs tab: engineers ──
   const loadEngineers = async () => {
@@ -297,21 +236,7 @@ export default function QueryPanel({
     setEngineersLoading(false);
   };
 
-  const toggleEngineer = (id) => setSelectedEngineers((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
 
-  const applyEngineerFilter = () => {
-    if (!selectedEngineers.length) return;
-    const inList = selectedEngineers.map((id) => `"${id}"`).join(', ');
-    const base = settings.jqlBugs || `project in (${DEV_PROJECTS})`;
-    const stripped = base.replace(/\s+AND\s+assignee\s+in\s*\([^)]*\)/gi, '').replace(/\s+AND\s+assignee\s+is\s+not\s+EMPTY/gi, '').trim();
-    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) {
-      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
-      onSettingsChange({ jqlBugs: `${before} AND assignee in (${inList})${orderMatch[1]}` });
-    } else {
-      onSettingsChange({ jqlBugs: `${stripped} AND assignee in (${inList})` });
-    }
-  };
 
   // ── Bugs tab: reporters ──
   const loadReporters = async () => {
@@ -548,53 +473,10 @@ export default function QueryPanel({
     setBugsClientsLoading(false);
   };
 
-  const toggleBugsClient = (val) => setSelectedBugsClients((p) => p.includes(val) ? p.filter((v) => v !== val) : [...p, val]);
 
-  const applyBugsClientFilter = () => {
-    if (!selectedBugsClients.length) return;
-    const inList = selectedBugsClients.map((c) => `"${c}"`).join(', ');
-    const base = settings.jqlBugs || `project in (${DEV_PROJECTS})`;
-    const stripped = base.replace(/\s+AND\s+cf\[12601\]\s+in\s*\([^)]*\)/gi, '').trim();
-    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) {
-      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
-      onSettingsChange({ jqlBugs: `${before} AND cf[12601] in (${inList})${orderMatch[1]}` });
-    } else {
-      onSettingsChange({ jqlBugs: `${stripped} AND cf[12601] in (${inList})` });
-    }
-  };
 
-  const toggleReporter = (id) => setSelectedReporters((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
 
-  const applyReporterFilter = () => {
-    if (!selectedReporters.length) return;
-    const inList = selectedReporters.map((id) => `"${id}"`).join(', ');
-    const base = settings.jqlBugs || `project in (${DEV_PROJECTS})`;
-    const stripped = base.replace(/\s+AND\s+reporter\s+in\s*\([^)]*\)/gi, '').trim();
-    const orderMatch = stripped.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) {
-      const before = stripped.slice(0, stripped.length - orderMatch[1].length);
-      onSettingsChange({ jqlBugs: `${before} AND reporter in (${inList})${orderMatch[1]}` });
-    } else {
-      onSettingsChange({ jqlBugs: `${stripped} AND reporter in (${inList})` });
-    }
-  };
 
-  // Inject reporter filter into a template JQL before ORDER BY
-  const applyBugsTemplate = (jql) => {
-    if (!selectedReporters.length) {
-      onSettingsChange({ jqlBugs: jql });
-      return;
-    }
-    const inList = selectedReporters.map((id) => `"${id}"`).join(', ');
-    const orderMatch = jql.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) {
-      const base = jql.slice(0, jql.length - orderMatch[1].length);
-      onSettingsChange({ jqlBugs: `${base} AND reporter in (${inList})${orderMatch[1]}` });
-    } else {
-      onSettingsChange({ jqlBugs: `${jql} AND reporter in (${inList})` });
-    }
-  };
 
 
   const handleLoadIssues = async () => {
@@ -606,19 +488,6 @@ export default function QueryPanel({
   // ── Saved views ──
   const views = settings.views || [];
 
-  const handleSaveView = () => {
-    const name = viewName.trim();
-    if (!name) return;
-    const isEval = activeTab === 'eval';
-    const isCR = activeTab === 'queries';
-    const view = isEval
-      ? { id: Date.now(), name, tab: 'eval', managers: evalSelectedManagers }
-      : { id: Date.now(), name, tab: activeTab, jql: isCR ? settings.jql : settings.jqlBugs, columns: isCR ? columns : columnsBugs };
-    onSettingsChange({ views: [...views, view] });
-    setViewName('');
-    setSavingView(false);
-    addToast(`Вид "${name}" сохранён`, 'success');
-  };
 
   const handleDeleteView = (id) => {
     onSettingsChange({ views: views.filter((v) => v.id !== id) });
@@ -634,15 +503,16 @@ export default function QueryPanel({
       onLoadEval(mgr);
       return;
     }
+    // Шаблон задаёт только запрос: колонки остаются теми, что пользователь настроил в «Полях таблиц».
     if (view.tab === 'queries') {
-      onSettingsChange({ jql: view.jql, columns: view.columns });
+      onSettingsChange({ jql: view.jql });
       setLoadingIssues(true);
-      await onLoadCR(view.jql, view.columns);
+      await onLoadCR(view.jql, columns);
       setLoadingIssues(false);
     } else {
-      onSettingsChange({ jqlBugs: view.jql, columnsBugs: view.columns });
+      onSettingsChange({ jqlBugs: view.jql });
       setLoadingBugs(true);
-      await onLoadBugs(view.jql, view.columns);
+      await onLoadBugs(view.jql, columnsBugs);
       setLoadingBugs(false);
     }
   };
@@ -753,18 +623,11 @@ export default function QueryPanel({
 
   useEffect(() => { setLibOpen(false); setSavingView(false); }, [activeTab]);
 
-  const withReporters = (jql, ids) => {
-    if (!ids.length) return jql;
-    const inList = ids.map((id) => `"${id}"`).join(', ');
-    const orderMatch = jql.match(/(\s+ORDER BY.*)$/i);
-    if (orderMatch) return `${jql.slice(0, jql.length - orderMatch[1].length)} AND reporter in (${inList})${orderMatch[1]}`;
-    return `${jql} AND reporter in (${inList})`;
-  };
 
   const isTemplateActive = (t) => {
     if (t.builtin === 'evalMine') return evalManagerFilter === 'currentUser()';
-    if (activeTab === 'queries') return settings.jql === t.jql || settings.jql === withReporters(t.jql, selectedCrReporters);
-    if (activeTab === 'bugs') return settings.jqlBugs === t.jql || settings.jqlBugs === withReporters(t.jql, selectedReporters);
+    if (activeTab === 'queries') return settings.jql === t.jql;
+    if (activeTab === 'bugs') return settings.jqlBugs === t.jql;
     return false;
   };
   const isViewActive = (v) => {
@@ -783,13 +646,13 @@ export default function QueryPanel({
       return;
     }
     if (activeTab === 'queries') {
-      const jql = withReporters(t.jql, selectedCrReporters);
+      const jql = t.jql;
       onSettingsChange({ jql });
       setLoadingIssues(true);
       await onLoadCR(jql, columns);
       setLoadingIssues(false);
     } else if (activeTab === 'bugs') {
-      const jql = withReporters(t.jql, selectedReporters);
+      const jql = t.jql;
       onSettingsChange({ jqlBugs: jql });
       setLoadingBugs(true);
       await onLoadBugs(jql, columnsBugs);
@@ -816,21 +679,28 @@ export default function QueryPanel({
   const hiddenCount = templateItems.length + tabViews.length - tabItems.length;
   const shownItems = [...tabItems, ...activeHidden];
   const activeKeys = shownItems.filter((it) => it.active).map((it) => it.key);
-  const selectedKey = activeKeys.includes(picked[activeTab]) ? picked[activeTab] : activeKeys[0];
+  const customJql = activeTab === 'queries' ? settings.jql : activeTab === 'bugs' ? settings.jqlBugs : '';
+  const showCustom = (activeTab === 'queries' || activeTab === 'bugs') && activeKeys.length === 0 && !!(customJql || '').trim();
+  const selectedKey = showCustom ? '__custom' : activeKeys.includes(picked[activeTab]) ? picked[activeTab] : activeKeys[0];
 
   // ── Load wrappers that fold the drawer after a successful start ──
   const loadCRFromDrawer = async () => { await handleLoadIssues(); setDrawerOpen(false); };
   const loadBugsFromDrawer = async () => { await handleLoadBugs(); setDrawerOpen(false); };
 
   // ── UI pieces ──
-  const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, searchPlaceholder, applyLabel = 'Применить' }) => {
+  const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, onReset, onSelectAll, searchPlaceholder, applyLabel = 'Применить' }) => {
     const allIds = options.map((o) => typeof o === 'string' ? o : o.accountId);
-    const visible = options.filter((o) => !searchVal || (typeof o === 'string' ? o : o.displayName).toLowerCase().includes(searchVal.toLowerCase()));
+    const idOf = (o) => (typeof o === 'string' ? o : o.accountId);
+    const nameOf = (o) => (typeof o === 'string' ? o : o.displayName);
+    const visible = options
+      .filter((o) => !searchVal || nameOf(o).toLowerCase().includes(searchVal.toLowerCase()))
+      .sort((a, b) => Number(selected.includes(idOf(b))) - Number(selected.includes(idOf(a))));
+    const selectedNames = selected.map((id) => { const o = options.find((x) => idOf(x) === id); return o ? nameOf(o) : id; });
     return (
-      <div className="picker">
+      <div className={`picker${selected.length ? ' has-sel' : ''}`}>
         <div className="picker-head">
           <div style={{ minWidth: 0 }}>
-            <div className="t">{title}</div>
+            <div className="t">{title}{selected.length > 0 && <span className="picker-count">{selected.length}</span>}</div>
             <div className="d">{subtitle}</div>
           </div>
           <button className="btn ghost" onClick={onLoad} disabled={loading} style={{ padding: '5px 8px', fontSize: 12.5 }}>
@@ -843,9 +713,10 @@ export default function QueryPanel({
             <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center' }}>
               <input className="input sm" value={searchVal} onChange={(e) => onSearch(e.target.value)} placeholder={searchPlaceholder} style={{ flex: 1 }} />
               <button className="btn ghost" style={{ padding: '5px 8px', fontSize: 12 }}
-                onClick={() => allIds.forEach((id) => { if (!selected.includes(id)) onToggle(id); })}>Все</button>
+                onClick={() => (onSelectAll ? onSelectAll(allIds) : allIds.forEach((id) => { if (!selected.includes(id)) onToggle(id); }))}>Все</button>
               <button className="btn ghost" style={{ padding: '5px 8px', fontSize: 12 }}
-                onClick={() => allIds.forEach((id) => { if (selected.includes(id)) onToggle(id); })}>Сбросить</button>
+                disabled={selected.length === 0}
+                onClick={() => (onReset ? onReset() : allIds.forEach((id) => { if (selected.includes(id)) onToggle(id); }))}>Сбросить</button>
             </div>
             <div className="picker-list">
               {visible.map((o) => {
@@ -861,7 +732,7 @@ export default function QueryPanel({
             </div>
             {selected.length > 0 && (
               <div className="picker-foot">
-                <span>Выбрано: {selected.length}</span>
+                <span title={selectedNames.join(', ')} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Выбрано: {selectedNames.join(', ')}</span>
                 {onApply && <button className="btn primary" style={{ padding: '4px 10px', fontSize: 12.5 }} onClick={onApply}>{applyLabel}</button>}
               </div>
             )}
@@ -889,7 +760,7 @@ export default function QueryPanel({
     const id = Date.now();
     const view = activeTab === 'eval'
       ? { id, name, tab: 'eval', managers: evalSelectedManagers }
-      : { id, name, tab: activeTab, jql: activeTab === 'queries' ? settings.jql : settings.jqlBugs, columns: activeTab === 'queries' ? columns : columnsBugs };
+      : { id, name, tab: activeTab, jql: activeTab === 'queries' ? settings.jql : settings.jqlBugs };
     onSettingsChange((s) => {
       const pins = s.pinnedTemplates?.[activeTab] ?? [...(DEFAULT_PINS[activeTab] || []), ...(s.views || []).filter((v) => v.tab === activeTab).map((v) => `v:${v.id}`)];
       return {
@@ -925,6 +796,61 @@ export default function QueryPanel({
     </div>
   );
 
+  // ── Фильтры, которые живут прямо в JQL ──
+  const CR_FILTERS = [
+    { key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал CR', chip: 'Автор', options: crReporterOptions, onLoad: loadCrReporters, loading: crReportersLoading, search: crReporterSearch, setSearch: setCrReporterSearch, placeholder: 'Поиск автора' },
+    { key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты из ваших CR', chip: 'Клиент', options: clientOptions, onLoad: loadClients, loading: clientsLoading, search: clientSearch, setSearch: setClientSearch, placeholder: 'Поиск клиента' },
+    { key: 'manager', field: 'cf[12606]', manager: true, title: 'По менеджерам', subtitle: 'Пусто — ваши CR', chip: 'Менеджер', options: managerOptions, onLoad: loadManagers, loading: managersLoading, search: managerSearch, setSearch: setManagerSearch, placeholder: 'Поиск менеджера' },
+  ];
+  const BUG_FILTERS = [
+    { key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал задачу', chip: 'Автор', options: reporterOptions, onLoad: loadReporters, loading: reportersLoading, search: reporterSearch, setSearch: setReporterSearch, placeholder: 'Поиск автора' },
+    { key: 'assignee', field: 'assignee', title: 'По исполнителю', subtitle: 'Инженеры команд разработки', chip: 'Исполнитель', options: engineerOptions, onLoad: loadEngineers, loading: engineersLoading, search: engineerSearch, setSearch: setEngineerSearch, placeholder: 'Поиск исполнителя' },
+    { key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты в задачах команд', chip: 'Клиент', options: bugsClientOptions, onLoad: loadBugsClients, loading: bugsClientsLoading, search: bugsClientSearch, setSearch: setBugsClientSearch, placeholder: 'Поиск клиента' },
+  ];
+  const writeFilter = (jqlKey, f, values) => {
+    const cur = settings[jqlKey] || '';
+    onSettingsChange({ [jqlKey]: f.manager ? setManagers(cur, values) : setInList(cur, f.field, values) });
+  };
+  const nameFor = (f, id) => {
+    const o = f.options.find((x) => (typeof x === 'string' ? x : x.accountId) === id);
+    if (o) return typeof o === 'string' ? o : o.displayName;
+    return id.length > 16 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+  };
+  const renderJqlPicker = (jqlKey, f) => {
+    const selected = getInList(settings[jqlKey], f.field);
+    return (
+      <React.Fragment key={f.key}>
+        {renderMultiSelect({
+          title: f.title, subtitle: f.subtitle, options: f.options, selected,
+          onLoad: f.onLoad, loading: f.loading, searchVal: f.search, onSearch: f.setSearch, searchPlaceholder: f.placeholder,
+          onToggle: (id) => writeFilter(jqlKey, f, selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]),
+          onSelectAll: (ids) => writeFilter(jqlKey, f, ids),
+          onReset: () => writeFilter(jqlKey, f, []),
+        })}
+      </React.Fragment>
+    );
+  };
+  const filterChips = (jqlKey, filters) => {
+    const active = filters.map((f) => ({ f, ids: getInList(settings[jqlKey], f.field) })).filter((x) => x.ids.length);
+    if (!active.length) return <p className="hint drawer-wide" style={{ margin: 0 }}>Отметьте значения в списках ниже — условие сразу появится в JQL. Затем нажмите «Загрузить задачи».</p>;
+    return (
+      <div className="drawer-wide filter-chips">
+        <span className="hint" style={{ margin: 0 }}>Фильтры в запросе:</span>
+        {active.flatMap(({ f, ids }) => ids.map((id) => (
+          <span key={`${f.key}-${id}`} className="fchip">
+            {f.chip}: {nameFor(f, id)}
+            <button title="Убрать из запроса" onClick={() => writeFilter(jqlKey, f, ids.filter((x) => x !== id))}><Icon name="x" size={13} /></button>
+          </span>
+        )))}
+        <button className="btn ghost" style={{ padding: '3px 8px', fontSize: 12.5 }} onClick={() => {
+          let jql = settings[jqlKey] || '';
+          active.forEach(({ f }) => { jql = f.manager ? setManagers(jql, []) : setInList(jql, f.field, []); });
+          onSettingsChange({ [jqlKey]: jql });
+        }}>Убрать все</button>
+      </div>
+    );
+  };
+
   const renderDrawer = () => {
     if (activeTab === 'queries') return (
       <div className="drawer-grid">
@@ -933,9 +859,8 @@ export default function QueryPanel({
           placeholder: 'project = MY_PROJECT ORDER BY created DESC', loadLabel: 'Загрузить задачи',
           onLoad: loadCRFromDrawer, loading: loadingIssues, extra: saveViewControl('Сохранить как шаблон'),
         })}
-        {renderMultiSelect({ title: 'По автору', subtitle: 'Кто создал CR', options: crReporterOptions, selected: selectedCrReporters, onLoad: loadCrReporters, loading: crReportersLoading, searchVal: crReporterSearch, onSearch: setCrReporterSearch, onToggle: toggleCrReporter, onApply: applyCrReporterFilter, applyLabel: 'Добавить в JQL', searchPlaceholder: 'Поиск автора' })}
-        {renderMultiSelect({ title: 'По клиентам', subtitle: 'Клиенты из ваших CR', options: clientOptions, selected: selectedClients, onLoad: loadClients, loading: clientsLoading, searchVal: clientSearch, onSearch: setClientSearch, onToggle: toggleClient, onApply: applyClientFilter, applyLabel: 'Добавить в JQL', searchPlaceholder: 'Поиск клиента' })}
-        {renderMultiSelect({ title: 'По менеджерам', subtitle: 'CR выбранных PM', options: managerOptions, selected: selectedManagers, onLoad: loadManagers, loading: managersLoading, searchVal: managerSearch, onSearch: setManagerSearch, onToggle: toggleManager, onApply: applyManagerFilter, applyLabel: 'Добавить в JQL', searchPlaceholder: 'Поиск менеджера' })}
+        {filterChips('jql', CR_FILTERS)}
+        {CR_FILTERS.map((f) => renderJqlPicker('jql', f))}
       </div>
     );
 
@@ -946,9 +871,8 @@ export default function QueryPanel({
           placeholder: `project in (${DEV_PROJECTS}) AND issuetype = Bug ORDER BY created DESC`, loadLabel: 'Загрузить задачи',
           onLoad: loadBugsFromDrawer, loading: loadingBugs, extra: saveViewControl('Сохранить как шаблон'),
         })}
-        {renderMultiSelect({ title: 'По автору', subtitle: 'Кто создал задачу', options: reporterOptions, selected: selectedReporters, onLoad: loadReporters, loading: reportersLoading, searchVal: reporterSearch, onSearch: setReporterSearch, onToggle: toggleReporter, onApply: applyReporterFilter, applyLabel: 'Добавить в JQL', searchPlaceholder: 'Поиск автора' })}
-        {renderMultiSelect({ title: 'По исполнителю', subtitle: 'Инженеры команд разработки', options: engineerOptions, selected: selectedEngineers, onLoad: loadEngineers, loading: engineersLoading, searchVal: engineerSearch, onSearch: setEngineerSearch, onToggle: toggleEngineer, onApply: applyEngineerFilter, applyLabel: 'Добавить в JQL', searchPlaceholder: 'Поиск исполнителя' })}
-        {renderMultiSelect({ title: 'По клиентам', subtitle: 'Клиенты в задачах команд', options: bugsClientOptions, selected: selectedBugsClients, onLoad: loadBugsClients, loading: bugsClientsLoading, searchVal: bugsClientSearch, onSearch: setBugsClientSearch, onToggle: toggleBugsClient, onApply: applyBugsClientFilter, applyLabel: 'Добавить в JQL', searchPlaceholder: 'Поиск клиента' })}
+        {filterChips('jqlBugs', BUG_FILTERS)}
+        {BUG_FILTERS.map((f) => renderJqlPicker('jqlBugs', f))}
       </div>
     );
 
@@ -1207,6 +1131,11 @@ export default function QueryPanel({
                   {it.label}
                 </button>
               ))}
+              {showCustom && (
+                <button className="view-tab" role="tab" aria-selected="true" title={customJql} onClick={() => setDrawerOpen(true)}>
+                  Свой запрос
+                </button>
+              )}
             </div>
             <div className="views-more">
               <span className="lib-anchor" data-tour="lib">

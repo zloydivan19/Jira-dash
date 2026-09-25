@@ -243,6 +243,12 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .picker-opt:hover { background: var(--t-bgChrome); }
 .picker-opt input { accent-color: var(--t-accent); }
 .picker-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--t-borderLight); font-size: 12px; color: var(--t-textMuted); }
+.picker.has-sel { border-color: var(--t-accent); }
+.picker-count { display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--t-accent); color: var(--t-accentText); font-size: 11.5px; font-weight: 600; text-align: center; line-height: 18px; }
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fchip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 9px; border-radius: 999px; background: var(--t-accentSoft); color: var(--t-accent); font-size: 12.5px; font-weight: 500; }
+.fchip button { display: inline-flex; background: transparent; border: 0; color: inherit; cursor: pointer; padding: 2px; border-radius: 50%; }
+.fchip button:hover { background: var(--t-bgPage); }
 .seg { display: inline-flex; background: var(--t-bgSunk); border-radius: 8px; padding: 3px; gap: 2px; }
 .seg button { padding: 5px 10px; border-radius: 6px; font-size: 12.5px; color: var(--t-textSecondary); background: transparent; border: 0; cursor: pointer; white-space: nowrap; }
 .seg button[aria-pressed="true"] { background: var(--t-bgPage); color: var(--t-textPrimary); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
