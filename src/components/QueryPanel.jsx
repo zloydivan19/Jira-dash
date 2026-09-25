@@ -1087,7 +1087,7 @@ export default function QueryPanel({
                 subtitle: (settings.ttmTeams || []).length
                   ? `Считаются только выбранные: ${(settings.ttmTeams || []).length}. Выбор запоминается`
                   : 'Ничего не выбрано — считаются все команды',
-                options: settings.ttmKnownTeams || [], selected: settings.ttmTeams || [],
+                options: Array.from(new Set([...(settings.ttmKnownTeams || []), ...(settings.ttmTeams || [])])).sort((a, b) => a.localeCompare(b, 'ru')), selected: settings.ttmTeams || [],
                 onLoad: loadTtmTeams, loading: ttmTeamsLoading,
                 searchVal: ttmTeamSearch, onSearch: setTtmTeamSearch,
                 onToggle: (val) => onSettingsChange((s) => {

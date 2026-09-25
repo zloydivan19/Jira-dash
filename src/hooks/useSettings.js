@@ -49,6 +49,11 @@ export const DEFAULT_BUG_COLUMNS = [
   { id: 'issuelinks',        label: 'Связанные задачи (Complex Project)',  since: 1 },
 ];
 
+// Команды, которые участвуют в TTM (поле Teams, cf 12800). Применяются один раз
+// через ttmTeamsVersion — дальше выбор пользователя не перезаписывается.
+export const TTM_TEAMS_VERSION = 1;
+export const DEFAULT_TTM_TEAMS = ['SCO-D', 'TeamA', 'TeamB', 'TeamE', 'TeamS', 'TeamZ'];
+
 function stripSince(col) {
   const { since, ...rest } = col;
   return rest;
@@ -116,8 +121,9 @@ const DEFAULT_SETTINGS = {
   ttmPeriodTo: '',                          // 'YYYY-MM-DD'
   ttmFilterMode: 'release',                 // 'release' | 'created'
   ttmClients: [],                           // string[] (client display values)
-  ttmTeams: [],                             // string[] выбранные команды (cf 12800); пусто = все
-  ttmKnownTeams: [],                        // string[] список команд, загруженный из CR
+  ttmTeams: DEFAULT_TTM_TEAMS,              // string[] выбранные команды (cf 12800); пусто = все
+  ttmTeamsVersion: TTM_TEAMS_VERSION,
+  ttmKnownTeams: DEFAULT_TTM_TEAMS,         // string[] список команд, загруженный из CR
   ttmKnownClients: [],                      // string[] список клиентов, загруженный из CR
   ttmJql: '',
   ttmJqlAuto: true,
@@ -135,9 +141,17 @@ function loadSettings() {
     const cr = migrateVersionedColumns(parsed.columns, parsed.crColumnsVersion, DEFAULT_CR_COLUMNS, CR_COLUMNS_VERSION);
     const bug = migrateVersionedColumns(parsed.columnsBugControl, parsed.bugColumnsVersion, DEFAULT_BUG_COLUMNS, BUG_COLUMNS_VERSION);
 
+    const teamsFresh = (parsed.ttmTeamsVersion || 0) < TTM_TEAMS_VERSION;
+    const ttmTeams = teamsFresh ? DEFAULT_TTM_TEAMS : (parsed.ttmTeams ?? DEFAULT_TTM_TEAMS);
+    const ttmKnownTeams = Array.from(new Set([...(parsed.ttmKnownTeams || []), ...DEFAULT_TTM_TEAMS]))
+      .sort((a, b) => a.localeCompare(b, 'ru'));
+
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      ttmTeams,
+      ttmTeamsVersion: TTM_TEAMS_VERSION,
+      ttmKnownTeams,
       columns: cr.columns,
       crColumnsVersion: cr.version,
       columnsBugControl: bug.columns,
