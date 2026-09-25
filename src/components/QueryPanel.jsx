@@ -607,9 +607,12 @@ export default function QueryPanel({
   const [libOpen, setLibOpen] = useState(false);
   const [picked, setPicked] = useState({});
   const markPicked = (key) => setPicked((m) => ({ ...m, [activeTab]: key }));
-  const [openMap, setOpenMap] = useState({});
-  const hasDataByTab = { queries: crHasData, bugs: bugsHasData, eval: evalHasData, bugControl: bugControlHasData, ttm: ttmHasData };
-  const drawerOpen = openMap[activeTab] ?? !hasDataByTab[activeTab];
+  // Панель открывается/закрывается только кнопкой. Начальное состояние — один раз при открытии
+  // приложения: открыта там, где данных ещё нет.
+  const [openMap, setOpenMap] = useState(() => ({
+    queries: !crHasData, bugs: !bugsHasData, eval: !evalHasData, bugControl: !bugControlHasData, ttm: !ttmHasData,
+  }));
+  const drawerOpen = !!openMap[activeTab];
   const setDrawerOpen = (v) => setOpenMap((m) => ({ ...m, [activeTab]: v }));
 
   useEffect(() => {
@@ -642,7 +645,6 @@ export default function QueryPanel({
       setEvalSelectedManagers([]);
       onEvalManagerFilterChange('currentUser()');
       onLoadEval('currentUser()');
-      setDrawerOpen(false);
       return;
     }
     if (activeTab === 'queries') {
@@ -658,13 +660,11 @@ export default function QueryPanel({
       await onLoadBugs(jql, columnsBugs);
       setLoadingBugs(false);
     }
-    setDrawerOpen(false);
   };
   const pickView = async (v) => {
     setLibOpen(false);
     markPicked(`v:${v.id}`);
     await handleLoadView(v);
-    setDrawerOpen(false);
   };
 
   const templateItems = (tabTemplates || []).filter((t) => !t.group);
@@ -684,8 +684,8 @@ export default function QueryPanel({
   const selectedKey = showCustom ? '__custom' : activeKeys.includes(picked[activeTab]) ? picked[activeTab] : activeKeys[0];
 
   // ── Load wrappers that fold the drawer after a successful start ──
-  const loadCRFromDrawer = async () => { await handleLoadIssues(); setDrawerOpen(false); };
-  const loadBugsFromDrawer = async () => { await handleLoadBugs(); setDrawerOpen(false); };
+  const loadCRFromDrawer = () => handleLoadIssues();
+  const loadBugsFromDrawer = () => handleLoadBugs();
 
   // ── UI pieces ──
   const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, onReset, onSelectAll, searchPlaceholder, applyLabel = 'Применить' }) => {
@@ -900,7 +900,7 @@ export default function QueryPanel({
             </div>
           </div>
           <div className="drawer-wide row">
-            <button className="btn primary" onClick={() => { onLoadEval(); setDrawerOpen(false); }} disabled={evalLoading}>
+            <button className="btn primary" onClick={() => onLoadEval()} disabled={evalLoading}>
               {evalLoading ? 'Загружаем…' : 'Загрузить задачи'}
             </button>
             {evalHasData && saveViewControl('Сохранить как шаблон')}
@@ -962,7 +962,7 @@ export default function QueryPanel({
             value: settings.bugControlJql || '',
             onChange: (e) => onSettingsChange({ bugControlJql: e.target.value, bugControlJqlAuto: false }),
             loadLabel: 'Загрузить задачи', loading: bugControlLoading,
-            onLoad: () => { onLoadBugControl(settings.bugControlJql); setDrawerOpen(false); },
+            onLoad: () => onLoadBugControl(settings.bugControlJql),
             extra: !settings.bugControlJqlAuto && (
               <button className="btn ghost" onClick={() => onSettingsChange({ bugControlJqlAuto: true, bugControlJql: buildBugControlJql(settings) })}>
                 <Icon name="refresh" />Собрать JQL заново
@@ -1086,7 +1086,7 @@ export default function QueryPanel({
               value: settings.ttmJql || '',
               onChange: (e) => onSettingsChange({ ttmJql: e.target.value, ttmJqlAuto: false }),
               loadLabel: 'Рассчитать TTM', loading: ttmLoading,
-              onLoad: () => { onLoadTtm(settings.ttmJql); setDrawerOpen(false); },
+              onLoad: () => onLoadTtm(settings.ttmJql),
               extra: !settings.ttmJqlAuto && (
                 <button className="btn ghost" onClick={() => onSettingsChange({ ttmJqlAuto: true, ttmJql: buildTtmJql(settings) })}>
                   <Icon name="refresh" />Собрать JQL заново
