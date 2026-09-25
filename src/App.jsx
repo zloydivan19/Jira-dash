@@ -6,7 +6,7 @@ import { useBugControl } from './hooks/useBugControl.js';
 import BugControlTab from './components/BugControlTab.jsx';
 import { useTTM, computeStats, computeTeamStats } from './hooks/useTTM.js';
 import TTMTab from './components/TTMTab.jsx';
-import { downloadCSV } from './utils/csvExport.js';
+import { downloadXLSX } from './utils/crExport.js';
 import { useTheme } from './contexts/ThemeContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DashboardTable from './components/DashboardTable.jsx';
@@ -340,9 +340,9 @@ export default function App() {
     return result;
   }, [currentIssues, search, currentFilters]);
 
-  const handleExportCSV = () => {
+  const handleExportXLSX = () => {
     if (filteredIssues.length === 0) { addToast('Нет данных для экспорта', 'error'); return; }
-    downloadCSV(filteredIssues, currentColumns);
+    downloadXLSX(filteredIssues, currentColumns);
     addToast(`Экспортировано ${filteredIssues.length} задач`, 'success');
   };
 
@@ -456,7 +456,7 @@ export default function App() {
           )}
 
           <button
-            onClick={handleExportCSV}
+            onClick={handleExportXLSX}
             disabled={filteredIssues.length === 0}
             style={{
               padding: '7px 16px',
@@ -466,7 +466,7 @@ export default function App() {
               cursor: filteredIssues.length > 0 ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
             }}
           >
-            Экспорт CSV
+            Экспорт Excel
           </button>
 
           <button

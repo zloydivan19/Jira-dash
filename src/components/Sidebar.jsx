@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { detectFieldType } from '../utils/fieldExtractor.js';
+import { restoreDefaultColumns } from '../hooks/useSettings.js';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
 
@@ -1781,31 +1782,24 @@ export default function Sidebar({
             <button style={switchBtn('bugControl', fieldsContext)} onClick={() => setFieldsContext('bugControl')}>Контроль ошибок</button>
           </div>
 
-          {fieldsContext === 'bugControl' && (
+          {(fieldsContext === 'cr' || fieldsContext === 'bugControl') && (
             <div style={{ marginBottom: '10px', padding: '8px 10px', background: theme.bgInput, border: `1px solid ${theme.borderLight}`, borderRadius: '6px' }}>
               <div style={{ fontSize: '11px', color: theme.textSecondary, marginBottom: '6px', lineHeight: 1.4 }}>
-                Колонки для «Контроля ошибок». Если список пустой — используется встроенный набор по умолчанию.
-                Можно менять порядок, удалять, добавлять новые поля Jira.
+                Список ниже — ваше личное представление: что удалите — останется удалённым
+                даже после обновления страницы, что добавите — сохранится. Новые дефолтные
+                поля (если появятся) сами добавятся в конец, ничего у вас не заменяя.
               </div>
               <button
-                onClick={() => onColumnsBugControlChange([
-                  { id: 'key',                label: 'Ключ',               defaultWidth: 110 },
-                  { id: 'client',             label: 'Клиент',             defaultWidth: 180 },
-                  { id: 'status',             label: 'Статус',             defaultWidth: 130 },
-                  { id: 'summary',            label: 'Описание',           defaultWidth: 320 },
-                  { id: 'currentFixVersion',  label: 'Фактическая версия', defaultWidth: 140 },
-                  { id: 'flag',               label: 'Флаг',               defaultWidth: 130 },
-                  { id: 'changeCount',        label: 'Изменений',          defaultWidth: 90  },
-                  { id: 'lastChange',         label: 'Последнее изменение',defaultWidth: 200 },
-                  { id: 'history',            label: 'История fix version',defaultWidth: 360 },
-                  { id: 'reporter',           label: 'Reporter',           defaultWidth: 140 },
-                ])}
+                onClick={() => {
+                  if (!window.confirm('Заменить текущий список колонок на набор по умолчанию? Все ваши изменения (удалённые/добавленные поля, порядок) будут потеряны.')) return;
+                  activeOnColumnsChange(restoreDefaultColumns(fieldsContext));
+                }}
                 style={{ width: '100%', padding: '6px 10px', fontSize: '12px', fontWeight: 600,
                   border: `1px solid ${theme.border}`, borderRadius: '5px',
                   background: theme.bgPage, color: theme.textSecondary, cursor: 'pointer' }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.color = theme.accent; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textSecondary; }}>
-                ↻ Восстановить встроенные колонки
+                ↻ Восстановить поля по умолчанию
               </button>
             </div>
           )}

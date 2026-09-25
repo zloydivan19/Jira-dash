@@ -15,6 +15,22 @@ function extractADFText(node) {
 }
 
 /**
+ * Из "Связанные задачи" (issuelinks) находит связанный Complex Project.
+ * issuelinks может содержать много несвязанного (CR, проектные решения,
+ * задачи на документацию и т.д.), и Complex Project использует тот же
+ * формат ключа (CR-XXXX), что и всё остальное — отличить можно только по
+ * issuetype.name связанной задачи, а не по маске ключа.
+ */
+function extractComplexProjectKeys(rawLinks) {
+  if (!Array.isArray(rawLinks)) return [];
+  return rawLinks
+    .map((link) => link.inwardIssue || link.outwardIssue)
+    .filter((linked) => linked?.fields?.issuetype?.name === 'Complex Project')
+    .map((linked) => linked.key)
+    .filter(Boolean);
+}
+
+/**
  * Recursively extracts a display value from a raw Jira field value.
  */
 export function extractFieldValue(rawValue) {
@@ -66,6 +82,16 @@ export function extractIssueData(issue, columns = [], jiraUrl = '') {
     // Jira, это issue.key, уже записан выше в result. fields[...] для них всегда
     // undefined, поэтому их нельзя перезаписывать отсюда.
     if (col.id === 'issueKey' || col.id === 'issuekey') continue;
+    if (col.id === 'issuelinks') {
+      const cpKeys = extractComplexProjectKeys(fields.issuelinks);
+      result[col.id] = cpKeys.join(', ') || null;
+      // Отдельно — структура для рендера кликабельных ссылок (см. DashboardTable.jsx).
+      result.issuelinksCP = cpKeys.map((key) => ({
+        key,
+        url: jiraUrl ? `${jiraUrl.replace(/\/$/, '')}/browse/${key}` : '#',
+      }));
+      continue;
+    }
     result[col.id] = extractFieldValue(fields[col.id]);
   }
 

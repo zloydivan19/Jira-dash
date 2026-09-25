@@ -85,6 +85,24 @@ function extractADFText(node) {
   return '';
 }
 
+// Из "Связанные задачи" (issuelinks) находит связанный Complex Project.
+// issuelinks может содержать много несвязанного (CR, проектные решения,
+// задачи на документацию и т.д.), и Complex Project использует тот же
+// формат ключа (CR-XXXX), что и всё остальное — отличить можно только по
+// issuetype.name связанной задачи, а не по маске ключа.
+function extractComplexProjectKeysArr(rawLinks) {
+  if (!Array.isArray(rawLinks)) return [];
+  return rawLinks
+    .map((link) => link.inwardIssue || link.outwardIssue)
+    .filter((linked) => linked?.fields?.issuetype?.name === 'Complex Project')
+    .map((linked) => linked.key)
+    .filter(Boolean);
+}
+function extractComplexProjectKeys(rawLinks) {
+  const keys = extractComplexProjectKeysArr(rawLinks);
+  return keys.length ? keys.join(', ') : '—';
+}
+
 // Generic value extractor for custom user-added columns
 function extractFieldValue(raw) {
   if (raw == null) return '—';
@@ -199,6 +217,7 @@ function getCellStr(colId, issue, entry) {
     case 'lastChange':         return getLastChange(entry);
     case 'reporter':           return getReporter(issue);
     case 'status':             return issue.fields?.status?.name || '—';
+    case 'issuelinks':         return extractComplexProjectKeys(issue.fields?.issuelinks);
     default:                   return extractFieldValue(issue.fields?.[colId]);
   }
 }
@@ -316,6 +335,23 @@ function renderBugControlCell(col, issue, entry, helpers) {
       return <HistoryCell history={entry?.history} versionsMeta={versionsMeta} theme={theme} />;
     case 'reporter':
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getReporter(issue)}</span>;
+    case 'issuelinks': {
+      const cpKeys = extractComplexProjectKeysArr(issue.fields?.issuelinks);
+      if (!cpKeys.length) return <span style={{ fontSize: '12px', color: theme.textSecondary }}>—</span>;
+      return (
+        <span style={{ fontSize: '12px' }}>
+          {cpKeys.map((k, i) => (
+            <React.Fragment key={k}>
+              {i > 0 && ', '}
+              <a href={`${jiraBase}/browse/${k}`} target="_blank" rel="noreferrer"
+                style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace" }}>
+                {k}
+              </a>
+            </React.Fragment>
+          ))}
+        </span>
+      );
+    }
     default: {
       // User-added custom column — fetch from issue.fields[col.id]
       const raw = issue.fields?.[col.id];

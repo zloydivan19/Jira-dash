@@ -288,6 +288,20 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                     >{row.issueKey}</a>
                   </td>
                 );
+                if (col.id === 'issuelinks') return (
+                  <td key={col.id} style={{ ...tdBase, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {(row.issuelinksCP || []).length === 0 ? '—' : row.issuelinksCP.map((l, i) => (
+                      <React.Fragment key={l.key}>
+                        {i > 0 && ', '}
+                        <a href={l.url} target="_blank" rel="noreferrer"
+                          style={{ color: theme.accent, textDecoration: 'none', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px' }}
+                          onMouseEnter={(e) => (e.target.style.textDecoration = 'underline')}
+                          onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
+                        >{l.key}</a>
+                      </React.Fragment>
+                    ))}
+                  </td>
+                );
                 if (col.type === 'status') return (
                   <td key={col.id} style={tdBase}><StatusBadge status={row.status} /></td>
                 );
