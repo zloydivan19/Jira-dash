@@ -3,8 +3,18 @@ import axios from 'axios';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, x-jira-url, x-jira-email, x-jira-token',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
+
+// Текстовые ноды ADF не могут содержать "\n" — переносы строк отдельными hardBreak.
+function textToADFNodes(text) {
+  const nodes = [];
+  text.split('\n').forEach((line, idx) => {
+    if (idx > 0) nodes.push({ type: 'hardBreak' });
+    nodes.push({ type: 'text', text: line });
+  });
+  return nodes;
+}
 
 function json(statusCode, data) {
   return {
@@ -31,6 +41,7 @@ export const handler = async (event) => {
   const auth = 'Basic ' + Buffer.from(`${jiraEmail}:${jiraToken}`).toString('base64');
   const rawPath = event.path || '';
   const endpoint = rawPath.includes('changelog') ? 'changelog'
+    : rawPath.includes('comment')  ? 'comment'
     : rawPath.includes('search')   ? 'search'
     : rawPath.includes('fields')   ? 'fields'
     : rawPath.includes('myself')   ? 'myself'
@@ -84,6 +95,26 @@ export const handler = async (event) => {
       }
       return json(200, { values: allValues, total: allValues.length, isLast: true });
 
+    } else if (endpoint === 'comment') {
+      if (event.httpMethod !== 'POST') return json(405, { error: 'POST required' });
+      let payload = {};
+      try { payload = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON body' }); }
+      const { issueKey, text, mentionAccountId } = payload;
+      if (!issueKey || !text) return json(400, { error: 'issueKey and text required' });
+
+      // С mentionAccountId комментарий начинается с @упоминания — Jira пришлёт человеку уведомление.
+      const textNodes = textToADFNodes(text);
+      const content = mentionAccountId
+        ? [{ type: 'mention', attrs: { id: mentionAccountId } }, { type: 'text', text: ' ' + textNodes[0].text }, ...textNodes.slice(1)]
+        : textNodes;
+
+      const res = await axios.post(
+        `${jiraUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`,
+        { body: { type: 'doc', version: 1, content: [{ type: 'paragraph', content }] } },
+        { headers: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 15000 },
+      );
+      return json(200, { success: true, id: res.data?.id });
+
     } else {
       return json(404, { error: 'Unknown endpoint' });
     }
@@ -94,10 +125,16 @@ export const handler = async (event) => {
     if (err.response) {
       const status = err.response.status;
       if (status === 401) return json(401, { error: 'Неверные credentials (email или token)' });
-      if (status === 400) {
+      if (status === 400 && endpoint !== 'comment') {
         const details = err.response.data?.errorMessages?.join('; ') ||
           JSON.stringify(err.response.data?.errors || {});
         return json(400, { error: 'Ошибка JQL', details });
+      }
+      if (endpoint === 'comment') {
+        const details = err.response.data?.errorMessages?.join('; ')
+          || (err.response.data?.errors && JSON.stringify(err.response.data.errors))
+          || 'Jira API error';
+        return json(status, { error: details });
       }
       return json(status, { error: err.response.data?.message || 'Jira API error' });
     }
