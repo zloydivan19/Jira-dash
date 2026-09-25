@@ -1074,11 +1074,26 @@ export default function QueryPanel({
               <div>
                 <div className="fld-label">Какую дату сравнивать с периодом</div>
                 {segButtons([{ value: 'release', label: 'Дату релиза' }, { value: 'created', label: 'Дату создания' }], settings.ttmFilterMode, (v) => onSettingsChange({ ttmFilterMode: v }))}
+                <div className="hint" style={{ maxWidth: '46ch', lineHeight: 1.5 }}>
+                  {settings.ttmFilterMode === 'created'
+                    ? 'В отчёт попадут CR, созданные в выбранный период и уже вышедшие в релиз. Показывает, как быстро доехали до клиента запросы, поступившие за период.'
+                    : 'В отчёт попадут CR, вышедшие в релиз в выбранный период, когда бы их ни создали. Показывает, сколько шло до клиента всё, что выпустили за период.'}
+                  {' '}Сам TTM считается одинаково, меняется только набор задач.
+                </div>
               </div>
               <div>
                 <div className="fld-label">Расчёт фаз</div>
                 {segButtons([{ value: 'aggregate', label: 'Все циклы' }, { value: 'lastCycle', label: 'Последний цикл' }], settings.ttmPhaseCalcMode || 'aggregate', (v) => onSettingsChange({ ttmPhaseCalcMode: v }))}
-                <div className="hint">{settings.ttmPhaseCalcMode === 'lastCycle' ? 'Фазы 1 и 2 считаются по последнему циклу до доставки' : 'Фазы 1 и 2 суммируются по всем циклам'}</div>
+                <div className="hint" style={{ maxWidth: '46ch', lineHeight: 1.5, display: 'grid', gap: 2 }}>
+                  <span><b style={{ fontWeight: 600 }}>Фаза 1, оценка:</b> от модерации, «На оценку» или уточнения требований до «CR в майке».</span>
+                  <span><b style={{ fontWeight: 600 }}>Фаза 2, согласование:</b> от «CR в майке» до «Приоритезирован».</span>
+                  <span><b style={{ fontWeight: 600 }}>Фаза 3, разработка:</b> от «Приоритезирован» до «Отправлено клиенту», от этой настройки не зависит.</span>
+                </div>
+                <div className="hint" style={{ maxWidth: '46ch', lineHeight: 1.5, color: 'var(--t-textSecondary)' }}>
+                  {settings.ttmPhaseCalcMode === 'lastCycle'
+                    ? 'Если CR возвращали на переоценку, считается только последний круг оценки и согласования, а TTM отсчитывается от начала этого круга, а не от создания задачи. Подходит, когда старые круги не показательны, например CR долго лежал и его оценили заново.'
+                    : 'Если CR возвращали на переоценку, время всех кругов оценки и согласования складывается. Показывает, сколько на самом деле ушло на оценку и согласование. TTM считается от создания задачи.'}
+                </div>
               </div>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
