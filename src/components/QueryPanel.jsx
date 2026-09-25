@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Icon from './Icon.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
-import { getInList, setInList, setManagers } from '../utils/jqlFilters.js';
+import { getInList, setInList, setManagers, getExtraKeys, setExtraKeys, parseKeys } from '../utils/jqlFilters.js';
 
 const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
 // CR живут в проекте CR (ключи CR-XXXX); Complex Project там же, но в TTM не участвует.
@@ -851,14 +851,72 @@ export default function QueryPanel({
     );
   };
 
+  // ── Задачи, добавленные вручную по номеру ──
+  const [extraInput, setExtraInput] = useState({});
+  const extraKeysBlock = (jqlKey) => {
+    const keys = getExtraKeys(settings[jqlKey]);
+    const input = extraInput[jqlKey] || '';
+    const parsed = parseKeys(input);
+    const add = () => {
+      if (!parsed.length) return;
+      onSettingsChange({ [jqlKey]: setExtraKeys(settings[jqlKey], [...keys, ...parsed]) });
+      setExtraInput((m) => ({ ...m, [jqlKey]: '' }));
+    };
+    return (
+      <div className="drawer-wide extra-keys">
+        <label className="fld-label">Добавить задачи по номеру</label>
+        <div className="row" style={{ alignItems: 'flex-start' }}>
+          <textarea className="jql-area" rows={2} spellCheck={false} style={{ flex: 1, minHeight: 40, minWidth: 220 }}
+            value={input} onChange={(e) => setExtraInput((m) => ({ ...m, [jqlKey]: e.target.value }))}
+            onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) add(); }}
+            placeholder="CR-15776 или список: по одному в строке, через запятую или пробел" />
+          <button className="btn" onClick={add} disabled={!parsed.length}>
+            <Icon name="plus" />{parsed.length > 1 ? `Добавить ${parsed.length}` : 'Добавить'}
+          </button>
+        </div>
+        {keys.length > 0 ? (
+          <div className="filter-chips" style={{ marginTop: 8 }}>
+            <span className="hint" style={{ margin: 0 }}>Загрузятся вместе с запросом ({keys.length}):</span>
+            {keys.map((k) => (
+              <span key={k} className="fchip mono">
+                {k}
+                <button title="Убрать" onClick={() => onSettingsChange({ [jqlKey]: setExtraKeys(settings[jqlKey], keys.filter((x) => x !== k)) })}><Icon name="x" size={13} /></button>
+              </span>
+            ))}
+            <button className="btn ghost" style={{ padding: '3px 8px', fontSize: 12.5 }} onClick={() => onSettingsChange({ [jqlKey]: setExtraKeys(settings[jqlKey], []) })}>Убрать все</button>
+          </div>
+        ) : (
+          <p className="hint" style={{ margin: '6px 0 0' }}>Задачи, где вы не автор и не менеджер, загрузятся вместе с результатом запроса. Сохраните запрос как шаблон, чтобы вызывать их вместе.</p>
+        )}
+      </div>
+    );
+  };
+
+  // Сохранить текущий запрос в свой шаблон, который был выбран последним.
+  const updateViewControl = (jqlKey) => {
+    const key = picked[activeTab];
+    const view = key && key.startsWith('v:') ? tabViews.find((v) => `v:${v.id}` === key) : null;
+    if (!view || view.jql === settings[jqlKey]) return null;
+    return (
+      <button className="btn" title={`Заменить запрос в шаблоне «${view.name}» на текущий`}
+        onClick={() => {
+          onSettingsChange((s) => ({ views: (s.views || []).map((v) => (v.id === view.id ? { ...v, jql: s[jqlKey] } : v)) }));
+          addToast(`Шаблон «${view.name}» обновлён`, 'success');
+        }}>
+        Сохранить в «{view.name}»
+      </button>
+    );
+  };
+
   const renderDrawer = () => {
     if (activeTab === 'queries') return (
       <div className="drawer-grid">
         {jqlBlock({
           label: 'JQL-запрос', value: settings.jql, onChange: (e) => onSettingsChange({ jql: e.target.value }),
           placeholder: 'project = MY_PROJECT ORDER BY created DESC', loadLabel: 'Загрузить задачи',
-          onLoad: loadCRFromDrawer, loading: loadingIssues, extra: saveViewControl('Сохранить как шаблон'),
+          onLoad: loadCRFromDrawer, loading: loadingIssues, extra: <>{updateViewControl('jql')}{saveViewControl('Сохранить как шаблон')}</>,
         })}
+        {extraKeysBlock('jql')}
         {filterChips('jql', CR_FILTERS)}
         {CR_FILTERS.map((f) => renderJqlPicker('jql', f))}
       </div>
@@ -869,8 +927,9 @@ export default function QueryPanel({
         {jqlBlock({
           label: `JQL-запрос (команды ${DEV_PROJECTS})`, value: settings.jqlBugs || '', onChange: (e) => onSettingsChange({ jqlBugs: e.target.value }),
           placeholder: `project in (${DEV_PROJECTS}) AND issuetype = Bug ORDER BY created DESC`, loadLabel: 'Загрузить задачи',
-          onLoad: loadBugsFromDrawer, loading: loadingBugs, extra: saveViewControl('Сохранить как шаблон'),
+          onLoad: loadBugsFromDrawer, loading: loadingBugs, extra: <>{updateViewControl('jqlBugs')}{saveViewControl('Сохранить как шаблон')}</>,
         })}
+        {extraKeysBlock('jqlBugs')}
         {filterChips('jqlBugs', BUG_FILTERS)}
         {BUG_FILTERS.map((f) => renderJqlPicker('jqlBugs', f))}
       </div>
