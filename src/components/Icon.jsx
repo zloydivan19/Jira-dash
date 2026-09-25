@@ -24,6 +24,7 @@ const PATHS = {
   moon: <path d="M15.5 12.3A6.5 6.5 0 0 1 7.7 4.5a6.5 6.5 0 1 0 7.8 7.8z" />,
   play: <path d="M7 5.5v9l7-4.5z" />,
   flag: <><path d="M5 17V3.5" /><path d="M5 4h9l-2 3.5 2 3.5H5" /></>,
+  help: <><circle cx="10" cy="10" r="7" /><path d="M8 8a2 2 0 1 1 2.8 1.8c-.5.3-.8.7-.8 1.2v.5" /><path d="M10 14h.01" /></>,
   trash: <path d="M5 6h10M8 6V4.5h4V6M6.5 6l.6 9.5h5.8l.6-9.5" />,
 };
 

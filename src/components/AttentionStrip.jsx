@@ -7,7 +7,7 @@ export default function AttentionStrip({ rows, selected, onSelect }) {
     .filter((s) => s.n > 0);
 
   return (
-    <div className="attn">
+    <div className="attn" data-tour="summary">
       <span className="attn-cap">Требует внимания</span>
       {items.length === 0 && <span className="attn-cap">ничего, всё в порядке</span>}
       {items.map((s) => (

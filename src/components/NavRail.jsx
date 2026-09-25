@@ -10,12 +10,12 @@ export const SECTIONS = [
   { id: 'ttm',        label: 'TTM анализ',      icon: 'ttm' },
 ];
 
-export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCollapsed, userInfo, jiraUrl }) {
+export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCollapsed, userInfo, jiraUrl, onStartTour }) {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme.id === 'dark';
   const host = (jiraUrl || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
   const item = (id, label, icon, title) => (
-    <button key={id} className="rail-item" aria-current={activeTab === id ? 'page' : undefined}
+    <button key={id} className="rail-item" data-tour={`nav-${id}`} aria-current={activeTab === id ? 'page' : undefined}
       onClick={() => onTabChange(id)} title={collapsed ? label : title}>
       <Icon name={icon} />
       <span className="rail-lbl">{label}</span>
@@ -30,7 +30,7 @@ export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCol
         <RadarMark />
         <span className="rail-brand-name">PM Radar</span>
       </div>
-      <nav className="rail-nav" aria-label="Разделы">
+      <nav className="rail-nav" aria-label="Разделы" data-tour="nav">
         {SECTIONS.map((s) => item(s.id, s.label, s.icon))}
       </nav>
       <nav className="rail-nav bottom" aria-label="Настройки">
@@ -44,6 +44,10 @@ export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCol
             <b>{userInfo?.displayName || 'Подключение к Jira'}</b>
             {host || 'не настроено'}
           </span>
+        </button>
+        <button className="rail-item" data-tour="help" onClick={onStartTour} title="Короткий тур по PM Radar">
+          <Icon name="help" />
+          <span className="rail-lbl">Как пользоваться</span>
         </button>
         <button className="rail-item" onClick={toggleTheme} title={isDark ? 'Светлая тема' : 'Тёмная тема'}>
           <Icon name={isDark ? 'sun' : 'moon'} />

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import Icon from './Icon.jsx';
 
-export default function ConnectionPage({ settings, onSettingsChange, onFetchMyself, onConnected }) {
+export default function ConnectionPage({ settings, onSettingsChange, onFetchMyself, onConnected, onStartTour }) {
   const [status, setStatus] = useState(null);
   const [msg, setMsg] = useState('');
   const [showToken, setShowToken] = useState(false);
@@ -38,9 +39,12 @@ export default function ConnectionPage({ settings, onSettingsChange, onFetchMyse
           <circle cx="246" cy="236" r="4.5" style={{ fill: 'var(--t-success)' }} /><text x="255" y="232">CR-1234</text>
         </svg>
         <p>CR и ошибки ваших клиентов в одной таблице, со сроками оценки и SLA.</p>
+        <button type="button" className="btn" onClick={onStartTour}>
+          <Icon name="help" />Как пользоваться PM Radar
+        </button>
       </div>
       <div className="login-form">
-        <form onSubmit={submit}>
+        <form onSubmit={submit} data-tour="connect">
           <h1>Подключение к Jira</h1>
           <p className="lead">Токен хранится только в этом браузере, на сервер PM Radar он не сохраняется.</p>
           <label className="fld">

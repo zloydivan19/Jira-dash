@@ -56,7 +56,7 @@ export default function StatusStrip({ issues, selected, onSelect }) {
   const filtering = selected && selected.length > 0;
 
   return (
-    <div className="strip">
+    <div className="strip" data-tour="summary">
       <div className={`strip-main${filtering ? ' filtering' : ''}`}>
         <div className="strip-track">
           {groups.map((g) => (

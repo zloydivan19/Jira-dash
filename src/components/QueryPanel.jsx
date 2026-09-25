@@ -1201,7 +1201,7 @@ export default function QueryPanel({
       <div className="views">
         {tabTemplates && (
           <>
-            <div className="views-tabs" role="tablist">
+            <div className="views-tabs" role="tablist" data-tour="templates">
               {shownItems.map((it) => (
                 <button key={it.key} className="view-tab" role="tab" aria-selected={it.key === selectedKey} title={it.title} onClick={it.onClick}>
                   {it.label}
@@ -1209,7 +1209,7 @@ export default function QueryPanel({
               ))}
             </div>
             <div className="views-more">
-              <span className="lib-anchor">
+              <span className="lib-anchor" data-tour="lib">
                 <button className="view-tab quiet" aria-expanded={libOpen} onClick={() => setLibOpen((v) => !v)}>
                   Все шаблоны{hiddenCount > 0 && <span className="c">+{hiddenCount}</span>}<Icon name="chevD" />
                 </button>
@@ -1249,29 +1249,29 @@ export default function QueryPanel({
                   </div>
                 )}
               </span>
-              <button className="view-tab quiet" onClick={() => { setDrawerOpen(true); setSavingView(true); }}>
+              <button className="view-tab quiet" data-tour="own" onClick={() => { setDrawerOpen(true); setSavingView(true); }}>
                 <Icon name="plus" />Свой
               </button>
             </div>
           </>
         )}
         <div className={`views-tools${tabTemplates ? ' sep' : ''}`}>
-          <button className={`btn ghost${drawerOpen ? ' on' : ''}`} onClick={() => setDrawerOpen(!drawerOpen)} aria-expanded={drawerOpen}>
+          <button className={`btn ghost${drawerOpen ? ' on' : ''}`} data-tour="filters" onClick={() => setDrawerOpen(!drawerOpen)} aria-expanded={drawerOpen}>
             <Icon name="sliders" />{drawerLabel}
           </button>
           {attention && (
-            <button className={`btn ghost${attention.on ? ' on' : ''}`} onClick={attention.toggle} aria-pressed={attention.on}
+            <button className={`btn ghost${attention.on ? ' on' : ''}`} data-tour="attention" onClick={attention.toggle} aria-pressed={attention.on}
               title={attention.on ? 'Скрыть колонку «Внимание» и сводку' : 'Показать колонку «Внимание» и сводку'}>
               <Icon name="flag" />Внимание
             </button>
           )}
           {isQueryTab && (
-            <label className="searchbox">
+            <label className="searchbox" data-tour="search">
               <Icon name="search" />
               <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Поиск по таблице" />
             </label>
           )}
-          <button className="icon-btn" onClick={onToggleFullscreen} title={fullscreen ? 'Выйти из полноэкранного режима (Esc)' : 'Таблица на весь экран'}>
+          <button className="icon-btn" data-tour="fullscreen" onClick={onToggleFullscreen} title={fullscreen ? 'Выйти из полноэкранного режима (Esc)' : 'Таблица на весь экран'}>
             <Icon name={fullscreen ? 'shrink' : 'expand'} />
           </button>
         </div>

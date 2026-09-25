@@ -13,6 +13,7 @@ import ConnectionPage from './components/ConnectionPage.jsx';
 import FieldsPage from './components/FieldsPage.jsx';
 import StatusStrip from './components/StatusStrip.jsx';
 import AttentionStrip from './components/AttentionStrip.jsx';
+import OnboardingTour from './components/OnboardingTour.jsx';
 import { useCrStatusDays } from './hooks/useCrStatusDays.js';
 import { attentionFlags, hasAttention } from './utils/crAttention.js';
 
@@ -69,6 +70,7 @@ export default function App() {
   }), [crJira.issues, crDays]);
   const attentionVisible = settings.crAttentionVisible !== false;
   const [attnFilter, setAttnFilter] = useState(null);
+  const [tourOpen, setTourOpen] = useState(false);
   const bugsJira = useJira('jira_session_bugs');
   const evaluation = useEvaluation();
   const bugControl = useBugControl();
@@ -386,6 +388,7 @@ export default function App() {
   if (activeTab === 'connection') {
     page = (
       <ConnectionPage settings={settings} onSettingsChange={updateSettings} onFetchMyself={handleFetchMyself}
+        onStartTour={() => { setFullscreen(false); setTourOpen(true); }}
         onConnected={() => setTimeout(() => changeTab('queries'), 600)} />
     );
   } else if (activeTab === 'fields') {
@@ -410,7 +413,7 @@ export default function App() {
               </p>
             </div>
             {isDataTab && (
-              <div className="page-actions">
+              <div className="page-actions" data-tour="export">
                 {currentIssues.length > 0 && (
                   <button className="btn ghost" onClick={isCRActive ? handleRefreshCR : handleRefreshBugs}
                     disabled={currentStatus === 'loading'} title="Обновить данные, не сбрасывая фильтры таблицы">
@@ -538,10 +541,12 @@ export default function App() {
     <div className="shell">
       {!fullscreen && (
         <NavRail activeTab={activeTab} onTabChange={changeTab} collapsed={collapsed} onToggleCollapsed={toggleCollapsed}
-          userInfo={userInfo} jiraUrl={settings.jiraUrl} />
+          userInfo={userInfo} jiraUrl={settings.jiraUrl}
+          onStartTour={() => { setFullscreen(false); setTourOpen(true); }} />
       )}
       <main className="shell-main">{page}</main>
       <Toast toasts={toasts} removeToast={removeToast} />
+      {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} onTabChange={changeTab} hasTable={crJira.status === 'success'} />}
     </div>
   );
 }

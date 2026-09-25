@@ -256,7 +256,22 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .state p { margin: 0; max-width: 46ch; font-size: 13.5px; }
 .spinner { width: 28px; height: 28px; border: 2.5px solid var(--t-border); border-top-color: var(--t-accent); border-radius: 50%; animation: spin .8s linear infinite; }
 
+/* ── Onboarding tour ───────────────────────────────────── */
+.tour { position: fixed; inset: 0; z-index: 10000; }
+.tour-catch { position: absolute; inset: 0; }
+.tour-dim { position: absolute; inset: 0; background: rgba(10, 12, 20, .55); }
+.tour-spot { position: absolute; border-radius: 9px; box-shadow: 0 0 0 9999px rgba(10, 12, 20, .55), 0 0 0 2px var(--t-accent); pointer-events: none; transition: top 180ms ease, left 180ms ease, width 180ms ease, height 180ms ease; }
+.tour-card { position: absolute; width: 360px; max-width: calc(100vw - 24px); background: var(--t-bgPage); color: var(--t-textPrimary); border: 1px solid var(--t-border); border-radius: 12px; box-shadow: var(--t-shadowPop); padding: 14px 16px 16px; }
+.tour-top { display: flex; align-items: center; justify-content: space-between; margin: -4px -6px 2px 0; }
+.tour-count { font-size: 12px; color: var(--t-textMuted); }
+.tour-card h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+.tour-card p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--t-textSecondary); }
+.tour-progress { height: 3px; background: var(--t-bgSunk); border-radius: 2px; margin: 14px 0 12px; overflow: hidden; }
+.tour-progress span { display: block; height: 100%; background: var(--t-accent); transition: width 180ms ease; }
+.tour-actions { display: flex; justify-content: space-between; gap: 8px; }
+
 @media (prefers-reduced-motion: reduce) {
+  .tour-spot, .tour-progress span { transition: none; }
   .radar .sweep, .spinner { animation: none; }
   .rail { transition: none; }
 }

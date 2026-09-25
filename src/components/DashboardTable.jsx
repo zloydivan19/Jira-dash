@@ -227,7 +227,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
         <colgroup>
           {allColumns.map((col) => <col key={col.id} style={{ width: getWidth(col) + 'px' }} />)}
         </colgroup>
-        <thead>
+        <thead data-tour="table-head">
           <tr>
             {allColumns.map((col, ci) => {
               const isFiltered = (columnFilters[col.id]?.length ?? 0) > 0;
