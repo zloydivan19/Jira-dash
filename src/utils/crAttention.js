@@ -7,6 +7,8 @@ const PRIO_PLUS = new Set([
   'отправлены на согласование', 'согласованы', 'в разработке', 'awaiting for the release',
   'отправлено клиенту', 'fixing deficiencies', 'accepted by client',
 ]);
+// Отложенные и завершённые CR: спецификацию по ним не проверяем.
+const NO_SPEC_CHECK = new Set(['отложено', 'pause', 'on hold', 'оплачено', 'обработано', 'закрыто']);
 const PAID_KIND = 'платная доработка';
 const WAITING_STATUS = 'cr в майке';
 
@@ -89,6 +91,7 @@ export function attentionFlags(input, days, todayIso = new Date().toISOString().
     const d = days?.waitDays;
     out.push({ id: 'wait', level: 'info', text: d == null ? 'Согласование' : `Согласование ${d} р.д.` });
   }
+  if (NO_SPEC_CHECK.has(norm(input.status))) return out;
   const specs = input.specs || [];
   if (norm(input.kind) === PAID_KIND && PRIO_PLUS.has(norm(input.status)) && specs.length === 0) {
     out.push({ id: 'nospec', level: 'bad', text: 'Нужна спецификация' });
