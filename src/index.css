@@ -104,7 +104,7 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .lib-del:hover { color: var(--t-error); background: var(--t-errorBg); }
 
 /* ── Query drawer ──────────────────────────────────────── */
-.drawer { background: var(--t-bgChrome); border-bottom: 1px solid var(--t-border); padding: 16px 20px; max-height: 55vh; overflow: auto; flex-shrink: 0; }
+.drawer { background: var(--t-bgChrome); border-bottom: 1px solid var(--t-border); padding: 16px 20px; max-height: 68vh; overflow: auto; flex-shrink: 0; }
 .drawer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 20px; align-items: start; }
 .drawer-wide { grid-column: 1 / -1; }
 .drawer-note { font-size: 13px; color: var(--t-textSecondary); margin: 0 0 12px; max-width: 80ch; }

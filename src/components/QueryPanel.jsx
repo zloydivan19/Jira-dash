@@ -102,7 +102,7 @@ export default function QueryPanel({
   }, [
     activeTab,
     settings.ttmJqlAuto,
-    settings.ttmProjects,
+    settings.ttmTeams,
     settings.ttmIssueType,
     settings.ttmClients,
     settings.ttmDevTypes,
@@ -419,6 +419,41 @@ export default function QueryPanel({
     setBugControlClientsLoading(false);
   };
 
+  // ── TTM tab: teams and clients from CR (not from bugs) ──
+  const [ttmTeamsLoading, setTtmTeamsLoading] = useState(false);
+  const [ttmTeamSearch, setTtmTeamSearch] = useState('');
+  const [ttmClientsLoading, setTtmClientsLoading] = useState(false);
+  const [ttmClientSearch, setTtmClientSearch] = useState('');
+
+  const loadTtmFieldValues = async (fieldId, cfNum, settingKey, setBusy, label) => {
+    setBusy(true);
+    addToast('Загрузка списка...', 'info');
+    try {
+      const seen = new Set();
+      const issueType = (settings.ttmIssueType || 'CR').trim();
+      const jql = `issuetype = "${issueType}" AND cf[${cfNum}] is not EMPTY`;
+      const extract = (v) => (typeof v === 'object' && v !== null ? (v.value ?? v.name ?? null) : (v != null ? String(v) : null));
+      let nextPageToken = null;
+      while (true) {
+        const params = { jql, maxResults: 1000, fields: fieldId };
+        if (nextPageToken) params.nextPageToken = nextPageToken;
+        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
+        (res.data?.issues || []).forEach((issue) => {
+          const raw = issue.fields?.[fieldId];
+          (Array.isArray(raw) ? raw : [raw]).forEach((v) => { const x = extract(v); if (x) seen.add(x); });
+        });
+        nextPageToken = res.data?.nextPageToken || null;
+        if ((res.data?.isLast ?? true) || !nextPageToken) break;
+      }
+      const list = Array.from(seen).sort((a, b) => a.localeCompare(b, 'ru'));
+      onSettingsChange({ [settingKey]: list });
+      addToast(`✓ Загружено ${list.length}`, 'success');
+    } catch { addToast(`Не удалось загрузить ${label}`, 'error'); }
+    setBusy(false);
+  };
+  const loadTtmTeams = () => loadTtmFieldValues('customfield_12800', 12800, 'ttmKnownTeams', setTtmTeamsLoading, 'команды');
+  const loadTtmClients = () => loadTtmFieldValues('customfield_12601', 12601, 'ttmKnownClients', setTtmClientsLoading, 'клиентов');
+
   function buildBugControlJql(s) {
     const parts = [];
 
@@ -448,13 +483,17 @@ export default function QueryPanel({
   function buildTtmJql(s) {
     const parts = [];
 
-    const projects = (s.ttmProjects || '').split(',').map((p) => p.trim()).filter(Boolean);
-    if (projects.length) parts.push(`project in (${projects.join(', ')})`);
 
     const issueType = (s.ttmIssueType || '').trim();
     if (issueType) parts.push(`issuetype = "${issueType}"`);
 
     parts.push('fixVersion is not EMPTY');
+
+    const teams = s.ttmTeams || [];
+    if (teams.length) {
+      const inList = teams.map((t) => `"${t.replace(/"/g, '\\"')}"`).join(', ');
+      parts.push(`cf[12800] in (${inList})`);
+    }
 
     // Исключаем "отложенные" задачи — они не были фактически реализованы.
     // Имена статусов взяты из паттерна EvaluationTab (PAUSE_STATUSES + варианты "отменено").
@@ -1045,26 +1084,34 @@ export default function QueryPanel({
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               {renderMultiSelect({
-                title: 'Клиенты', subtitle: 'Пусто — все клиенты',
-                options: bugControlClientOptions, selected: settings.ttmClients || [],
-                onLoad: loadBugControlClients, loading: bugControlClientsLoading,
-                searchVal: bugControlClientSearch, onSearch: setBugControlClientSearch,
+                title: 'Команды (Teams)',
+                subtitle: (settings.ttmTeams || []).length
+                  ? `Считаются только выбранные: ${(settings.ttmTeams || []).length}. Выбор запоминается`
+                  : 'Ничего не выбрано — считаются все команды',
+                options: settings.ttmKnownTeams || [], selected: settings.ttmTeams || [],
+                onLoad: loadTtmTeams, loading: ttmTeamsLoading,
+                searchVal: ttmTeamSearch, onSearch: setTtmTeamSearch,
+                onToggle: (val) => onSettingsChange((s) => {
+                  const current = s.ttmTeams || [];
+                  return { ttmTeams: current.includes(val) ? current.filter((v) => v !== val) : [...current, val] };
+                }),
+                searchPlaceholder: 'Поиск команды',
+              })}
+              {renderMultiSelect({
+                title: 'Клиенты', subtitle: 'Ничего не выбрано — все клиенты',
+                options: settings.ttmKnownClients || [], selected: settings.ttmClients || [],
+                onLoad: loadTtmClients, loading: ttmClientsLoading,
+                searchVal: ttmClientSearch, onSearch: setTtmClientSearch,
                 onToggle: (val) => onSettingsChange((s) => {
                   const current = s.ttmClients || [];
                   return { ttmClients: current.includes(val) ? current.filter((v) => v !== val) : [...current, val] };
                 }),
                 searchPlaceholder: 'Поиск клиента',
               })}
-              <div className="row">
-                <label className="fld" style={{ flex: 2, minWidth: 140 }}>
-                  <span className="fld-label" style={{ marginBottom: 0 }}>Проекты через запятую</span>
-                  <input className="input sm" value={settings.ttmProjects || ''} placeholder="SR, SRTB, SRTS, SRTZ" onChange={(e) => onSettingsChange({ ttmProjects: e.target.value })} />
-                </label>
-                <label className="fld" style={{ flex: 1, minWidth: 90 }}>
-                  <span className="fld-label" style={{ marginBottom: 0 }}>Тип задачи</span>
-                  <input className="input sm" value={settings.ttmIssueType || ''} placeholder="CR" onChange={(e) => onSettingsChange({ ttmIssueType: e.target.value })} />
-                </label>
-              </div>
+              <label className="fld" style={{ maxWidth: 200 }}>
+                <span className="fld-label" style={{ marginBottom: 0 }}>Тип задачи</span>
+                <input className="input sm" value={settings.ttmIssueType || ''} placeholder="CR" onChange={(e) => onSettingsChange({ ttmIssueType: e.target.value })} />
+              </label>
             </div>
             <div className="picker">
               <div className="picker-head">

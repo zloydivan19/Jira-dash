@@ -116,7 +116,9 @@ const DEFAULT_SETTINGS = {
   ttmPeriodTo: '',                          // 'YYYY-MM-DD'
   ttmFilterMode: 'release',                 // 'release' | 'created'
   ttmClients: [],                           // string[] (client display values)
-  ttmProjects: 'SR, SRTB, SRTS, SRTZ',
+  ttmTeams: [],                             // string[] выбранные команды (cf 12800); пусто = все
+  ttmKnownTeams: [],                        // string[] список команд, загруженный из CR
+  ttmKnownClients: [],                      // string[] список клиентов, загруженный из CR
   ttmIssueType: 'CR',
   ttmJql: '',
   ttmJqlAuto: true,
