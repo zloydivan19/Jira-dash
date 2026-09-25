@@ -129,6 +129,8 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .strip-item i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); flex-shrink: 0; }
 .strip-item b { color: var(--t-textPrimary); font-weight: 600; font-variant-numeric: tabular-nums; }
 [data-stage="pause"]   { --c: var(--t-stPause); }
+[data-stage="queue"]   { --c: var(--t-stQueue); }
+[data-stage="test"]    { --c: var(--t-stTest); }
 [data-stage="eval"]    { --c: var(--t-stEval); }
 [data-stage="approve"] { --c: var(--t-stApprove); }
 [data-stage="prep"]    { --c: var(--t-stPrep); }

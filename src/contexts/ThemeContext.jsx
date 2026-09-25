@@ -58,6 +58,8 @@ const LIGHT = {
   stClient:       '#0D9488',
   stDone:         '#1E7F47',
   stPause:        '#A3A9B6',
+  stQueue:        '#64748B',
+  stTest:         '#0891B2',
   fontSans:       FONT_SANS,
   fontMono:       FONT_MONO,
 };
@@ -117,6 +119,8 @@ const DARK = {
   stClient:       '#2DD4BF',
   stDone:         '#55C68F',
   stPause:        '#5B616D',
+  stQueue:        '#94A3B8',
+  stTest:         '#22D3EE',
   fontSans:       FONT_SANS,
   fontMono:       FONT_MONO,
 };

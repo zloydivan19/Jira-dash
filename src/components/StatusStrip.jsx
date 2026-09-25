@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 
-const DONE = ['done', 'closed', 'resolved', 'готово', 'закрыт', 'завершен', 'выполнен', 'выпущен', 'решен', 'cancel', 'отмен'];
+const DONE = ['done', 'closed', 'resolved', 'готово', 'закрыт', 'завершен', 'выполнено', 'выпущен', 'решен', 'cancel', 'отмен'];
 const TODO = ['open', 'to do', 'backlog', 'new', 'awaiting', 'moderation', 'открыт', 'нов', 'на оценк', 'бэклог', 'ожида', 'pause', 'пауз', 'отлож'];
 const BAD = ['blocked', 'заблокирован', 'блокиров'];
 
@@ -14,26 +14,31 @@ export function statusCategory(name) {
 
 // Этапы процесса CR (те же фазы, что в TTM). Цвет статуса = цвет этапа.
 export const STAGES = [
+  // Workflow ошибок команд разработки
+  { id: 'queue',   label: 'Очередь',      statuses: ['backlog', 'к выполнению'] },
+  { id: 'dev',     label: 'Разработка',   statuses: ['в работе', 'solution issued', 'solution confirmed', 'в разработке', 'awaiting for the release'] },
+  { id: 'test',    label: 'Тестирование', statuses: ['ready for test', 'тестирование', 'merge'] },
+  // Workflow CR (BA Workflow Change Request)
   { id: 'pause',   label: 'Пауза',        statuses: ['черновик', 'отложено', 'pause', 'on hold'] },
   { id: 'eval',    label: 'Оценка',       statuses: ['awaiting moderation', 'на оценку', 'уточнение требований', 'product feature'] },
   { id: 'approve', label: 'Согласование', statuses: ['cr в майке'] },
   { id: 'prep',    label: 'Подготовка',   statuses: ['приоритезированы', 'сбор требований', 'требования собраны', 'утверждение', 'отправлены на согласование', 'согласованы'] },
-  { id: 'dev',     label: 'Разработка',   statuses: ['в разработке', 'awaiting for the release'] },
   { id: 'client',  label: 'У клиента',    statuses: ['отправлено клиенту', 'fixing deficiencies', 'accepted by client'] },
   { id: 'done',    label: 'Завершено',    statuses: ['оплачено', 'обработано', 'закрыто'] },
 ];
-const STAGE_ORDER = ['eval', 'approve', 'prep', 'dev', 'client', 'done', 'pause'];
+const STAGE_ORDER = ['queue', 'eval', 'approve', 'prep', 'dev', 'test', 'client', 'done', 'pause'];
 // Статусы вне процесса CR (например, ошибки команд) — по общей категории.
-const FALLBACK = { todo: 'eval', prog: 'dev', done: 'done', bad: 'pause' };
+const FALLBACK = { todo: 'queue', prog: 'dev', done: 'done', bad: 'pause' };
 
 export function statusStage(name) {
   const s = String(name || '').trim().toLowerCase();
   const hit = STAGES.find((st) => st.statuses.includes(s));
   if (hit) return hit.id;
-  if (['open', 'to do', 'backlog', 'new', 'открыта', 'открыт', 'новая'].includes(s)) return 'eval';
+  if (['open', 'to do', 'new', 'открыта', 'открыт', 'новая'].includes(s)) return 'queue';
   return FALLBACK[statusCategory(name)];
 }
 const stageLabel = (id) => STAGES.find((s) => s.id === id)?.label || '';
+
 
 export default function StatusStrip({ issues, selected, onSelect }) {
   const groups = useMemo(() => {
