@@ -72,8 +72,8 @@ export const DEFAULT_TASK_COLUMNS = [
 export const TTM_TEAMS_VERSION = 1;
 // Версия закреплённых шаблонов. Поднятие сбрасывает закрепления перечисленных
 // вкладок к новым дефолтам (свои шаблоны пользователя закрепляются заново автоматически).
-export const PINS_VERSION = 1;
-const PINS_RESET = { 1: ['bugs'] };
+export const PINS_VERSION = 2;
+const PINS_RESET = { 1: ['bugs'], 2: ['bugs'] };
 export const DEFAULT_TTM_TEAMS = ['SCO-D', 'TeamA', 'TeamB', 'TeamE', 'TeamS', 'TeamZ'];
 
 function stripSince(col) {

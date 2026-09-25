@@ -70,9 +70,11 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .icon-btn:hover { background: var(--t-bgSunk); color: var(--t-textPrimary); }
 
 /* ── Views bar ─────────────────────────────────────────── */
-.views { display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--t-border); flex-wrap: nowrap; flex-shrink: 0; background: var(--t-bgPage); }
-.views-tabs { display: flex; align-items: stretch; gap: 2px; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: thin; }
-.views-more { display: flex; align-items: stretch; margin-right: auto; flex-shrink: 0; }
+.views { display: flex; align-items: center; gap: 0 12px; padding: 0 20px; border-bottom: 1px solid var(--t-border); flex-wrap: wrap; flex-shrink: 0; background: var(--t-bgPage); }
+.views-tabs { display: flex; align-items: stretch; gap: 2px; flex-wrap: wrap; }
+.views-more { display: flex; align-items: stretch; flex-shrink: 0; }
+.views-tools { display: flex; align-items: center; gap: 6px; padding: 6px 0; flex-shrink: 0; }
+.views-tools.sep { margin-left: 8px; }
 .views-right { display: flex; align-items: center; gap: 4px; padding: 6px 0; margin-left: auto; flex-shrink: 0; }
 .view-tab { padding: 11px 10px 10px; font-size: 13.5px; color: var(--t-textSecondary); border: 0; border-bottom: 2px solid transparent; background: transparent; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .view-tab:hover { color: var(--t-textPrimary); }
@@ -82,7 +84,7 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .view-tab svg.ic { width: 15px; height: 15px; }
 .searchbox { display: flex; align-items: center; gap: 7px; border: 1px solid var(--t-border); border-radius: 7px; padding: 0 9px; height: 32px; color: var(--t-textMuted); background: var(--t-bgPage); }
 .searchbox:focus-within { border-color: var(--t-accent); }
-.searchbox input { border: 0; outline: 0; background: transparent; width: 150px; font-size: 13px; color: var(--t-textPrimary); }
+.searchbox input { border: 0; outline: 0; background: transparent; width: 140px; font-size: 13px; color: var(--t-textPrimary); }
 .searchbox svg.ic { width: 15px; height: 15px; }
 
 /* Templates library popover */
@@ -235,5 +237,4 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
   .login-brand { border-right: 0; border-bottom: 1px solid var(--t-border); padding: 20px; }
   .radar { width: 180px; }
   .searchbox input { width: 110px; }
-  .views { flex-wrap: wrap; }
 }
