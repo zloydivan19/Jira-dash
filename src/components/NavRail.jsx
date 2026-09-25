@@ -23,7 +23,9 @@ export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCol
   );
 
   return (
-    <aside className={`rail${collapsed ? ' collapsed' : ''}`}>
+    <aside className={`rail${collapsed ? ' collapsed' : ''}`}
+      title={collapsed ? 'Нажмите, чтобы развернуть меню' : 'Нажмите на пустое место, чтобы свернуть меню'}
+      onClick={(e) => { if (!e.target.closest('button, a, input')) onToggleCollapsed(); }}>
       <div className="rail-brand">
         <RadarMark />
         <span className="rail-brand-name">PM Radar</span>
