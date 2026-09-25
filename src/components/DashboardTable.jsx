@@ -253,13 +253,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                       onMouseEnter={(e) => (e.currentTarget.style.color = theme.accent)}
                       onMouseLeave={(e) => (e.currentTarget.style.color = isFiltered ? theme.accent : theme.filterIconDim)}
                     ><Icon name="chevD" size={15} /></button>
-                    <div
-                      onMouseDown={(e) => startResize(e, col.id)}
-                      title="Потяните, чтобы изменить ширину"
-                      style={{ width: '6px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: '2px solid transparent', marginRight: '-6px' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.borderRightColor = theme.accent)}
-                      onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = 'transparent')}
-                    />
+                    <div className="col-resizer" onMouseDown={(e) => startResize(e, col.id)} onClick={(e) => e.stopPropagation()} title="Потяните, чтобы изменить ширину колонки" />
                   </div>
                   {isOpen && filterAnchor && (
                     <FilterDropdown

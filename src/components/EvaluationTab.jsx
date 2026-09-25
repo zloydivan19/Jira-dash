@@ -246,12 +246,7 @@ function GroupSection({ group, issues, allIssues, slaMap, settings, theme, sortC
                         onMouseEnter={(e) => (e.currentTarget.style.color = theme.accent)}
                         onMouseLeave={(e) => (e.currentTarget.style.color = isFiltered ? theme.accent : (theme.filterIconDim || theme.textMuted))}
                       >▾</span>
-                      <div
-                        onMouseDown={(e) => startResize(e, col.id)}
-                        style={{ width: '5px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: `2px solid ${theme.border}`, marginRight: '-8px' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.borderRightColor = theme.accent)}
-                        onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = theme.border)}
-                      />
+                      <div className="col-resizer" onMouseDown={(e) => startResize(e, col.id)} onClick={(e) => e.stopPropagation()} title="Потяните, чтобы изменить ширину колонки" />
                     </div>
                   </th>
                 );

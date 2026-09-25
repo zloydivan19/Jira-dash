@@ -256,6 +256,12 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .state p { margin: 0; max-width: 46ch; font-size: 13.5px; }
 .spinner { width: 28px; height: 28px; border: 2.5px solid var(--t-border); border-top-color: var(--t-accent); border-radius: 50%; animation: spin .8s linear infinite; }
 
+/* ── Column resize handle ──────────────────────────────── */
+/* Абсолютно в ячейке заголовка (th sticky = позиционирован), чтобы черта шла на всю высоту заголовка. */
+.col-resizer { position: absolute; top: 0; bottom: 0; right: 0; width: 11px; cursor: col-resize; z-index: 2; }
+.col-resizer::after { content: ''; position: absolute; top: 22%; bottom: 22%; left: 50%; width: 2px; transform: translateX(-50%); border-radius: 1px; background: var(--t-textMuted); opacity: .45; transition: opacity 120ms ease, background-color 120ms ease, width 120ms ease; }
+.col-resizer:hover::after { background: var(--t-accent); opacity: 1; width: 3px; top: 0; bottom: 0; }
+
 /* ── Ping composer ─────────────────────────────────────── */
 .ping-backdrop { position: fixed; inset: 0; background: rgba(10, 12, 20, .55); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 16px; }
 .ping { width: 560px; max-width: 100%; max-height: 86vh; display: flex; flex-direction: column; background: var(--t-bgPage); border: 1px solid var(--t-border); border-radius: 12px; box-shadow: var(--t-shadowPop); overflow: hidden; }

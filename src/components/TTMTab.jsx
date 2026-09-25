@@ -452,7 +452,7 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
               <th key={col.id} style={{
                 padding: '8px 8px 8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 700,
                 color: headerColor, borderBottom: `1px solid ${isFiltered ? theme.accent : theme.border}`,
-                whiteSpace: 'nowrap', overflow: 'hidden',
+                whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                   <span onClick={() => onSort(col.id)} style={{ cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -467,13 +467,7 @@ function IssuesTable({ issues, stats, theme, jiraBase, highlight, sortCol, sortD
                     title="Фильтр"
                     style={{ cursor: 'pointer', fontSize: '12px', color: isFiltered ? theme.accent : theme.textMuted, padding: '1px 2px', borderRadius: '3px', background: openFilterCol === col.id ? theme.border : 'transparent', flexShrink: 0 }}
                   >▾</span>
-                  <div
-                    onMouseDown={(e) => startResize(e, col.id)}
-                    title="Изменить ширину"
-                    style={{ width: '5px', cursor: 'col-resize', alignSelf: 'stretch', flexShrink: 0, borderRight: `2px solid ${theme.border}`, marginRight: '-8px' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderRightColor = theme.accent)}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderRightColor = theme.border)}
-                  />
+                  <div className="col-resizer" onMouseDown={(e) => startResize(e, col.id)} onClick={(e) => e.stopPropagation()} title="Потяните, чтобы изменить ширину колонки" />
                 </div>
               </th>
             );
