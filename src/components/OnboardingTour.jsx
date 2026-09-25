@@ -52,6 +52,7 @@ export default function OnboardingTour({ onClose, onTabChange, hasTable }) {
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState(null);
   const [dir, setDir] = useState(1);
+  const [ready, setReady] = useState(false);
   const step = steps[index];
 
   const measure = useCallback(() => {
@@ -64,6 +65,7 @@ export default function OnboardingTour({ onClose, onTabChange, hasTable }) {
   }, [step]);
 
   useLayoutEffect(() => {
+    setReady(false);
     if (step.tab) onTabChange(step.tab);
     const t = setTimeout(() => {
       const el = findTarget(step.target);
@@ -74,6 +76,7 @@ export default function OnboardingTour({ onClose, onTabChange, hasTable }) {
       }
       el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       measure();
+      setReady(true);
     }, 80);
     return () => clearTimeout(t);
   }, [index]);
@@ -123,12 +126,13 @@ export default function OnboardingTour({ onClose, onTabChange, hasTable }) {
   return createPortal(
     <div className="tour" role="dialog" aria-modal="true" aria-label="Тур по PM Radar">
       <div className="tour-catch" onClick={(e) => e.stopPropagation()} />
-      {rect ? (
-        <div className="tour-spot" style={{ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }} />
-      ) : (
+      {!ready || !rect ? (
         <div className="tour-dim" />
+      ) : (
+        <div key={`spot-${index}`} className="tour-spot" style={{ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }} />
       )}
-      <div className="tour-card" style={cardStyle}>
+      {ready && (
+      <div key={`card-${index}`} className="tour-card" style={cardStyle}>
         <div className="tour-top">
           <span className="tour-count">Шаг {index + 1} из {steps.length}</span>
           <button className="icon-btn" onClick={onClose} title="Закрыть тур (Esc)"><Icon name="x" /></button>
@@ -143,6 +147,7 @@ export default function OnboardingTour({ onClose, onTabChange, hasTable }) {
           <button className="btn primary" onClick={() => go(1)} autoFocus>{last ? 'Готово' : 'Далее'}</button>
         </div>
       </div>
+      )}
     </div>,
     document.body,
   );
