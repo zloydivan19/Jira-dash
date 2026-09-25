@@ -49,9 +49,31 @@ export const DEFAULT_BUG_COLUMNS = [
   { id: 'issuelinks',        label: 'Связанные задачи (Complex Project)',  since: 1 },
 ];
 
+// Вкладка «Задачи/Ошибки» (columnsBugs). Раньше дефолтов не было и таблица была пустой,
+// пока пользователь сам не добавит поля. Пустой набор заполняется этими колонками;
+// непустой (настроенный пользователем) не трогаем.
+export const DEFAULT_TASK_COLUMNS = [
+  { id: 'issueKey',          label: 'Ключ',        type: 'key' },
+  { id: 'issuetype',         label: 'Тип',         type: 'text' },
+  { id: 'summary',           label: 'Описание',    type: 'text' },
+  { id: 'status',            label: 'Статус',      type: 'status' },
+  { id: 'priority',          label: 'Приоритет',   type: 'text' },
+  { id: 'customfield_12601', label: 'Клиент',      type: 'text' },
+  { id: 'customfield_12800', label: 'Команда',     type: 'text' },
+  { id: 'assignee',          label: 'Исполнитель', type: 'text' },
+  { id: 'reporter',          label: 'Автор',       type: 'text' },
+  { id: 'fixVersions',       label: 'Версии исправления', type: 'text' },
+  { id: 'created',           label: 'Создано',     type: 'date' },
+  { id: 'updated',           label: 'Обновлено',   type: 'date' },
+];
+
 // Команды, которые участвуют в TTM (поле Teams, cf 12800). Применяются один раз
 // через ttmTeamsVersion — дальше выбор пользователя не перезаписывается.
 export const TTM_TEAMS_VERSION = 1;
+// Версия закреплённых шаблонов. Поднятие сбрасывает закрепления перечисленных
+// вкладок к новым дефолтам (свои шаблоны пользователя закрепляются заново автоматически).
+export const PINS_VERSION = 1;
+const PINS_RESET = { 1: ['bugs'] };
 export const DEFAULT_TTM_TEAMS = ['SCO-D', 'TeamA', 'TeamB', 'TeamE', 'TeamS', 'TeamZ'];
 
 function stripSince(col) {
@@ -66,6 +88,7 @@ function stripSince(col) {
 export function restoreDefaultColumns(context) {
   if (context === 'cr') return DEFAULT_CR_COLUMNS.map(stripSince);
   if (context === 'bugControl') return DEFAULT_BUG_COLUMNS.map(stripSince);
+  if (context === 'bugs') return DEFAULT_TASK_COLUMNS.map((c) => ({ ...c }));
   return [];
 }
 
@@ -102,7 +125,7 @@ const DEFAULT_SETTINGS = {
   jqlBugs: '',
   maxResults: 0,
   columns: DEFAULT_CR_COLUMNS.map(stripSince),
-  columnsBugs: [],
+  columnsBugs: DEFAULT_TASK_COLUMNS,
   columnsBugControl: DEFAULT_BUG_COLUMNS.map(stripSince),
   crColumnsVersion: CR_COLUMNS_VERSION,
   bugColumnsVersion: BUG_COLUMNS_VERSION,
@@ -123,6 +146,7 @@ const DEFAULT_SETTINGS = {
   ttmClients: [],                           // string[] (client display values)
   ttmTeams: DEFAULT_TTM_TEAMS,              // string[] выбранные команды (cf 12800); пусто = все
   ttmTeamsVersion: TTM_TEAMS_VERSION,
+  pinsVersion: PINS_VERSION,
   ttmKnownTeams: DEFAULT_TTM_TEAMS,         // string[] список команд, загруженный из CR
   ttmKnownClients: [],                      // string[] список клиентов, загруженный из CR
   ttmJql: '',
@@ -146,11 +170,22 @@ function loadSettings() {
     const ttmKnownTeams = Array.from(new Set([...(parsed.ttmKnownTeams || []), ...DEFAULT_TTM_TEAMS]))
       .sort((a, b) => a.localeCompare(b, 'ru'));
 
+    let pinnedTemplates = parsed.pinnedTemplates;
+    const pinsFrom = parsed.pinsVersion || 0;
+    if (pinsFrom < PINS_VERSION && pinnedTemplates) {
+      pinnedTemplates = { ...pinnedTemplates };
+      for (let v = pinsFrom + 1; v <= PINS_VERSION; v++) (PINS_RESET[v] || []).forEach((tab) => delete pinnedTemplates[tab]);
+    }
+
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      pinnedTemplates,
+      pinsVersion: PINS_VERSION,
+      columnsBugs: Array.isArray(parsed.columnsBugs) && parsed.columnsBugs.length ? parsed.columnsBugs : DEFAULT_TASK_COLUMNS,
       ttmTeams,
       ttmTeamsVersion: TTM_TEAMS_VERSION,
+  pinsVersion: PINS_VERSION,
       ttmKnownTeams,
       columns: cr.columns,
       crColumnsVersion: cr.version,

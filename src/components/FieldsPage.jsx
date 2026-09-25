@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from './Icon.jsx';
 import { detectFieldType } from '../utils/fieldExtractor.js';
-import { restoreDefaultColumns, DEFAULT_CR_COLUMNS, DEFAULT_BUG_COLUMNS } from '../hooks/useSettings.js';
+import { restoreDefaultColumns, DEFAULT_CR_COLUMNS, DEFAULT_BUG_COLUMNS, DEFAULT_TASK_COLUMNS } from '../hooks/useSettings.js';
 
 const CONTEXTS = [
   { id: 'cr',         label: 'CR Запросы' },
@@ -12,6 +12,7 @@ const CONTEXTS = [
 const DEFAULT_IDS = {
   cr: new Set(DEFAULT_CR_COLUMNS.map((c) => c.id)),
   bugControl: new Set(DEFAULT_BUG_COLUMNS.map((c) => c.id)),
+  bugs: new Set(DEFAULT_TASK_COLUMNS.map((c) => c.id)),
 };
 const LIST_LIMIT = 300;
 
@@ -33,7 +34,7 @@ export default function FieldsPage({
   };
   const [active, setActive] = byCtx[ctx];
   const defaults = DEFAULT_IDS[ctx];
-  const canRestore = ctx === 'cr' || ctx === 'bugControl';
+  const canRestore = ctx === 'cr' || ctx === 'bugControl' || ctx === 'bugs';
 
   const loadFields = async () => {
     setLoading(true);

@@ -26,6 +26,9 @@ const SYSTEM_DEFAULT_WIDTHS = {
   summary:  260,
   status:   150,
   created:  110,
+  updated:  110,
+  issuetype: 110,
+  priority: 110,
 };
 
 function getCellValue(col, row) {

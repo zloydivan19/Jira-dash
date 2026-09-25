@@ -685,6 +685,10 @@ export default function QueryPanel({
   ];
 
   const BUGS_TEMPLATES = [
+    { group: 'Мои ошибки' },
+    { label: 'Все мои ошибки',         desc: 'Ошибки, которые завели вы',                      jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND reporter = currentUser() ORDER BY created DESC` },
+    { label: 'Мои открытые ошибки',    desc: 'Заведённые вами и ещё не закрытые',              jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND reporter = currentUser() AND statusCategory != Done ORDER BY updated DESC` },
+    { label: 'Ошибки, где я наблюдатель', desc: 'Вы в списке наблюдателей',                     jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND watcher = currentUser() ORDER BY updated DESC` },
     { group: 'Ошибки' },
     { label: 'Все ошибки',           desc: 'Все команды, все ошибки',                         jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug ORDER BY created DESC` },
     { label: 'Открытые ошибки',      desc: 'Незакрытые, все команды',                          jql: `project in (${DEV_PROJECTS}) AND issuetype = Bug AND statusCategory != Done ORDER BY updated DESC` },
@@ -714,7 +718,7 @@ export default function QueryPanel({
   // ── Templates bar & library ──
   const DEFAULT_PINS = {
     queries: ['Все мои задачи', 'Мои открытые задачи', 'Ожидают оценки'],
-    bugs: ['Все ошибки', 'Открытые ошибки', 'Критические ошибки'],
+    bugs: ['Все мои ошибки', 'Мои открытые ошибки', 'Ошибки, где я наблюдатель'],
     eval: ['Только мои задачи'],
   };
   const EVAL_TEMPLATES = [
