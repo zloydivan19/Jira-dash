@@ -4,6 +4,8 @@ import Icon from './Icon.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
 
 const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
+// CR живут в проекте CR (ключи CR-XXXX); Complex Project там же, но в TTM не участвует.
+const TTM_BASE = 'project = CR AND issuetype != "Complex Project"';
 
 // Cache helpers for picker lists (managers / reporters / clients / etc.).
 // Persists in sessionStorage so refreshing the page keeps the picker list available.
@@ -103,7 +105,6 @@ export default function QueryPanel({
     activeTab,
     settings.ttmJqlAuto,
     settings.ttmTeams,
-    settings.ttmIssueType,
     settings.ttmClients,
     settings.ttmDevTypes,
     settings.ttmFilterMode,
@@ -430,8 +431,7 @@ export default function QueryPanel({
     addToast('Загрузка списка...', 'info');
     try {
       const seen = new Set();
-      const issueType = (settings.ttmIssueType || 'CR').trim();
-      const jql = `issuetype = "${issueType}" AND cf[${cfNum}] is not EMPTY`;
+      const jql = `${TTM_BASE} AND cf[${cfNum}] is not EMPTY`;
       const extract = (v) => (typeof v === 'object' && v !== null ? (v.value ?? v.name ?? null) : (v != null ? String(v) : null));
       let nextPageToken = null;
       while (true) {
@@ -447,7 +447,8 @@ export default function QueryPanel({
       }
       const list = Array.from(seen).sort((a, b) => a.localeCompare(b, 'ru'));
       onSettingsChange({ [settingKey]: list });
-      addToast(`✓ Загружено ${list.length}`, 'success');
+      if (list.length) addToast(`✓ Загружено ${list.length}`, 'success');
+      else addToast(`Jira ничего не нашла по запросу: ${jql}`, 'error');
     } catch { addToast(`Не удалось загрузить ${label}`, 'error'); }
     setBusy(false);
   };
@@ -484,9 +485,7 @@ export default function QueryPanel({
     const parts = [];
 
 
-    const issueType = (s.ttmIssueType || '').trim();
-    if (issueType) parts.push(`issuetype = "${issueType}"`);
-
+    parts.push(TTM_BASE);
     parts.push('fixVersion is not EMPTY');
 
     const teams = s.ttmTeams || [];
@@ -1108,10 +1107,7 @@ export default function QueryPanel({
                 }),
                 searchPlaceholder: 'Поиск клиента',
               })}
-              <label className="fld" style={{ maxWidth: 200 }}>
-                <span className="fld-label" style={{ marginBottom: 0 }}>Тип задачи</span>
-                <input className="input sm" value={settings.ttmIssueType || ''} placeholder="CR" onChange={(e) => onSettingsChange({ ttmIssueType: e.target.value })} />
-              </label>
+
             </div>
             <div className="picker">
               <div className="picker-head">

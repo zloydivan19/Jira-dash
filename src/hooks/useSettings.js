@@ -119,7 +119,6 @@ const DEFAULT_SETTINGS = {
   ttmTeams: [],                             // string[] выбранные команды (cf 12800); пусто = все
   ttmKnownTeams: [],                        // string[] список команд, загруженный из CR
   ttmKnownClients: [],                      // string[] список клиентов, загруженный из CR
-  ttmIssueType: 'CR',
   ttmJql: '',
   ttmJqlAuto: true,
   ttmDevTypes: [],                          // string[] (selected values of customfield_13999)
