@@ -31,13 +31,14 @@ export const DEFAULT_CR_COLUMNS = [
   { id: 'created',           label: 'Создано',                               type: 'date',   since: 1 },
 ];
 
-export const BUG_COLUMNS_VERSION = 2;
+export const BUG_COLUMNS_VERSION = 3;
+// Поля, убранные из дефолтов: при переходе на версию удаляются один раз и у существующих пользователей.
+const BUG_COLUMNS_REMOVED = { 3: ['customfield_12800'] };
 export const DEFAULT_BUG_COLUMNS = [
   { id: 'key',               label: 'Ключ',                                since: 1 },
   { id: 'issuetype',         label: 'Тип задачи',                          since: 1 },
   { id: 'summary',           label: 'Описание',                            since: 1 },
   { id: 'customfield_12601', label: 'Клиент',                              since: 1 },
-  { id: 'customfield_12800', label: 'Команда разработки',                  since: 1 },
   { id: 'priority',          label: 'Приоритет',                           since: 1 },
   { id: 'customfield_14451', label: 'Этап проекта',                        since: 1 },
   { id: 'customfield_14452', label: 'Влияние на этап проекта',             since: 1 },
@@ -54,6 +55,7 @@ export const DEFAULT_BUG_COLUMNS = [
 // Вкладка «Задачи/Ошибки» (columnsBugs). Раньше дефолтов не было и таблица была пустой,
 // пока пользователь сам не добавит поля. Пустой набор заполняется этими колонками;
 // непустой (настроенный пользователем) не трогаем.
+export const TASK_COLUMNS_VERSION = 1;
 export const DEFAULT_TASK_COLUMNS = [
   { id: 'issueKey',          label: 'Ключ',        type: 'key' },
   { id: 'issuetype',         label: 'Тип',         type: 'text' },
@@ -61,7 +63,6 @@ export const DEFAULT_TASK_COLUMNS = [
   { id: 'status',            label: 'Статус',      type: 'status' },
   { id: 'priority',          label: 'Приоритет',   type: 'text' },
   { id: 'customfield_12601', label: 'Клиент',      type: 'text' },
-  { id: 'customfield_12800', label: 'Команда',     type: 'text' },
   { id: 'assignee',          label: 'Исполнитель', type: 'text' },
   { id: 'reporter',          label: 'Автор',       type: 'text' },
   { id: 'fixVersions',       label: 'Версии исправления', type: 'text' },
@@ -103,7 +104,7 @@ export function restoreDefaultColumns(context) {
  *   что появились ПОСЛЕ его версии и которых у него ещё нет, затем поднимаем
  *   версию до текущей.
  */
-function migrateVersionedColumns(columns, storedVersion, defaults, currentVersion) {
+function migrateVersionedColumns(columns, storedVersion, defaults, currentVersion, removed = {}) {
   if (!Array.isArray(columns) || columns.length === 0) {
     return { columns: defaults.map(stripSince), version: currentVersion };
   }
@@ -111,9 +112,12 @@ function migrateVersionedColumns(columns, storedVersion, defaults, currentVersio
   if (version >= currentVersion) {
     return { columns, version: currentVersion };
   }
-  const ids = new Set(columns.map((c) => c.id));
+  const drop = new Set();
+  for (let v = version + 1; v <= currentVersion; v++) (removed[v] || []).forEach((id) => drop.add(id));
+  const kept = columns.filter((c) => !drop.has(c.id));
+  const ids = new Set(kept.map((c) => c.id));
   const toAdd = defaults.filter((c) => c.since > version && !ids.has(c.id));
-  const next = [...columns];
+  const next = [...kept];
   for (const col of toAdd) {
     const di = defaults.findIndex((d) => d.id === col.id);
     let at = next.length;
@@ -138,6 +142,7 @@ const DEFAULT_SETTINGS = {
   columnsBugControl: DEFAULT_BUG_COLUMNS.map(stripSince),
   crColumnsVersion: CR_COLUMNS_VERSION,
   bugColumnsVersion: BUG_COLUMNS_VERSION,
+  taskColumnsVersion: TASK_COLUMNS_VERSION,
   views: [],
   // Bug Control tab
   bugControlReportersMode: 'me',        // 'me' | 'list'
@@ -172,7 +177,18 @@ function loadSettings() {
     const parsed = JSON.parse(raw);
 
     const cr = migrateVersionedColumns(parsed.columns, parsed.crColumnsVersion, DEFAULT_CR_COLUMNS, CR_COLUMNS_VERSION);
-    const bug = migrateVersionedColumns(parsed.columnsBugControl, parsed.bugColumnsVersion, DEFAULT_BUG_COLUMNS, BUG_COLUMNS_VERSION);
+    const bug = migrateVersionedColumns(parsed.columnsBugControl, parsed.bugColumnsVersion, DEFAULT_BUG_COLUMNS, BUG_COLUMNS_VERSION, BUG_COLUMNS_REMOVED);
+
+    // «Задачи/Ошибки», v1: убрать Teams и дублирующий «Приоритет» (не системный priority).
+    let columnsBugs = Array.isArray(parsed.columnsBugs) && parsed.columnsBugs.length ? parsed.columnsBugs : DEFAULT_TASK_COLUMNS;
+    if ((parsed.taskColumnsVersion || 0) < 1) {
+      const norm = (c) => (c.label || '').trim().toLowerCase();
+      const prios = columnsBugs.filter((c) => c.id === 'priority' || norm(c) === 'приоритет');
+      const keepPrio = prios.find((c) => c.id === 'priority') || prios[0];
+      columnsBugs = columnsBugs.filter((c) =>
+        c.id !== 'customfield_12800' && norm(c) !== 'teams' &&
+        !(prios.includes(c) && c !== keepPrio));
+    }
 
     const teamsFresh = (parsed.ttmTeamsVersion || 0) < TTM_TEAMS_VERSION;
     const ttmTeams = teamsFresh ? DEFAULT_TTM_TEAMS : (parsed.ttmTeams ?? DEFAULT_TTM_TEAMS);
@@ -191,7 +207,8 @@ function loadSettings() {
       ...parsed,
       pinnedTemplates,
       pinsVersion: PINS_VERSION,
-      columnsBugs: Array.isArray(parsed.columnsBugs) && parsed.columnsBugs.length ? parsed.columnsBugs : DEFAULT_TASK_COLUMNS,
+      columnsBugs,
+      taskColumnsVersion: TASK_COLUMNS_VERSION,
       ttmTeams,
       ttmTeamsVersion: TTM_TEAMS_VERSION,
   pinsVersion: PINS_VERSION,
