@@ -1,4 +1,5 @@
 import XLSX from 'xlsx-js-style';
+import { calcVersionShift, currentVersionNames, formatVersionShift } from '../hooks/useBugControl.js';
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 
@@ -115,6 +116,8 @@ const S1_COLS = [
   { label: 'Статус',              w: 20 },
   { label: 'Фактическая\nверсия', w: 22 },
   { label: 'Флаг',                w: 18 },
+  { label: 'Сдвиг версии\n(первая → последняя)', w: 26 },
+  { label: 'Сколько раз\nсдвигали', w: 13 },
   { label: 'Изменений',           w: 12 },
   { label: 'Последнее\nизменение',w: 22 },
   { label: 'История\nfix version',w: 75 },
@@ -123,10 +126,10 @@ const S1_COLS = [
 const S1_N = S1_COLS.length;  // 11
 
 const FLAG_LABELS_X = {
-  red:    '⚠ Сдвиг вправо',
-  yellow: '↻ Менялось',
+  red:    'Сдвиг вправо',
+  yellow: 'Менялось',
   none:   '—',
-  error:  '⚠ Ошибка',
+  error:  'Ошибка',
 };
 
 function formatHistoryCell(history) {
@@ -139,7 +142,7 @@ function formatHistoryCell(history) {
   }).join('\n\n');
 }
 
-function buildBugSheet({ issues, historyMap, today, jiraUrl, reporterSummaryText }) {
+function buildBugSheet({ issues, historyMap, versionsMeta, today, jiraUrl, reporterSummaryText }) {
   const jiraBase = (jiraUrl || '').replace(/\/$/, '');
   const rows = [];
 
@@ -199,6 +202,7 @@ function buildBugSheet({ issues, historyMap, today, jiraUrl, reporterSummaryText
     const historyStr  = formatHistoryCell(entry?.history);
     const url         = `${jiraBase}/browse/${issue.key}`;
     const changeCount = entry?.changeCount ?? 0;
+    const shift       = calcVersionShift(entry?.history, currentVersionNames(issue), versionsMeta);
 
     rows.push([
       { ...dataCell(issue.key, bg, { align: 'center', bold: true, fgColor: C.blueText }), l: { Target: url } },
@@ -208,6 +212,8 @@ function buildBugSheet({ issues, historyMap, today, jiraUrl, reporterSummaryText
       dataCell(statusStr, bg),
       dataCell(fixVerStr, bg),
       dataCell(FLAG_LABELS_X[flag], bg, { align: 'center', bold: flag === 'red', fgColor: fg }),
+      dataCell(formatVersionShift(shift), bg, { align: 'center' }),
+      dataCell(shift.shiftCount, bg, { align: 'center', bold: shift.shiftCount > 0, fgColor: shift.shiftCount > 0 ? C.redText : '111827' }),
       dataCell(changeCount, bg, { align: 'center', bold: changeCount > 2 }),
       dataCell(lastChange, bg, { align: 'left' }),
       dataCell(historyStr, bg),
@@ -349,7 +355,7 @@ export async function exportBugControl({ issues, historyMap, versionsMeta, setti
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, buildBugSheet({
-    issues, historyMap, today, jiraUrl: settings.jiraUrl, reporterSummaryText,
+    issues, historyMap, versionsMeta, today, jiraUrl: settings.jiraUrl, reporterSummaryText,
   }), 'Контроль ошибок');
   XLSX.utils.book_append_sheet(wb, buildReporterSummarySheet({
     issues, historyMap, today,

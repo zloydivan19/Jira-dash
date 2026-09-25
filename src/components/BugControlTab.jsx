@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import { calcVersionShift, currentVersionNames, formatVersionShift } from '../hooks/useBugControl.js';
 
 const FLAG_COLORS = {
   red:     { bg: 'var(--t-errorBg)',   border: 'transparent', text: 'var(--t-error)',     dot: 'var(--t-error)' },
@@ -32,6 +33,8 @@ const BUILTIN_COLUMNS = [
   { id: 'summary',            label: 'Описание',           defaultWidth: 320 },
   { id: 'currentFixVersion',  label: 'Фактическая версия', defaultWidth: 140 },
   { id: 'flag',               label: 'Флаг',               defaultWidth: 130 },
+  { id: 'versionShift',       label: 'Сдвиг версии',       defaultWidth: 190 },
+  { id: 'shiftCount',         label: 'Сколько раз сдвигали', defaultWidth: 120 },
   { id: 'lastChange',         label: 'Последнее изменение',defaultWidth: 200 },
   { id: 'history',            label: 'История fix version',defaultWidth: 360 },
   { id: 'reporter',           label: 'Reporter',           defaultWidth: 140 },
@@ -209,6 +212,8 @@ function getCellStr(colId, issue, entry) {
     case 'summary':            return issue.fields?.summary || '—';
     case 'currentFixVersion':  return getCurrentFixVersion(issue);
     case 'flag':               return FLAG_LABELS[entry?.flag || 'none'];
+    case 'versionShift':       return formatVersionShift(entry?.shift);
+    case 'shiftCount':         return String(entry?.shift?.shiftCount ?? 0);
     case 'lastChange':         return getLastChange(entry);
     case 'reporter':           return getReporter(issue);
     case 'status':             return issue.fields?.status?.name || '—';
@@ -224,6 +229,7 @@ function compareCell(colId, a, b, historyMap) {
     const order = { red: 0, yellow: 1, none: 2, error: 3 };
     return (order[ea?.flag || 'none'] ?? 9) - (order[eb?.flag || 'none'] ?? 9);
   }
+  if (colId === 'shiftCount') return (ea?.shift?.shiftCount ?? 0) - (eb?.shift?.shiftCount ?? 0);
   if (colId === 'lastChange') {
     const da = ea?.history?.length ? new Date(ea.history[ea.history.length - 1].date).getTime() : 0;
     const db = eb?.history?.length ? new Date(eb.history[eb.history.length - 1].date).getTime() : 0;
@@ -326,6 +332,22 @@ function renderBugControlCell(col, issue, entry, helpers) {
       );
     case 'lastChange':
       return <span style={{ fontSize: '12px', color: theme.textSecondary }}>{getLastChange(entry)}</span>;
+    case 'versionShift': {
+      const sh = entry?.shift;
+      if (!sh || (!sh.first && !sh.last)) return <span style={{ color: theme.textMuted }}>—</span>;
+      if (sh.first === sh.last) return <span style={{ fontFamily: 'var(--t-fontMono)', fontSize: '12.5px' }}>{sh.last}</span>;
+      return (
+        <span style={{ fontFamily: 'var(--t-fontMono)', fontSize: '12.5px', whiteSpace: 'nowrap' }}>
+          <span style={{ color: theme.textSecondary }}>{sh.first || '—'}</span>
+          <span style={{ color: sh.shiftCount > 0 ? 'var(--t-error)' : theme.textMuted, fontWeight: 700, margin: '0 6px' }}>→</span>
+          <span style={{ color: theme.textPrimary, fontWeight: 500 }}>{sh.last || '(очищено)'}</span>
+        </span>
+      );
+    }
+    case 'shiftCount': {
+      const n = entry?.shift?.shiftCount ?? 0;
+      return <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: n > 0 ? 600 : 400, color: n > 0 ? 'var(--t-error)' : theme.textMuted }}>{n}</span>;
+    }
     case 'history':
       return <HistoryCell history={entry?.history} versionsMeta={versionsMeta} theme={theme} />;
     case 'reporter':
@@ -446,8 +468,18 @@ function GroupSection({ group, issues, historyMap, versionsMeta, settings, theme
   );
 }
 
-export default function BugControlTab({ issues, historyMap, versionsMeta, loadingIssues, loadingHistory, error, onLoad, onExport, exporting, exportLabel, settings, columnsBugControl }) {
+export default function BugControlTab({ issues, historyMap: rawHistoryMap, versionsMeta, loadingIssues, loadingHistory, error, onLoad, onExport, exporting, exportLabel, settings, columnsBugControl }) {
   const { theme } = useTheme();
+
+  const historyMap = useMemo(() => {
+    const out = {};
+    for (const issue of issues) {
+      const entry = rawHistoryMap[issue.key];
+      if (!entry) continue;
+      out[issue.key] = { ...entry, shift: calcVersionShift(entry.history, currentVersionNames(issue), versionsMeta) };
+    }
+    return out;
+  }, [issues, rawHistoryMap, versionsMeta]);
 
   // Build full column list: if user has a saved order, use that; otherwise default to built-ins.
   // User-saved list may include built-in ids (with default width) and custom field ids.

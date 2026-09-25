@@ -31,7 +31,7 @@ export const DEFAULT_CR_COLUMNS = [
   { id: 'created',           label: 'Создано',                               type: 'date',   since: 1 },
 ];
 
-export const BUG_COLUMNS_VERSION = 1;
+export const BUG_COLUMNS_VERSION = 2;
 export const DEFAULT_BUG_COLUMNS = [
   { id: 'key',               label: 'Ключ',                                since: 1 },
   { id: 'issuetype',         label: 'Тип задачи',                          since: 1 },
@@ -44,6 +44,8 @@ export const DEFAULT_BUG_COLUMNS = [
   { id: 'status',            label: 'Статус',                              since: 1 },
   { id: 'customfield_13992', label: 'Planned fix release',                 since: 1 },
   { id: 'fixVersions',       label: 'Release',                             since: 1 },
+  { id: 'versionShift',      label: 'Сдвиг версии',                        since: 2 },
+  { id: 'shiftCount',        label: 'Сколько раз сдвигали',                since: 2 },
   { id: 'customfield_14085', label: 'Patches',                             since: 1 },
   { id: 'customfield_13302', label: 'PRB',                                 since: 1 },
   { id: 'issuelinks',        label: 'Связанные задачи (Complex Project)',  since: 1 },
@@ -111,10 +113,17 @@ function migrateVersionedColumns(columns, storedVersion, defaults, currentVersio
   }
   const ids = new Set(columns.map((c) => c.id));
   const toAdd = defaults.filter((c) => c.since > version && !ids.has(c.id));
-  return {
-    columns: toAdd.length ? [...columns, ...toAdd.map(stripSince)] : columns,
-    version: currentVersion,
-  };
+  const next = [...columns];
+  for (const col of toAdd) {
+    const di = defaults.findIndex((d) => d.id === col.id);
+    let at = next.length;
+    for (let j = di - 1; j >= 0; j--) {
+      const k = next.findIndex((c) => c.id === defaults[j].id);
+      if (k !== -1) { at = k + 1; break; }
+    }
+    next.splice(at, 0, stripSince(col));
+  }
+  return { columns: next, version: currentVersion };
 }
 
 const DEFAULT_SETTINGS = {

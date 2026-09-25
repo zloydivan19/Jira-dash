@@ -58,6 +58,42 @@ export function pickLatest(versionNames, versionsMeta) {
   );
 }
 
+// Версии, стоящие у задачи сейчас: fix versions + спринт (как в колонке «Фактическая версия»).
+export function currentVersionNames(issue) {
+  const fixVer = (issue.fields?.fixVersions || []).map((v) => v.name).filter(Boolean);
+  const sprintRaw = issue.fields?.customfield_10401 || [];
+  const sprint = (Array.isArray(sprintRaw) ? sprintRaw : [sprintRaw]).map((v) => (typeof v === 'object' ? v?.name : v)).filter(Boolean);
+  return [...fixVer, ...sprint];
+}
+
+// Первая версия, которую получила задача, последняя (текущая) и сколько раз её
+// переносили вправо — на версию позже любой, что стояла раньше (то же правило, что у флага).
+export function calcVersionShift(history, currentNames, versionsMeta) {
+  let first = null;
+  let allTimeMax = null;
+  let lastAssigned = null;
+  let shiftCount = 0;
+  (history || []).forEach((entry, idx) => {
+    if (idx === 0 && entry.fromList.length) first = pickLatest(entry.fromList, versionsMeta);
+    for (const v of entry.fromList) {
+      if (!allTimeMax || compareVersions(allTimeMax, v, versionsMeta) < 0) allTimeMax = v;
+    }
+    const maxTo = pickLatest(entry.toList, versionsMeta);
+    if (!first && maxTo) first = maxTo;
+    if (maxTo && allTimeMax && compareVersions(allTimeMax, maxTo, versionsMeta) < 0) shiftCount++;
+    if (maxTo && (!allTimeMax || compareVersions(allTimeMax, maxTo, versionsMeta) < 0)) allTimeMax = maxTo;
+    if (maxTo) lastAssigned = maxTo;
+  });
+  const last = pickLatest(currentNames || [], versionsMeta) || lastAssigned;
+  return { first: first || last, last, shiftCount };
+}
+
+export function formatVersionShift(shift) {
+  if (!shift || (!shift.first && !shift.last)) return '—';
+  if (shift.first === shift.last) return shift.last;
+  return `${shift.first || '—'} → ${shift.last || '(очищено)'}`;
+}
+
 export function calcBugFlags(history, versionsMeta) {
   if (!history || history.length === 0) {
     return { flag: 'none', changeCount: 0, hasShiftRight: false };
@@ -131,7 +167,7 @@ export function useBugControl() {
     const headers = credHeaders(settings);
     const fixedFields = ['summary','status','issuetype','fixVersions','customfield_10401','customfield_12601','reporter','assignee','priority','updated'];
     // Псевдо-поля BugControlTab (вычисляются в коде, не запрашиваются у Jira напрямую).
-    const PSEUDO_FIELD_IDS = new Set(['key', 'client', 'currentFixVersion', 'flag', 'lastChange', 'history']);
+    const PSEUDO_FIELD_IDS = new Set(['key', 'client', 'currentFixVersion', 'flag', 'lastChange', 'history', 'versionShift', 'shiftCount']);
     const userFields = (settings.columnsBugControl || [])
       .map((c) => c.id)
       .filter((id) => id && !fixedFields.includes(id) && !PSEUDO_FIELD_IDS.has(id));
