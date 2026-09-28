@@ -2,19 +2,51 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Icon from './Icon.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
+import { collectDistinct } from '../utils/jiraDistinct.js';
 import { getInList, setInList, setManagers, getExtraKeys, setExtraKeys, parseKeys } from '../utils/jqlFilters.js';
 
 const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
 // CR живут в проекте CR (ключи CR-XXXX); Complex Project там же, но в TTM не участвует.
 const TTM_BASE = 'project = CR AND issuetype != "Complex Project"';
 
-// Cache helpers for picker lists (managers / reporters / clients / etc.).
-// Persists in sessionStorage so refreshing the page keeps the picker list available.
-function readCache(key) {
-  try { const v = sessionStorage.getItem(key); return v ? JSON.parse(v) : []; } catch { return []; }
+// Списки для фильтров (авторы, менеджеры, клиенты…) долго собираются из Jira,
+// поэтому храним их в localStorage с датой и не перезагружаем при каждом открытии.
+function readCacheEntry(key) {
+  try {
+    const raw = localStorage.getItem(key) ?? sessionStorage.getItem(key);
+    const v = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(v)) return { list: v, at: null };
+    return v && Array.isArray(v.list) ? v : { list: [], at: null };
+  } catch { return { list: [], at: null }; }
 }
+function readCache(key) { return readCacheEntry(key).list; }
 function writeCache(key, value) {
-  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+  try { localStorage.setItem(key, JSON.stringify({ list: value, at: new Date().toISOString() })); } catch {}
+}
+
+function fmtNum(n) { return n.toLocaleString('ru-RU'); }
+function fmtEta(sec) {
+  if (sec < 60) return `${Math.max(5, Math.round(sec / 5) * 5)} с`;
+  return `${Math.round(sec / 60)} мин`;
+}
+
+function LoadProgress({ pr, onStop }) {
+  const pct = pr.total ? Math.min(99, Math.floor((pr.loaded / pr.total) * 100)) : null;
+  const elapsed = (Date.now() - pr.started) / 1000;
+  const eta = pr.total && pr.loaded > 0 && elapsed > 1 ? ((pr.total - pr.loaded) / (pr.loaded / elapsed)) : null;
+  return (
+    <div className="load-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}>
+      <div className="lp-bar"><span className={pct == null ? 'indet' : ''} style={pct == null ? undefined : { width: `${Math.max(2, pct)}%` }} /></div>
+      <div className="lp-row">
+        <span>
+          {pr.loaded === 0 && pr.total == null
+            ? 'Считаем задачи…'
+            : <>{pct != null && <b>{pct}%</b>} Просмотрено {fmtNum(pr.loaded)}{pr.total ? ` из ~${fmtNum(pr.total)}` : ''} задач, найдено {fmtNum(pr.found)}{eta != null && pr.loaded < pr.total ? `, осталось ~${fmtEta(eta)}` : ''}</>}
+        </span>
+        <button className="btn ghost" style={{ padding: '2px 8px', fontSize: 12 }} onClick={onStop}>Остановить</button>
+      </div>
+    </div>
+  );
 }
 
 export default function QueryPanel({
@@ -114,236 +146,71 @@ export default function QueryPanel({
   });
 
   // ── CR tab: clients ──
-  const loadClients = async () => {
-    setClientsLoading(true);
-    addToast('Загрузка списка...', 'info');
+  // ── Загрузка списков для фильтров: общий запуск с прогрессом и остановкой ──
+  const [progress, setProgress] = useState({});
+  const controllers = React.useRef({});
+  const runLoad = async (key, { jql, field, kind, apply, setBusy, label }) => {
+    controllers.current[key]?.abort();
+    const ctrl = new AbortController();
+    controllers.current[key] = ctrl;
+    setBusy?.(true);
+    setProgress((m) => ({ ...m, [key]: { loaded: 0, total: null, found: 0, started: Date.now() } }));
     try {
-      const allClients = new Set();
-      let nextPageToken = null;
-      let isLast = false;
-      while (!isLast) {
-        const params = { jql: 'cf[12606] = currentUser()', maxResults: 1000, fields: 'customfield_12601' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.customfield_12601;
-          if (Array.isArray(raw)) raw.forEach((v) => v && allClients.add(String(v)));
-          else if (raw) allClients.add(String(raw));
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(allClients).sort((a, b) => a.localeCompare(b, 'ru'));
-      setClientOptions(list);
-      writeCache('pick_clients_cr', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить клиентов', 'error'); }
-    setClientsLoading(false);
+      const { list, stopped } = await collectDistinct({
+        jql, field, kind, headers: credHeaders(), signal: ctrl.signal,
+        onProgress: (pr) => setProgress((m) => ({ ...m, [key]: pr })),
+      });
+      if (list.length || !stopped) apply(list);
+      if (stopped) addToast(`Загрузка остановлена, найдено ${list.length}`, 'info');
+      else if (!list.length) addToast(`Jira ничего не нашла по запросу: ${jql}`, 'error');
+    } catch {
+      addToast(`Не удалось загрузить ${label}`, 'error');
+    } finally {
+      setBusy?.(false);
+      setProgress((m) => { const n = { ...m }; delete n[key]; return n; });
+      if (controllers.current[key] === ctrl) delete controllers.current[key];
+    }
   };
+  const stopLoad = (key) => controllers.current[key]?.abort();
+  const cachedAt = (cacheKey) => readCacheEntry(cacheKey).at;
+  const store = (cacheKey, setOptions) => (list) => { setOptions(list); writeCache(cacheKey, list); };
+
+  const loadClients = () => runLoad('crClients', { jql: 'cf[12606] = currentUser() AND cf[12601] is not EMPTY', field: 'customfield_12601', kind: 'value', apply: store('pick_clients_cr', setClientOptions), setBusy: setClientsLoading, label: 'клиентов' });
 
 
 
   // ── CR tab: reporters (авторы CR) ──
-  const loadCrReporters = async () => {
-    setCrReportersLoading(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const seen = new Map();
-      let nextPageToken = null;
-      let isLast = false;
-      while (!isLast) {
-        const params = { jql: 'cf[12606] is not EMPTY', maxResults: 1000, fields: 'reporter' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.reporter;
-          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
-      setCrReporterOptions(list);
-      writeCache('pick_cr_reporters', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить авторов', 'error'); }
-    setCrReportersLoading(false);
-  };
+  const loadCrReporters = () => runLoad('crReporters', { jql: 'cf[12606] is not EMPTY', field: 'reporter', kind: 'user', apply: store('pick_cr_reporters', setCrReporterOptions), setBusy: setCrReportersLoading, label: 'авторов' });
 
 
 
 
   // ── CR tab: managers ──
-  const loadManagers = async () => {
-    setManagersLoading(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const seen = new Map();
-      let nextPageToken = null;
-      let isLast = false;
-      while (!isLast) {
-        const params = { jql: 'cf[12606] is not EMPTY', maxResults: 1000, fields: 'customfield_12606' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.customfield_12606;
-          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
-      setManagerOptions(list);
-      writeCache('pick_managers', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить менеджеров', 'error'); }
-    setManagersLoading(false);
-  };
+  const loadManagers = () => runLoad('managers', { jql: 'cf[12606] is not EMPTY', field: 'customfield_12606', kind: 'user', apply: store('pick_managers', setManagerOptions), setBusy: setManagersLoading, label: 'менеджеров' });
 
 
 
   // ── Bugs tab: engineers ──
-  const loadEngineers = async () => {
-    setEngineersLoading(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const seen = new Map();
-      let nextPageToken = null;
-      let isLast = false;
-      while (!isLast) {
-        const params = { jql: `project in (${DEV_PROJECTS}) AND assignee is not EMPTY`, maxResults: 1000, fields: 'assignee' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.assignee;
-          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(seen.entries()).map(([accountId, displayName]) => ({ accountId, displayName }))
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
-      setEngineerOptions(list);
-      writeCache('pick_engineers', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить исполнителей', 'error'); }
-    setEngineersLoading(false);
-  };
+  const loadEngineers = () => runLoad('engineers', { jql: `project in (${DEV_PROJECTS}) AND assignee is not EMPTY`, field: 'assignee', kind: 'user', apply: store('pick_engineers', setEngineerOptions), setBusy: setEngineersLoading, label: 'исполнителей' });
 
 
 
   // ── Bugs tab: reporters ──
-  const loadReporters = async () => {
-    setReportersLoading(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const seen = new Map();
-      let nextPageToken = null;
-      let isLast = false;
-      while (!isLast) {
-        const params = { jql: `project in (${DEV_PROJECTS}) AND reporter is not EMPTY`, maxResults: 1000, fields: 'reporter' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.reporter;
-          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(seen.entries())
-        .map(([accountId, displayName]) => ({ accountId, displayName }))
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
-      setReporterOptions(list);
-      writeCache('pick_bugs_reporters', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить авторов', 'error'); }
-    setReportersLoading(false);
-  };
+  const loadReporters = () => runLoad('bugReporters', { jql: `project in (${DEV_PROJECTS}) AND reporter is not EMPTY`, field: 'reporter', kind: 'user', apply: store('pick_bugs_reporters', setReporterOptions), setBusy: setReportersLoading, label: 'авторов' });
 
   // ── Bug Control tab: reporters ──
-  const loadBugControlReporters = async () => {
-    setBugControlReportersLoading(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const seen = new Map();
-      let nextPageToken = null;
-      let isLast = false;
-
-      const projects = (settings.bugControlProjects || '').split(',').map(s => s.trim()).filter(Boolean);
-      const projClause = projects.length ? `project in (${projects.join(', ')}) AND ` : '';
-      const issueType = (settings.bugControlIssueType || 'Bug').trim();
-      const typeClause = issueType ? `issuetype = "${issueType}" AND ` : '';
-
-      const jql = `${projClause}${typeClause}reporter is not EMPTY`;
-
-      while (!isLast) {
-        const params = { jql, maxResults: 1000, fields: 'reporter' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.reporter;
-          if (raw?.accountId) seen.set(raw.accountId, raw.displayName || raw.emailAddress || raw.accountId);
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(seen.entries())
-        .map(([accountId, displayName]) => ({ accountId, displayName }))
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
-      setBugControlReporterOptions(list);
-      writeCache('pick_bug_control_reporters', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить reporter\'ов', 'error'); }
-    setBugControlReportersLoading(false);
-  };
+  const loadBugControlReporters = () => runLoad('bcReporters', { jql: `${(() => {
+    const projects = (settings.bugControlProjects || '').split(',').map((x) => x.trim()).filter(Boolean);
+    const issueType = (settings.bugControlIssueType || 'Bug').trim();
+    return `${projects.length ? `project in (${projects.join(', ')}) AND ` : ''}${issueType ? `issuetype = "${issueType}" AND ` : ''}`;
+  })()}reporter is not EMPTY`, field: 'reporter', kind: 'user', apply: store('pick_bug_control_reporters', setBugControlReporterOptions), setBusy: setBugControlReportersLoading, label: 'авторов' });
 
   // ── Bug Control tab: clients ──
-  const loadBugControlClients = async () => {
-    setBugControlClientsLoading(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const seen = new Set();
-      let nextPageToken = null;
-      let isLast = false;
-
-      const projects = (settings.bugControlProjects || '').split(',').map(s => s.trim()).filter(Boolean);
-      const projClause = projects.length ? `project in (${projects.join(', ')}) AND ` : '';
-      const issueType = (settings.bugControlIssueType || 'Bug').trim();
-      const typeClause = issueType ? `issuetype = "${issueType}" AND ` : '';
-
-      const jql = `${projClause}${typeClause}cf[12601] is not EMPTY`;
-
-      const extract = (v) => typeof v === 'object' && v !== null ? (v.value ?? v.name ?? null) : (v != null ? String(v) : null);
-
-      while (!isLast) {
-        const params = { jql, maxResults: 1000, fields: 'customfield_12601' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.customfield_12601;
-          if (Array.isArray(raw)) raw.forEach((v) => { const x = extract(v); if (x) seen.add(x); });
-          else { const x = extract(raw); if (x) seen.add(x); }
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(seen).sort((a, b) => a.localeCompare(b, 'ru'));
-      setBugControlClientOptions(list);
-      writeCache('pick_bug_control_clients', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить клиентов', 'error'); }
-    setBugControlClientsLoading(false);
-  };
+  const loadBugControlClients = () => runLoad('bcClients', { jql: `${(() => {
+    const projects = (settings.bugControlProjects || '').split(',').map((x) => x.trim()).filter(Boolean);
+    const issueType = (settings.bugControlIssueType || 'Bug').trim();
+    return `${projects.length ? `project in (${projects.join(', ')}) AND ` : ''}${issueType ? `issuetype = "${issueType}" AND ` : ''}`;
+  })()}cf[12601] is not EMPTY`, field: 'customfield_12601', kind: 'value', apply: store('pick_bug_control_clients', setBugControlClientOptions), setBusy: setBugControlClientsLoading, label: 'клиентов' });
 
   // ── TTM tab: teams and clients from CR (not from bugs) ──
   const [ttmTeamsLoading, setTtmTeamsLoading] = useState(false);
@@ -351,32 +218,10 @@ export default function QueryPanel({
   const [ttmClientsLoading, setTtmClientsLoading] = useState(false);
   const [ttmClientSearch, setTtmClientSearch] = useState('');
 
-  const loadTtmFieldValues = async (fieldId, cfNum, settingKey, setBusy, label) => {
-    setBusy(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const seen = new Set();
-      const jql = `${TTM_BASE} AND cf[${cfNum}] is not EMPTY`;
-      const extract = (v) => (typeof v === 'object' && v !== null ? (v.value ?? v.name ?? null) : (v != null ? String(v) : null));
-      let nextPageToken = null;
-      while (true) {
-        const params = { jql, maxResults: 1000, fields: fieldId };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.[fieldId];
-          (Array.isArray(raw) ? raw : [raw]).forEach((v) => { const x = extract(v); if (x) seen.add(x); });
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        if ((res.data?.isLast ?? true) || !nextPageToken) break;
-      }
-      const list = Array.from(seen).sort((a, b) => a.localeCompare(b, 'ru'));
-      onSettingsChange({ [settingKey]: list });
-      if (list.length) addToast(`✓ Загружено ${list.length}`, 'success');
-      else addToast(`Jira ничего не нашла по запросу: ${jql}`, 'error');
-    } catch { addToast(`Не удалось загрузить ${label}`, 'error'); }
-    setBusy(false);
-  };
+  const loadTtmFieldValues = (fieldId, cfNum, settingKey, setBusy, label) => runLoad(`ttm-${cfNum}`, {
+    jql: `${TTM_BASE} AND cf[${cfNum}] is not EMPTY`, field: fieldId, kind: 'value',
+    apply: (list) => onSettingsChange({ [settingKey]: list }), setBusy, label,
+  });
   const loadTtmTeams = () => loadTtmFieldValues('customfield_12800', 12800, 'ttmKnownTeams', setTtmTeamsLoading, 'команды');
   const loadTtmClients = () => loadTtmFieldValues('customfield_12601', 12601, 'ttmKnownClients', setTtmClientsLoading, 'клиентов');
 
@@ -445,33 +290,7 @@ export default function QueryPanel({
   }
 
   // ── Bugs tab: clients ──
-  const loadBugsClients = async () => {
-    setBugsClientsLoading(true);
-    addToast('Загрузка списка...', 'info');
-    try {
-      const allClients = new Set();
-      let nextPageToken = null;
-      let isLast = false;
-      while (!isLast) {
-        const params = { jql: `project in (${DEV_PROJECTS}) AND cf[12601] is not EMPTY`, maxResults: 1000, fields: 'customfield_12601' };
-        if (nextPageToken) params.nextPageToken = nextPageToken;
-        const res = await axios.get('/api/jira/search', { params, headers: credHeaders(), timeout: 30000 });
-        (res.data?.issues || []).forEach((issue) => {
-          const raw = issue.fields?.customfield_12601;
-          if (Array.isArray(raw)) raw.forEach((v) => v && allClients.add(String(v)));
-          else if (raw) allClients.add(String(raw));
-        });
-        nextPageToken = res.data?.nextPageToken || null;
-        isLast = res.data?.isLast ?? true;
-        if (!nextPageToken) break;
-      }
-      const list = Array.from(allClients).sort((a, b) => a.localeCompare(b, 'ru'));
-      setBugsClientOptions(list);
-      writeCache('pick_bugs_clients', list);
-      addToast(`✓ Загружено ${list.length}`, 'success');
-    } catch { addToast('Не удалось загрузить клиентов', 'error'); }
-    setBugsClientsLoading(false);
-  };
+  const loadBugsClients = () => runLoad('bugClients', { jql: `project in (${DEV_PROJECTS}) AND cf[12601] is not EMPTY`, field: 'customfield_12601', kind: 'value', apply: store('pick_bugs_clients', setBugsClientOptions), setBusy: setBugsClientsLoading, label: 'клиентов' });
 
 
 
@@ -688,7 +507,9 @@ export default function QueryPanel({
   const loadBugsFromDrawer = () => handleLoadBugs();
 
   // ── UI pieces ──
-  const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, onReset, onSelectAll, searchPlaceholder, applyLabel = 'Применить' }) => {
+  const renderMultiSelect = ({ title, subtitle, options, selected, onLoad, loading, searchVal, onSearch, onToggle, onApply, onReset, onSelectAll, searchPlaceholder, applyLabel = 'Применить', pkey, cacheKey }) => {
+    const pr = pkey ? progress[pkey] : null;
+    const at = cacheKey && !pr ? cachedAt(cacheKey) : null;
     const allIds = options.map((o) => typeof o === 'string' ? o : o.accountId);
     const idOf = (o) => (typeof o === 'string' ? o : o.accountId);
     const nameOf = (o) => (typeof o === 'string' ? o : o.displayName);
@@ -701,13 +522,14 @@ export default function QueryPanel({
         <div className="picker-head">
           <div style={{ minWidth: 0 }}>
             <div className="t">{title}{selected.length > 0 && <span className="picker-count">{selected.length}</span>}</div>
-            <div className="d">{subtitle}</div>
+            <div className="d">{subtitle}{at && options.length > 0 && <span title={new Date(at).toLocaleString('ru-RU')}>, список от {new Date(at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}</span>}</div>
           </div>
           <button className="btn ghost" onClick={onLoad} disabled={loading} style={{ padding: '5px 8px', fontSize: 12.5 }}>
             <span style={{ display: 'inline-flex', animation: loading ? 'jira-spin 0.8s linear infinite' : 'none' }}><Icon name="refresh" size={15} /></span>
             {loading ? 'Загрузка…' : options.length ? 'Обновить' : 'Загрузить список'}
           </button>
         </div>
+        {pr && <LoadProgress pr={pr} onStop={() => stopLoad(pkey)} />}
         {options.length > 0 && (
           <div className="picker-body">
             <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -798,14 +620,14 @@ export default function QueryPanel({
 
   // ── Фильтры, которые живут прямо в JQL ──
   const CR_FILTERS = [
-    { key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал CR', chip: 'Автор', options: crReporterOptions, onLoad: loadCrReporters, loading: crReportersLoading, search: crReporterSearch, setSearch: setCrReporterSearch, placeholder: 'Поиск автора' },
-    { key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты из ваших CR', chip: 'Клиент', options: clientOptions, onLoad: loadClients, loading: clientsLoading, search: clientSearch, setSearch: setClientSearch, placeholder: 'Поиск клиента' },
-    { key: 'manager', field: 'cf[12606]', manager: true, title: 'По менеджерам', subtitle: 'Пусто — ваши CR', chip: 'Менеджер', options: managerOptions, onLoad: loadManagers, loading: managersLoading, search: managerSearch, setSearch: setManagerSearch, placeholder: 'Поиск менеджера' },
+    { pkey: 'crReporters', cacheKey: 'pick_cr_reporters', key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал CR', chip: 'Автор', options: crReporterOptions, onLoad: loadCrReporters, loading: crReportersLoading, search: crReporterSearch, setSearch: setCrReporterSearch, placeholder: 'Поиск автора' },
+    { pkey: 'crClients', cacheKey: 'pick_clients_cr', key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты из ваших CR', chip: 'Клиент', options: clientOptions, onLoad: loadClients, loading: clientsLoading, search: clientSearch, setSearch: setClientSearch, placeholder: 'Поиск клиента' },
+    { pkey: 'managers', cacheKey: 'pick_managers', key: 'manager', field: 'cf[12606]', manager: true, title: 'По менеджерам', subtitle: 'Пусто — ваши CR', chip: 'Менеджер', options: managerOptions, onLoad: loadManagers, loading: managersLoading, search: managerSearch, setSearch: setManagerSearch, placeholder: 'Поиск менеджера' },
   ];
   const BUG_FILTERS = [
-    { key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал задачу', chip: 'Автор', options: reporterOptions, onLoad: loadReporters, loading: reportersLoading, search: reporterSearch, setSearch: setReporterSearch, placeholder: 'Поиск автора' },
-    { key: 'assignee', field: 'assignee', title: 'По исполнителю', subtitle: 'Инженеры команд разработки', chip: 'Исполнитель', options: engineerOptions, onLoad: loadEngineers, loading: engineersLoading, search: engineerSearch, setSearch: setEngineerSearch, placeholder: 'Поиск исполнителя' },
-    { key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты в задачах команд', chip: 'Клиент', options: bugsClientOptions, onLoad: loadBugsClients, loading: bugsClientsLoading, search: bugsClientSearch, setSearch: setBugsClientSearch, placeholder: 'Поиск клиента' },
+    { pkey: 'bugReporters', cacheKey: 'pick_bugs_reporters', key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал задачу', chip: 'Автор', options: reporterOptions, onLoad: loadReporters, loading: reportersLoading, search: reporterSearch, setSearch: setReporterSearch, placeholder: 'Поиск автора' },
+    { pkey: 'engineers', cacheKey: 'pick_engineers', key: 'assignee', field: 'assignee', title: 'По исполнителю', subtitle: 'Инженеры команд разработки', chip: 'Исполнитель', options: engineerOptions, onLoad: loadEngineers, loading: engineersLoading, search: engineerSearch, setSearch: setEngineerSearch, placeholder: 'Поиск исполнителя' },
+    { pkey: 'bugClients', cacheKey: 'pick_bugs_clients', key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты в задачах команд', chip: 'Клиент', options: bugsClientOptions, onLoad: loadBugsClients, loading: bugsClientsLoading, search: bugsClientSearch, setSearch: setBugsClientSearch, placeholder: 'Поиск клиента' },
   ];
   const writeFilter = (jqlKey, f, values) => {
     const cur = settings[jqlKey] || '';
@@ -822,7 +644,7 @@ export default function QueryPanel({
       <React.Fragment key={f.key}>
         {renderMultiSelect({
           title: f.title, subtitle: f.subtitle, options: f.options, selected,
-          onLoad: f.onLoad, loading: f.loading, searchVal: f.search, onSearch: f.setSearch, searchPlaceholder: f.placeholder,
+          onLoad: f.onLoad, loading: f.loading, searchVal: f.search, onSearch: f.setSearch, searchPlaceholder: f.placeholder, pkey: f.pkey, cacheKey: f.cacheKey,
           onToggle: (id) => writeFilter(jqlKey, f, selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]),
           onSelectAll: (ids) => writeFilter(jqlKey, f, ids),
           onReset: () => writeFilter(jqlKey, f, []),
@@ -941,7 +763,7 @@ export default function QueryPanel({
         <div className="drawer-grid">
           {renderMultiSelect({
             title: 'Менеджеры', subtitle: 'Пусто — только ваши задачи',
-            options: managerOptions, selected: evalSelectedManagers, onLoad: loadManagers, loading: managersLoading,
+            options: managerOptions, selected: evalSelectedManagers, onLoad: loadManagers, loading: managersLoading, pkey: 'managers', cacheKey: 'pick_managers',
             searchVal: managerSearch, onSearch: setManagerSearch,
             onToggle: (id) => setEvalSelectedManagers((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]),
             onApply: () => onEvalManagerFilterChange(evalSelectedManagers.length === 0 ? 'currentUser()' : evalSelectedManagers),
@@ -995,7 +817,7 @@ export default function QueryPanel({
           {settings.bugControlReportersMode === 'list' && renderMultiSelect({
             title: 'Авторы ошибок', subtitle: 'Для просмотра по нескольким людям',
             options: bugControlReporterOptions, selected: (settings.bugControlReporters || []).map((r) => r.accountId),
-            onLoad: loadBugControlReporters, loading: bugControlReportersLoading,
+            onLoad: loadBugControlReporters, loading: bugControlReportersLoading, pkey: 'bcReporters', cacheKey: 'pick_bug_control_reporters',
             searchVal: bugControlReporterSearch, onSearch: setBugControlReporterSearch,
             onToggle: (id) => onSettingsChange((s) => {
               const current = s.bugControlReporters || [];
@@ -1008,7 +830,7 @@ export default function QueryPanel({
           {renderMultiSelect({
             title: 'Клиенты', subtitle: 'Пусто — все клиенты',
             options: bugControlClientOptions, selected: settings.bugControlClients || [],
-            onLoad: loadBugControlClients, loading: bugControlClientsLoading,
+            onLoad: loadBugControlClients, loading: bugControlClientsLoading, pkey: 'bcClients', cacheKey: 'pick_bug_control_clients',
             searchVal: bugControlClientSearch, onSearch: setBugControlClientSearch,
             onToggle: (val) => onSettingsChange((s) => {
               const current = s.bugControlClients || [];
@@ -1090,7 +912,7 @@ export default function QueryPanel({
                   ? `Считаются только выбранные: ${(settings.ttmTeams || []).length}. Выбор запоминается`
                   : 'Ничего не выбрано — считаются все команды',
                 options: Array.from(new Set([...(settings.ttmKnownTeams || []), ...(settings.ttmTeams || [])])).sort((a, b) => a.localeCompare(b, 'ru')), selected: settings.ttmTeams || [],
-                onLoad: loadTtmTeams, loading: ttmTeamsLoading,
+                onLoad: loadTtmTeams, loading: ttmTeamsLoading, pkey: 'ttm-12800',
                 searchVal: ttmTeamSearch, onSearch: setTtmTeamSearch,
                 onToggle: (val) => onSettingsChange((s) => {
                   const current = s.ttmTeams || [];
@@ -1101,7 +923,7 @@ export default function QueryPanel({
               {renderMultiSelect({
                 title: 'Клиенты', subtitle: 'Ничего не выбрано — все клиенты',
                 options: settings.ttmKnownClients || [], selected: settings.ttmClients || [],
-                onLoad: loadTtmClients, loading: ttmClientsLoading,
+                onLoad: loadTtmClients, loading: ttmClientsLoading, pkey: 'ttm-12601',
                 searchVal: ttmClientSearch, onSearch: setTtmClientSearch,
                 onToggle: (val) => onSettingsChange((s) => {
                   const current = s.ttmClients || [];

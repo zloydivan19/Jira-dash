@@ -243,6 +243,13 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .picker-opt:hover { background: var(--t-bgChrome); }
 .picker-opt input { accent-color: var(--t-accent); }
 .picker-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--t-borderLight); font-size: 12px; color: var(--t-textMuted); }
+.load-progress { padding: 8px 10px 10px; border-top: 1px solid var(--t-borderLight); display: grid; gap: 6px; }
+.lp-bar { height: 6px; border-radius: 3px; background: var(--t-bgSunk); overflow: hidden; position: relative; }
+.lp-bar span { display: block; height: 100%; background: var(--t-accent); border-radius: 3px; transition: width 300ms ease; }
+.lp-bar span.indet { width: 30%; position: absolute; animation: lp-slide 1.1s ease-in-out infinite; }
+@keyframes lp-slide { from { left: -30%; } to { left: 100%; } }
+.lp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--t-textSecondary); }
+.lp-row b { color: var(--t-textPrimary); font-variant-numeric: tabular-nums; margin-right: 4px; }
 .picker.has-sel { border-color: var(--t-accent); }
 .picker-count { display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--t-accent); color: var(--t-accentText); font-size: 11.5px; font-weight: 600; text-align: center; line-height: 18px; }
 .filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

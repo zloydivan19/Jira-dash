@@ -42,6 +42,7 @@ export const handler = async (event) => {
   const rawPath = event.path || '';
   const endpoint = rawPath.includes('changelog') ? 'changelog'
     : rawPath.includes('comment')  ? 'comment'
+    : rawPath.includes('count')    ? 'count'
     : rawPath.includes('search')   ? 'search'
     : rawPath.includes('fields')   ? 'fields'
     : rawPath.includes('myself')   ? 'myself'
@@ -50,7 +51,15 @@ export const handler = async (event) => {
   try {
     let response;
 
-    if (endpoint === 'search') {
+    if (endpoint === 'count') {
+      const { jql = '' } = event.queryStringParameters || {};
+      const r = await axios.post(`${jiraUrl}/rest/api/3/search/approximate-count`, { jql: jql.trim() }, {
+        headers: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json' },
+        timeout: 15000,
+      });
+      return json(200, { count: r.data?.count ?? null });
+
+    } else if (endpoint === 'search') {
       const { jql = '', maxResults = 100, fields, nextPageToken } = event.queryStringParameters || {};
       const body = {
         jql: jql.trim(),

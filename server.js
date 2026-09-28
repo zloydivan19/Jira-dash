@@ -35,6 +35,21 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // GET /api/jira/search
+// GET /api/jira/count?jql= — примерное число задач по JQL (для прогресса загрузки списков).
+app.get('/api/jira/count', async (req, res) => {
+  const { url, auth } = getCredentials(req);
+  try {
+    const response = await axios.post(`${url}/rest/api/3/search/approximate-count`, { jql: (req.query.jql || '').trim() }, {
+      headers: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+    res.json({ count: response.data?.count ?? null });
+  } catch (err) {
+    console.error('[count] error:', err.response?.status, JSON.stringify(err.response?.data));
+    res.status(err.response?.status || 500).json({ error: 'count failed' });
+  }
+});
+
 app.get('/api/jira/search', async (req, res) => {
   const { url, auth } = getCredentials(req);
   try {
