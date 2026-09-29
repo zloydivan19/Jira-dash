@@ -17,7 +17,7 @@ export default function BackgroundLoad({ lists }) {
   const activeShare = known && total ? (loaded / total) * (1 - doneShare) : 0;
   const pct = known ? Math.min(99, Math.floor((doneShare + activeShare) * 100)) : null;
   return (
-    <div className="bg-load" role="status" aria-live="polite">
+    <div className="bg-load" data-tour="bg-load" role="status" aria-live="polite">
       <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
       <div style={{ minWidth: 0 }}>
         <div className="bg-load-title">Готовим фильтры{pct != null ? `, ${pct}%` : ''}</div>

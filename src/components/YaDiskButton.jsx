@@ -12,7 +12,7 @@ export default function YaDiskButton({ onExport, disabled, style }) {
     try { await withFileSink(onExport, yd.saveToDisk); } finally { setBusy(false); }
   };
   return (
-    <button className="btn" onClick={run} disabled={disabled || busy} style={style}
+    <button className="btn" data-tour="yadisk" onClick={run} disabled={disabled || busy} style={style}
       title={yd.connected ? `Сохранить на Яндекс Диск (${yd.conn.email || yd.conn.login})` : 'Сохранить на Яндекс Диск: сначала нужно подключить Диск'}>
       <Icon name="cloud" />{busy ? 'Сохраняем…' : 'На Яндекс Диск'}
     </button>

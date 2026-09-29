@@ -76,6 +76,14 @@ export default function App() {
   const attentionVisible = settings.crAttentionVisible !== false;
   const [attnFilter, setAttnFilter] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
+  // При самом первом открытии PM Radar тур запускается сам, дальше только по кнопке.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('jira_dash_tour_seen')) return;
+      localStorage.setItem('jira_dash_tour_seen', '1');
+    } catch { return; }
+    setTourOpen(true);
+  }, []);
   const bugsJira = useJira('jira_session_bugs');
   const evaluation = useEvaluation();
   const bugControl = useBugControl();

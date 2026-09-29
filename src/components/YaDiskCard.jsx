@@ -6,7 +6,7 @@ import { useYaDisk, folderLabel, getClientId } from '../contexts/YaDiskContext.j
 export default function YaDiskCard() {
   const yd = useYaDisk();
   return (
-    <div className="yd-card">
+    <div className="yd-card" data-tour="yadisk-card">
       <div className="yd-card-head">
         <Icon name="cloud" />
         <b>Яндекс Диск</b>
