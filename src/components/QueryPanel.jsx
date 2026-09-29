@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import Icon from './Icon.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
 import { getInList, setInList, setManagers, getExtraKeys, setExtraKeys, parseKeys } from '../utils/jqlFilters.js';
@@ -128,11 +127,6 @@ export default function QueryPanel({
     settings.ttmPeriodTo,
   ]);
 
-  const credHeaders = () => ({
-    'x-jira-url':   settings.jiraUrl   || '',
-    'x-jira-email': settings.jiraEmail || '',
-    'x-jira-token': settings.jiraToken || '',
-  });
 
   // ── CR tab: clients ──
 
@@ -162,7 +156,6 @@ export default function QueryPanel({
   // ── TTM tab: teams and clients from CR (not from bugs) ──
   const [ttmTeamsLoading, setTtmTeamsLoading] = useState(false);
   const [ttmTeamSearch, setTtmTeamSearch] = useState('');
-  const [ttmClientsLoading, setTtmClientsLoading] = useState(false);
   const [ttmClientSearch, setTtmClientSearch] = useState('');
 
   const loadTtmFieldValues = (fieldId, cfNum, settingKey, setBusy, label) => runLoad(`ttm-${cfNum}`, {
