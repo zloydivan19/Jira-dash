@@ -17,6 +17,9 @@ const storageKey = (accountId) => `yadisk_${accountId || 'default'}`;
 export const folderLabel = (path) => (path || '').replace(/^disk:\/?/, '/') || '/';
 export const diskFolderUrl = (path) => `https://disk.yandex.ru/client/disk${(path || '').replace(/^disk:/, '').split('/').map(encodeURIComponent).join('/')}`;
 
+// Так бывает, когда запрос к /api/yadisk не дошёл до сервера PM Radar (например, сервер не перезапущен).
+const NO_BACKEND = 'Сервер PM Radar не ответил на запрос к Диску. Обновите страницу или перезапустите сервер.';
+
 const YaDiskContext = createContext(null);
 export const useYaDisk = () => useContext(YaDiskContext);
 
@@ -49,7 +52,10 @@ export function YaDiskProvider({ accountId, addToast, children }) {
     throw Object.assign(new Error(message), { status: err.response?.status });
   };
   const api = {
-    list: (path) => axios.get('/api/yadisk/list', { params: { path }, headers: headers(), timeout: 15000 }).then((r) => r.data.folders).catch(handleApiError),
+    list: (path) => axios.get('/api/yadisk/list', { params: { path }, headers: headers(), timeout: 15000 }).catch(handleApiError).then((r) => {
+      if (!Array.isArray(r.data?.folders)) throw new Error(NO_BACKEND);
+      return r.data.folders;
+    }),
     mkdir: (path) => axios.post('/api/yadisk/mkdir', null, { params: { path }, headers: headers(), timeout: 20000 }).catch((e) => { if (e.response?.status !== 409) handleApiError(e); }),
     exists: (path) => axios.get('/api/yadisk/exists', { params: { path }, headers: headers(), timeout: 20000 }).then((r) => r.data.exists).catch(handleApiError),
     upload: (path, blob, overwrite) => axios.post('/api/yadisk/upload', blob, {
@@ -93,6 +99,7 @@ export function YaDiskProvider({ accountId, addToast, children }) {
       if (!e.data.token) { addToast('Яндекс Диск не подключён: доступ не разрешён', 'error'); resolve(false); return; }
       try {
         const me = await axios.get('/api/yadisk/me', { headers: { 'x-yadisk-token': e.data.token }, timeout: 15000 });
+        if (!me.data?.login) throw new Error(NO_BACKEND);
         const expiresAt = e.data.expiresIn ? Date.now() + Number(e.data.expiresIn) * 1000 : null;
         persist({ token: e.data.token, expiresAt, ...me.data, folder: conn?.folder || DEFAULT_FOLDER, ask: conn?.ask ?? true });
         addToast(`Яндекс Диск подключён: ${me.data.email || me.data.login}`, 'success');
