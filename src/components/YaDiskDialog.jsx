@@ -9,17 +9,21 @@ function FolderBrowser({ start, onPick, onCancel }) {
   const [folders, setFolders] = useState(null);
   const [error, setError] = useState('');
   const [newName, setNewName] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [waited, setWaited] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    setFolders(null); setError('');
+    setFolders(null); setError(''); setWaited(0);
+    const started = Date.now();
+    const tick = setInterval(() => setWaited(Math.floor((Date.now() - started) / 1000)), 1000);
     api.list(path).then((f) => alive && setFolders(f)).catch((e) => {
       if (!alive) return;
       if (e.status === 404 && path !== 'disk:/') setPath('disk:/');
       else setError(e.message);
-    });
-    return () => { alive = false; };
-  }, [path]);
+    }).finally(() => clearInterval(tick));
+    return () => { alive = false; clearInterval(tick); };
+  }, [path, attempt]);
 
   const parts = folderLabel(path).split('/').filter(Boolean);
   const createFolder = async () => {
@@ -41,8 +45,17 @@ function FolderBrowser({ start, onPick, onCancel }) {
         ))}
       </div>
       <div className="ydb-list">
-        {error && <p className="msg err" style={{ margin: 8 }}>{error}</p>}
-        {!error && folders == null && <p className="hint" style={{ padding: '10px 12px', margin: 0 }}>Загружаем папки…</p>}
+        {error && (
+          <div className="msg err" style={{ margin: 8, display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+            <span>{error}</span>
+            <button className="btn" onClick={() => setAttempt((a) => a + 1)}>Повторить</button>
+          </div>
+        )}
+        {!error && folders == null && (
+          <p className="hint" style={{ padding: '10px 12px', margin: 0 }}>
+            Загружаем папки…{waited >= 3 ? ` ${waited} с. Если в папке много файлов, Яндекс отвечает дольше.` : ''}
+          </p>
+        )}
         {folders && folders.length === 0 && <p className="hint" style={{ padding: '10px 12px', margin: 0 }}>Внутри нет папок</p>}
         {folders && folders.map((f) => (
           <button key={f.path} className="ydb-item" onClick={() => setPath(f.path)}>

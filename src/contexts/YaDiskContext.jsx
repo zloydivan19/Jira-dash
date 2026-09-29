@@ -43,10 +43,13 @@ export function YaDiskProvider({ accountId, addToast, children }) {
 
   const handleApiError = (err) => {
     if (err.response?.status === 401) persist(null);
-    throw Object.assign(new Error(err.response?.data?.error || err.message), { status: err.response?.status });
+    const message = err.response?.data?.error
+      || (err.code === 'ECONNABORTED' ? 'Яндекс Диск долго не отвечает. Попробуйте ещё раз.' : null)
+      || (err.response ? `Сервер ответил ошибкой ${err.response.status}` : err.message);
+    throw Object.assign(new Error(message), { status: err.response?.status });
   };
   const api = {
-    list: (path) => axios.get('/api/yadisk/list', { params: { path }, headers: headers(), timeout: 20000 }).then((r) => r.data.folders).catch(handleApiError),
+    list: (path) => axios.get('/api/yadisk/list', { params: { path }, headers: headers(), timeout: 15000 }).then((r) => r.data.folders).catch(handleApiError),
     mkdir: (path) => axios.post('/api/yadisk/mkdir', null, { params: { path }, headers: headers(), timeout: 20000 }).catch((e) => { if (e.response?.status !== 409) handleApiError(e); }),
     exists: (path) => axios.get('/api/yadisk/exists', { params: { path }, headers: headers(), timeout: 20000 }).then((r) => r.data.exists).catch(handleApiError),
     upload: (path, blob, overwrite) => axios.post('/api/yadisk/upload', blob, {
