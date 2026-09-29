@@ -34,7 +34,6 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
   const [crReporterOptions, setCrReporterOptions] = useState(() => readCache('pick_cr_reporters'));
   const [engineerOptions, setEngineerOptions] = useState(() => readCache('pick_engineers'));
   const [reporterOptions, setReporterOptions] = useState(() => readCache('pick_bugs_reporters'));
-  const [bugControlReporterOptions, setBugControlReporterOptions] = useState(() => readCache('pick_bug_control_reporters'));
   const [busy, setBusy] = useState({});
   const [progress, setProgress] = useState({});
   const [background, setBackground] = useState(null); // { keys, done } пока идёт фоновая загрузка
@@ -98,15 +97,6 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
   };
   const load = (key, quiet = false) => runLoad(key, { ...SPECS[key], quiet });
 
-  const loadBugControlReporters = () => {
-    const projects = (settings.bugControlProjects || '').split(',').map((x) => x.trim()).filter(Boolean);
-    const issueType = (settings.bugControlIssueType || 'Bug').trim();
-    const prefix = `${projects.length ? `project in (${projects.join(', ')}) AND ` : ''}${issueType ? `issuetype = "${issueType}" AND ` : ''}`;
-    return runLoad('bcReporters', {
-      jql: `${prefix}reporter is not EMPTY`, field: 'reporter', kind: 'user', label: 'авторов',
-      apply: store('pick_bug_control_reporters', setBugControlReporterOptions),
-    });
-  };
 
   // Фоновая загрузка после подключения: по очереди, только отсутствующие или устаревшие (> 7 дней) списки.
   const preload = useCallback(async () => {
@@ -128,7 +118,7 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
   }, [settings.jiraUrl, settings.jiraEmail, settings.jiraToken]);
 
   return {
-    allClients, managerOptions, crReporterOptions, engineerOptions, reporterOptions, bugControlReporterOptions,
+    allClients, managerOptions, crReporterOptions, engineerOptions, reporterOptions,
     busy, progress, background, runLoad, stopLoad, cachedAt, preload,
     stopBackground: () => { (background?.keys || []).forEach((k) => stopLoad(k)); },
     loadClients: () => load('clients'),
@@ -136,6 +126,5 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
     loadCrReporters: () => load('crReporters'),
     loadReporters: () => load('bugReporters'),
     loadEngineers: () => load('engineers'),
-    loadBugControlReporters,
   };
 }

@@ -44,9 +44,9 @@ export default function QueryPanel({
   lists,
 }) {
   const {
-    allClients, managerOptions, crReporterOptions, engineerOptions, reporterOptions, bugControlReporterOptions,
+    allClients, managerOptions, crReporterOptions, engineerOptions, reporterOptions,
     busy, progress, runLoad, stopLoad, cachedAt,
-    loadClients, loadManagers, loadCrReporters, loadReporters, loadEngineers, loadBugControlReporters,
+    loadClients, loadManagers, loadCrReporters, loadReporters, loadEngineers,
   } = lists;
   const clientOptions = allClients;
   const bugControlClientOptions = allClients;
@@ -58,7 +58,10 @@ export default function QueryPanel({
   const crReportersLoading = !!busy.crReporters;
   const engineersLoading = !!busy.engineers;
   const reportersLoading = !!busy.bugReporters;
-  const bugControlReportersLoading = !!busy.bcReporters;
+  // Контроль ошибок использует общий список авторов ошибок (проекты команд), который грузится в фоне.
+  const bugControlReporterOptions = reporterOptions;
+  const bugControlReportersLoading = reportersLoading;
+  const loadBugControlReporters = loadReporters;
 
   // CR Queries tab state
   const [clientSearch, setClientSearch] = useState('');
@@ -761,7 +764,7 @@ export default function QueryPanel({
           {settings.bugControlReportersMode === 'list' && renderMultiSelect({
             title: 'Авторы ошибок', subtitle: 'Для просмотра по нескольким людям',
             options: bugControlReporterOptions, selected: (settings.bugControlReporters || []).map((r) => r.accountId),
-            onLoad: loadBugControlReporters, loading: bugControlReportersLoading, pkey: 'bcReporters', cacheKey: 'pick_bug_control_reporters',
+            onLoad: loadBugControlReporters, loading: bugControlReportersLoading, pkey: 'bugReporters', cacheKey: 'pick_bugs_reporters',
             searchVal: bugControlReporterSearch, onSearch: setBugControlReporterSearch,
             onToggle: (id) => onSettingsChange((s) => {
               const current = s.bugControlReporters || [];
