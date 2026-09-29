@@ -541,12 +541,15 @@ export default function QueryPanel({
     addToast(`Шаблон «${name}» сохранён`, 'success');
   };
 
+  // Запрос готов: сворачиваем панель, чтобы результат был виден целиком. Шаблоны её не закрывают.
+  const loadAndCollapse = (onLoad) => () => { setDrawerOpen(false); onLoad(); };
+
   const jqlBlock = ({ label, value, onChange, placeholder, loadLabel, onLoad, loading, extra }) => (
     <div className="drawer-wide">
       <label className="fld-label">{label}</label>
       <textarea className="jql-area" value={value} onChange={onChange} placeholder={placeholder} rows={3} spellCheck={false} />
       <div className="row" style={{ marginTop: 8 }}>
-        <button className="btn primary" onClick={onLoad} disabled={loading}>
+        <button className="btn primary" onClick={loadAndCollapse(onLoad)} disabled={loading}>
           {loading && <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
           {loading ? 'Загружаем…' : loadLabel}
         </button>
@@ -726,7 +729,7 @@ export default function QueryPanel({
             </div>
           </div>
           <div className="drawer-wide row">
-            <button className="btn primary" onClick={() => onLoadEval()} disabled={evalLoading}>
+            <button className="btn primary" onClick={loadAndCollapse(() => onLoadEval())} disabled={evalLoading}>
               {evalLoading ? 'Загружаем…' : 'Загрузить задачи'}
             </button>
             {evalHasData && saveViewControl('Сохранить как шаблон')}
