@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
-import { getInList, setInList, setManagers, getExtraKeys, setExtraKeys, parseKeys } from '../utils/jqlFilters.js';
+import { getInList, setInList, setManagers, getExtraKeys, setExtraKeys, parseKeys, getDateRange, setDateRange, DATE_FIELDS } from '../utils/jqlFilters.js';
 
 const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
 // CR живут в проекте CR (ключи CR-XXXX); Complex Project там же, но в TTM не участвует.
@@ -600,9 +600,75 @@ export default function QueryPanel({
       </React.Fragment>
     );
   };
+  // ── Период по дате ──
+  const DATE_PRESETS = [
+    { value: '-7d', label: '7 дней' },
+    { value: '-30d', label: '30 дней' },
+    { value: '-90d', label: '3 месяца' },
+    { value: 'startOfYear()', label: 'С начала года' },
+  ];
+  const isPlainDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+  const ruDate = (v) => v.split('-').reverse().join('.');
+  const dateLabel = (r) => {
+    const f = DATE_FIELDS.find((x) => x.field === r.field)?.label || r.field;
+    const preset = !r.to && DATE_PRESETS.find((p) => p.value === r.from);
+    if (preset) return `${f}: ${preset.value === 'startOfYear()' ? 'с начала года' : `за ${preset.label}`}`;
+    const show = (v) => (isPlainDate(v) ? ruDate(v) : v);
+    if (r.from && r.to) return `${f}: ${show(r.from)} – ${show(r.to)}`;
+    return r.from ? `${f}: с ${show(r.from)}` : `${f}: по ${show(r.to)}`;
+  };
+  const [dateFieldPick, setDateFieldPick] = useState({});
+  const renderDatePicker = (jqlKey) => {
+    const range = getDateRange(settings[jqlKey]);
+    const field = range?.field || dateFieldPick[jqlKey] || 'created';
+    const write = (r) => onSettingsChange({ [jqlKey]: setDateRange(settings[jqlKey] || '', r) });
+    const presetOn = (v) => range && !range.to && range.from === v;
+    const fromDate = range && isPlainDate(range.from) ? range.from : '';
+    const toDate = range && isPlainDate(range.to) ? range.to : '';
+    const setBound = (key, val) => {
+      const next = { field, from: fromDate || null, to: toDate || null, [key]: val || null };
+      write(next.from || next.to ? next : null);
+    };
+    return (
+      <div className={`picker${range ? ' has-sel' : ''}`} key="date">
+        <div className="picker-head">
+          <div style={{ minWidth: 0 }}>
+            <div className="t">По дате{range && <span className="picker-count">1</span>}</div>
+            <div className="d">Период поиска задач</div>
+          </div>
+          {range && <button className="btn ghost" onClick={() => write(null)} style={{ padding: '5px 8px', fontSize: 12.5 }}>Сбросить</button>}
+        </div>
+        <div className="picker-body date-pick">
+          <div className="seg">
+            {DATE_FIELDS.map((d) => (
+              <button key={d.field} aria-pressed={field === d.field} onClick={() => {
+                setDateFieldPick((m) => ({ ...m, [jqlKey]: d.field }));
+                if (range) write({ ...range, field: d.field });
+              }}>{d.label}</button>
+            ))}
+          </div>
+          <div className="date-presets">
+            {DATE_PRESETS.map((p) => (
+              <button key={p.value} className={`btn ghost${presetOn(p.value) ? ' on' : ''}`} aria-pressed={presetOn(p.value)}
+                onClick={() => write(presetOn(p.value) ? null : { field, from: p.value, to: null })}>{p.label}</button>
+            ))}
+          </div>
+          <div className="date-bounds">
+            <label>с<input className="input sm" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setBound('from', e.target.value)} /></label>
+            <label>по<input className="input sm" type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setBound('to', e.target.value)} /></label>
+          </div>
+          {range && !fromDate && !toDate && !DATE_PRESETS.some((p) => presetOn(p.value)) && (
+            <p className="hint" style={{ margin: 0 }}>В запросе свой период: {dateLabel(range)}</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const filterChips = (jqlKey, filters) => {
     const active = filters.map((f) => ({ f, ids: getInList(settings[jqlKey], f.field) })).filter((x) => x.ids.length);
-    if (!active.length) return <p className="hint drawer-wide" style={{ margin: 0 }}>Отметьте значения в списках ниже — условие сразу появится в JQL. Затем нажмите «Загрузить задачи».</p>;
+    const dateRange = getDateRange(settings[jqlKey]);
+    if (!active.length && !dateRange) return <p className="hint drawer-wide" style={{ margin: 0 }}>Отметьте значения в списках ниже — условие сразу появится в JQL. Затем нажмите «Загрузить задачи».</p>;
     return (
       <div className="drawer-wide filter-chips">
         <span className="hint" style={{ margin: 0 }}>Фильтры в запросе:</span>
@@ -612,9 +678,16 @@ export default function QueryPanel({
             <button title="Убрать из запроса" onClick={() => writeFilter(jqlKey, f, ids.filter((x) => x !== id))}><Icon name="x" size={13} /></button>
           </span>
         )))}
+        {dateRange && (
+          <span className="fchip">
+            {dateLabel(dateRange)}
+            <button title="Убрать из запроса" onClick={() => onSettingsChange({ [jqlKey]: setDateRange(settings[jqlKey], null) })}><Icon name="x" size={13} /></button>
+          </span>
+        )}
         <button className="btn ghost" style={{ padding: '3px 8px', fontSize: 12.5 }} onClick={() => {
           let jql = settings[jqlKey] || '';
           active.forEach(({ f }) => { jql = f.manager ? setManagers(jql, []) : setInList(jql, f.field, []); });
+          jql = setDateRange(jql, null);
           onSettingsChange({ [jqlKey]: jql });
         }}>Убрать все</button>
       </div>
@@ -689,6 +762,7 @@ export default function QueryPanel({
         {extraKeysBlock('jql')}
         {filterChips('jql', CR_FILTERS)}
         {CR_FILTERS.map((f) => renderJqlPicker('jql', f))}
+        {renderDatePicker('jql')}
       </div>
     );
 
@@ -702,6 +776,7 @@ export default function QueryPanel({
         {extraKeysBlock('jqlBugs')}
         {filterChips('jqlBugs', BUG_FILTERS)}
         {BUG_FILTERS.map((f) => renderJqlPicker('jqlBugs', f))}
+        {renderDatePicker('jqlBugs')}
       </div>
     );
 

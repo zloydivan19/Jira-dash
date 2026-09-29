@@ -73,3 +73,56 @@ export function setManagers(jql, values) {
   const cond = values.length ? `${MANAGER} in (${values.map(quote).join(', ')})` : `${MANAGER} = currentUser()`;
   return compose({ ...p, base: rest ? `${cond} AND ${rest}` : cond });
 }
+
+// Период по дате: `created >= -30d`, `created >= "2026-01-01" AND created <= "2026-03-31 23:59"`.
+// Одно поле даты за раз: при выборе другого поля условие переезжает.
+export const DATE_FIELDS = [
+  { field: 'created', label: 'Создано' },
+  { field: 'updated', label: 'Обновлено' },
+  { field: 'resolved', label: 'Решено' },
+];
+const DATE_VALUE = String.raw`"[^"]*"|[A-Za-z]+\([^)]*\)|[^\s()]+`;
+const dateRe = (field, flags = 'i') => new RegExp(String.raw`(\s+AND\s+)?\b${field}\s*(>=|<=|>|<)\s*(${DATE_VALUE})(\s+AND\s+)?`, flags);
+
+const unquote = (v) => v.replace(/^"|"$/g, '');
+const plainDate = (v) => {
+  const m = unquote(v).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+};
+
+// { field, from, to } — from/to в виде из JQL (-30d, startOfYear(), 2026-01-01), либо null, если периода нет.
+export function getDateRange(jql) {
+  const base = splitExtra(jql).base;
+  for (const { field } of DATE_FIELDS) {
+    const re = dateRe(field, 'gi');
+    let from = null; let to = null; let m;
+    while ((m = re.exec(base))) {
+      if (m[2].startsWith('>')) from = plainDate(m[3]) || unquote(m[3]);
+      else to = plainDate(m[3]) || unquote(m[3]);
+    }
+    if (from || to) return { field, from, to };
+  }
+  return null;
+}
+
+function removeDates(body) {
+  let out = body;
+  for (const { field } of DATE_FIELDS) {
+    let prev;
+    do { prev = out; out = out.replace(dateRe(field), (all, a, _op, _v, b) => (a && b ? ' AND ' : '')).trim(); } while (out !== prev);
+  }
+  return out;
+}
+
+const dateLiteral = (v, end) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `"${v}${end ? ' 23:59' : ''}"` : v);
+
+export function setDateRange(jql, range) {
+  const p = splitExtra(jql);
+  const cleaned = removeDates(p.base);
+  const conds = [];
+  if (range?.from) conds.push(`${range.field} >= ${dateLiteral(range.from, false)}`);
+  if (range?.to) conds.push(`${range.field} <= ${dateLiteral(range.to, true)}`);
+  const cond = conds.join(' AND ');
+  const base = cond ? (cleaned ? `${cleaned} AND ${cond}` : cond) : cleaned;
+  return compose({ ...p, base });
+}
