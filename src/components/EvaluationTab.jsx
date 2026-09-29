@@ -545,7 +545,7 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
 
         {/* Legend */}
         <div data-tour="eval-sla" style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '4px 6px' }}>
-          {[{ color: 'var(--t-success)', label: '≤ 5 р.д.' }, { color: 'var(--t-warning)', label: '6–8 р.д.' }, { color: 'var(--t-error)', label: '> 8 р.д.' }, { color: 'var(--t-accent)', label: 'Оценена' }, { color: 'var(--t-textMuted)', label: 'Пауза' }].map(({ color, label }) => (
+          {[{ color: 'var(--t-success)', label: '≤ 5 р.д.' }, { color: 'var(--t-warning)', label: '6–10 р.д.' }, { color: 'var(--t-error)', label: '> 10 р.д.' }, { color: 'var(--t-accent)', label: 'Оценена' }, { color: 'var(--t-textMuted)', label: 'Пауза' }].map(({ color, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
               <span style={{ fontSize: '11px', color: theme.textMuted }}>{label}</span>

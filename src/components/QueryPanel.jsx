@@ -810,8 +810,8 @@ export default function QueryPanel({
             <div className="fld-label">Цвет срока</div>
             <div style={{ display: 'grid', gap: 6, fontSize: 13, color: 'var(--t-textSecondary)' }}>
               <span className="st todo" style={{ color: 'inherit' }}><i style={{ background: 'var(--t-success)', boxShadow: 'none' }} />до 5 рабочих дней с начала оценки</span>
-              <span className="st" style={{ color: 'inherit' }}><i style={{ background: 'var(--t-warning)' }} />6–8 рабочих дней, скоро срок</span>
-              <span className="st" style={{ color: 'inherit' }}><i style={{ background: 'var(--t-error)' }} />больше 8 рабочих дней, SLA нарушен</span>
+              <span className="st" style={{ color: 'inherit' }}><i style={{ background: 'var(--t-warning)' }} />6–10 рабочих дней, скоро срок (9-й: почти нарушен, 10-й: последний шанс)</span>
+              <span className="st" style={{ color: 'inherit' }}><i style={{ background: 'var(--t-error)' }} />больше 10 рабочих дней, SLA нарушен</span>
               <span className="st" style={{ color: 'inherit' }}><i style={{ background: 'var(--t-accent)' }} />CR в майке, оценка готова</span>
               <span className="st todo" style={{ color: 'inherit' }}><i />на паузе или отложено</span>
               <span className="hint">На модерации свой счётчик: до 2 дней норма, 3 дня предупреждение, больше 3 нарушение.</span>

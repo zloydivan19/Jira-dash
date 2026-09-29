@@ -89,8 +89,9 @@ export function getSLAColor(totalActiveDays, daysInCurrentStatus, currentStatus)
     return 'red';
   }
 
+  // SLA оценки — 10 рабочих дней: 9-й и 10-й день ещё жёлтые, с 11-го нарушение.
   if (totalActiveDays <= 5) return 'green';
-  if (totalActiveDays <= 8) return 'yellow';
+  if (totalActiveDays <= 10) return 'yellow';
   return 'red';
 }
 
