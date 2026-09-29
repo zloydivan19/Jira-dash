@@ -40,11 +40,15 @@ export default function Icon({ name, size, style }) {
 
 export function RadarMark({ size = 24 }) {
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
-      <circle cx="12" cy="12" r="10" style={{ fill: 'none', stroke: 'var(--t-border)', strokeWidth: 1.5 }} />
-      <circle cx="12" cy="12" r="5.5" style={{ fill: 'none', stroke: 'var(--t-border)', strokeWidth: 1.5 }} />
-      <path d="M12 12 L12 2 A10 10 0 0 1 20.7 7Z" style={{ fill: 'var(--t-accent)', opacity: 0.85 }} />
-      <circle cx="16.5" cy="15" r="1.6" style={{ fill: 'var(--t-error)' }} />
+    <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+      <rect width="64" height="64" rx="14" fill="#14161B" />
+      <g fill="none" stroke="#4A505E" strokeWidth="3">
+        <circle cx="32" cy="32" r="22" />
+        <circle cx="32" cy="32" r="11" />
+      </g>
+      <path d="M32 32 L32 10 A22 22 0 0 1 51.05 21 Z" fill="#9AA3F5" fillOpacity=".9" />
+      <circle cx="41" cy="17" r="4.2" fill="#F2776F" />
+      <circle cx="22.5" cy="41.5" r="4.2" fill="#55C68F" />
     </svg>
   );
 }
