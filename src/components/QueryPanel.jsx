@@ -366,11 +366,20 @@ export default function QueryPanel({
   const pinned = settings.pinnedTemplates?.[activeTab]
     ?? [...(DEFAULT_PINS[activeTab] || []), ...tabViews.map((v) => `v:${v.id}`)];
   const setPinned = (next) => onSettingsChange((s) => ({ pinnedTemplates: { ...(s.pinnedTemplates || {}), [activeTab]: next } }));
-  const togglePin = (key) => setPinned(pinned.includes(key) ? pinned.filter((k) => k !== key) : [...pinned, key]);
+  // Снятая звёздочка убирает шаблон из строки сразу, даже если он сейчас загружен.
+  const [unpinnedNow, setUnpinnedNow] = useState([]);
+  const togglePin = (key) => {
+    const on = pinned.includes(key);
+    setPinned(on ? pinned.filter((k) => k !== key) : [...pinned, key]);
+    setUnpinnedNow((l) => (on ? [...l, key] : l.filter((k) => k !== key)));
+  };
 
   const [libOpen, setLibOpen] = useState(false);
   const [picked, setPicked] = useState({});
-  const markPicked = (key) => setPicked((m) => ({ ...m, [activeTab]: key }));
+  const markPicked = (key) => {
+    setPicked((m) => ({ ...m, [activeTab]: key }));
+    setUnpinnedNow((l) => l.filter((k) => k !== key));
+  };
   // Панель открывается/закрывается только кнопкой. Начальное состояние — один раз при открытии
   // приложения: открыта там, где данных ещё нет.
   const [openMap, setOpenMap] = useState(() => ({
@@ -437,14 +446,19 @@ export default function QueryPanel({
     ...tabViews.filter((v) => pinned.includes(`v:${v.id}`)).map((v) => ({ key: `v:${v.id}`, label: v.name, title: v.jql || 'Сохранённый вид', active: isViewActive(v), onClick: () => pickView(v) })),
   ];
   const activeHidden = [
-    ...templateItems.filter((t) => !pinned.includes(t.label) && isTemplateActive(t)).map((t) => ({ key: t.label, label: t.label, title: t.desc, active: true, onClick: () => pickTemplate(t) })),
-    ...tabViews.filter((v) => !pinned.includes(`v:${v.id}`) && isViewActive(v)).map((v) => ({ key: `v:${v.id}`, label: v.name, title: v.jql, active: true, onClick: () => pickView(v) })),
+    ...templateItems.filter((t) => !pinned.includes(t.label) && t.label === picked[activeTab] && !unpinnedNow.includes(t.label) && isTemplateActive(t)).map((t) => ({ key: t.label, label: t.label, title: t.desc, active: true, onClick: () => pickTemplate(t) })),
+    ...tabViews.filter((v) => !pinned.includes(`v:${v.id}`) && `v:${v.id}` === picked[activeTab] && !unpinnedNow.includes(`v:${v.id}`) && isViewActive(v)).map((v) => ({ key: `v:${v.id}`, label: v.name, title: v.jql, active: true, onClick: () => pickView(v) })),
   ];
   const hiddenCount = templateItems.length + tabViews.length - tabItems.length;
   const shownItems = [...tabItems, ...activeHidden];
+  // Загруженный шаблон, которого нет в строке: подсвечиваем «Все шаблоны».
+  const loadedOutside = [
+    ...templateItems.filter((t) => isTemplateActive(t)).map((t) => ({ key: t.label, label: t.label })),
+    ...tabViews.filter((v) => isViewActive(v)).map((v) => ({ key: `v:${v.id}`, label: v.name })),
+  ].find((it) => !shownItems.some((x) => x.key === it.key));
   const activeKeys = shownItems.filter((it) => it.active).map((it) => it.key);
   const customJql = activeTab === 'queries' ? settings.jql : activeTab === 'bugs' ? settings.jqlBugs : '';
-  const showCustom = (activeTab === 'queries' || activeTab === 'bugs') && activeKeys.length === 0 && !!(customJql || '').trim();
+  const showCustom = (activeTab === 'queries' || activeTab === 'bugs') && activeKeys.length === 0 && !loadedOutside && !!(customJql || '').trim();
   const selectedKey = showCustom ? '__custom' : activeKeys.includes(picked[activeTab]) ? picked[activeTab] : activeKeys[0];
 
   // ── Load wrappers that fold the drawer after a successful start ──
@@ -1043,7 +1057,8 @@ export default function QueryPanel({
             </div>
             <div className="views-more">
               <span className="lib-anchor" data-tour="lib">
-                <button className="view-tab quiet" aria-expanded={libOpen} onClick={() => setLibOpen((v) => !v)}>
+                <button className="view-tab quiet" aria-expanded={libOpen} aria-selected={!!loadedOutside && !showCustom}
+                  title={loadedOutside ? `Сейчас загружен «${loadedOutside.label}»` : undefined} onClick={() => setLibOpen((v) => !v)}>
                   Все шаблоны{hiddenCount > 0 && <span className="c">+{hiddenCount}</span>}<Icon name="chevD" />
                 </button>
                 {libOpen && (
@@ -1069,7 +1084,7 @@ export default function QueryPanel({
                     {tabViews.length === 0 && <div className="lib-item"><span className="d">Пока нет. Настройте запрос и нажмите «Сохранить как шаблон».</span></div>}
                     {tabViews.map((v) => (
                       <div key={v.id} className="lib-item">
-                        <button className="pin" aria-pressed={pinned.includes(`v:${v.id}`)} title="Показывать в строке" onClick={() => togglePin(`v:${v.id}`)}>
+                        <button className="pin" aria-pressed={pinned.includes(`v:${v.id}`)} title={pinned.includes(`v:${v.id}`) ? 'Убрать из строки' : 'Показывать в строке'} onClick={() => togglePin(`v:${v.id}`)}>
                           <Icon name="star" />
                         </button>
                         <button className="pick" onClick={() => pickView(v)}>
