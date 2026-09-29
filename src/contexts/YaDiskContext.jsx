@@ -6,8 +6,8 @@ import YaDiskDialog from '../components/YaDiskDialog.jsx';
 // каждой учётной записи Jira: под другим пользователем Jira чужой Диск не подтянется.
 
 // ID приложения PM Radar в кабинете Яндекса (oauth.yandex.ru). Он публичный, не секрет.
-// Можно задать при сборке (VITE_YANDEX_CLIENT_ID) или вписать сюда после регистрации.
-const BUILT_IN_CLIENT_ID = import.meta.env.VITE_YANDEX_CLIENT_ID || '';
+// Можно переопределить при сборке (VITE_YANDEX_CLIENT_ID).
+const BUILT_IN_CLIENT_ID = import.meta.env.VITE_YANDEX_CLIENT_ID || '7c4921adc00d406d8d0a50d646b4a15c';
 export const getClientId = () => BUILT_IN_CLIENT_ID || (() => { try { return localStorage.getItem('yadisk_client_id') || ''; } catch { return ''; } })();
 export const clientIdBuiltIn = !!BUILT_IN_CLIENT_ID;
 
