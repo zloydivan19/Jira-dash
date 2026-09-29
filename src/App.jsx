@@ -16,6 +16,9 @@ import AttentionStrip from './components/AttentionStrip.jsx';
 import OnboardingTour from './components/OnboardingTour.jsx';
 import BackgroundLoad from './components/BackgroundLoad.jsx';
 import { usePickerLists } from './hooks/usePickerLists.js';
+import { YaDiskProvider } from './contexts/YaDiskContext.jsx';
+import YaDiskButton from './components/YaDiskButton.jsx';
+import { sinkActive } from './utils/fileSink.js';
 import { useCrStatusDays } from './hooks/useCrStatusDays.js';
 import { attentionFlags, hasAttention } from './utils/crAttention.js';
 
@@ -93,9 +96,9 @@ export default function App() {
   const [columnsDirtyCR, setColumnsDirtyCR] = useState(false);
   const [columnsDirtyBugs, setColumnsDirtyBugs] = useState(false);
 
-  const addToast = useCallback((message, type = 'info') => {
+  const addToast = useCallback((message, type = 'info', link = null) => {
     const id = ++toastIdCounter;
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, link }]);
   }, []);
 
   const lists = usePickerLists({ settings, addToast, onSettingsChange: updateSettings });
@@ -341,8 +344,10 @@ export default function App() {
 
   const handleExportXLSX = () => {
     if (filteredIssues.length === 0) { addToast('Нет данных для экспорта', 'error'); return; }
-    downloadXLSX(filteredIssues, currentColumns);
-    addToast(`Экспортировано ${filteredIssues.length} задач`, 'success');
+    const toDisk = sinkActive();
+    const done = downloadXLSX(filteredIssues, currentColumns, isCRActive ? 'CR_Запросы' : 'Задачи_Ошибки');
+    if (!toDisk) addToast(`Экспортировано ${filteredIssues.length} задач`, 'success');
+    return done;
   };
 
   const handleRetry = () => {
@@ -436,6 +441,7 @@ export default function App() {
                 <button className="btn" onClick={handleExportXLSX} disabled={filteredIssues.length === 0}>
                   <Icon name="download" />Экспорт Excel
                 </button>
+                <YaDiskButton onExport={handleExportXLSX} disabled={filteredIssues.length === 0} />
               </div>
             )}
           </header>
@@ -552,6 +558,7 @@ export default function App() {
   }
 
   return (
+    <YaDiskProvider accountId={userInfo?.accountId} addToast={addToast}>
     <div className="shell">
       {!fullscreen && (
         <NavRail activeTab={activeTab} onTabChange={changeTab} collapsed={collapsed} onToggleCollapsed={toggleCollapsed}
@@ -563,5 +570,6 @@ export default function App() {
       <BackgroundLoad lists={lists} />
       {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} onTabChange={changeTab} hasTable={crJira.status === 'success'} />}
     </div>
+    </YaDiskProvider>
   );
 }

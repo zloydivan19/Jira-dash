@@ -1,4 +1,5 @@
 import XLSX from 'xlsx-js-style';
+import { saveFile } from './fileSink.js';
 import axios from 'axios';
 import { EVAL_ACTIVE_STATUSES, EVAL_ACTIVE_STATUSES_JQL } from './evalStatuses.js';
 
@@ -505,15 +506,8 @@ export async function exportSLAViolations(settings, onProgress) {
   // 4. Browser-safe download
   const wbout   = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob    = new Blob([wbout], { type: 'application/octet-stream' });
-  const url     = URL.createObjectURL(blob);
-  const a       = document.createElement('a');
   const filename = `SLA_CR_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await saveFile(blob, filename);
 
   return { count: violations.length, total: allIssues.length };
 }

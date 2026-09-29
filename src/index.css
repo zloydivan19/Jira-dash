@@ -300,6 +300,21 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .bg-load-title { font-size: 13px; font-weight: 600; color: var(--t-textPrimary); }
 .bg-load-sub { font-size: 12px; color: var(--t-textMuted); }
 
+/* ── Yandex Disk ──────────────────────────────────────── */
+.yd .yd-body { padding: 14px 20px 18px; display: grid; gap: 12px; }
+.yd-lead { margin: 0; font-size: 13.5px; color: var(--t-textSecondary); }
+.yd-account { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--t-textMuted); }
+.yd-folder { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--t-border); border-radius: 7px; background: var(--t-bgChrome); font-size: 13px; color: var(--t-textPrimary); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ydb-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 13px; color: var(--t-textMuted); }
+.ydb-crumbs button { background: transparent; border: 0; color: var(--t-accent); cursor: pointer; padding: 2px 4px; border-radius: 5px; font-size: 13px; }
+.ydb-crumbs button:hover { background: var(--t-accentSoft); }
+.ydb-list { margin-top: 8px; border: 1px solid var(--t-border); border-radius: 8px; max-height: 280px; overflow-y: auto; }
+.ydb-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; background: transparent; border: 0; border-bottom: 1px solid var(--t-borderLight); color: var(--t-textPrimary); font-size: 13.5px; cursor: pointer; }
+.ydb-item:hover { background: var(--t-bgChrome); }
+.ydb-item svg.ic { color: var(--t-textMuted); }
+.yd-card { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--t-border); border-radius: 10px; background: var(--t-bgChrome); }
+.yd-card-head { display: flex; align-items: center; gap: 8px; color: var(--t-textPrimary); font-size: 14px; }
+
 /* ── Onboarding tour ───────────────────────────────────── */
 .tour { position: fixed; inset: 0; z-index: 10000; }
 .tour-catch { position: absolute; inset: 0; }

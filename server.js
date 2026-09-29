@@ -3,6 +3,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { yadiskMe, yadiskList, yadiskMkdir, yadiskExists, yadiskUpload } from './lib/yadisk.js';
 
 dotenv.config();
 
@@ -27,12 +28,29 @@ function getCredentials(req) {
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-jira-url, x-jira-email, x-jira-token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-jira-url, x-jira-email, x-jira-token, x-yadisk-token');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
 app.use(express.json());
+
+// ── Яндекс Диск пользователя ──────────────────────────────────────────────────
+// Токен приходит из браузера в заголовке x-yadisk-token и не сохраняется на сервере.
+function yadiskToken(req, res) {
+  const token = req.headers['x-yadisk-token'];
+  if (!token) res.status(401).json({ error: 'Яндекс Диск не подключён' });
+  return token;
+}
+const sendResult = (res, r) => res.status(r.status).json(r.data);
+app.get('/api/yadisk/me', async (req, res) => { const t = yadiskToken(req, res); if (t) sendResult(res, await yadiskMe(t)); });
+app.get('/api/yadisk/list', async (req, res) => { const t = yadiskToken(req, res); if (t) sendResult(res, await yadiskList(t, req.query.path)); });
+app.post('/api/yadisk/mkdir', async (req, res) => { const t = yadiskToken(req, res); if (t) sendResult(res, await yadiskMkdir(t, req.query.path)); });
+app.get('/api/yadisk/exists', async (req, res) => { const t = yadiskToken(req, res); if (t) sendResult(res, await yadiskExists(t, req.query.path)); });
+app.post('/api/yadisk/upload', express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
+  const t = yadiskToken(req, res);
+  if (t) sendResult(res, await yadiskUpload(t, req.query.path, req.query.overwrite === 'true', req.body));
+});
 
 // GET /api/jira/search
 // GET /api/jira/count?jql= — примерное число задач по JQL (для прогресса загрузки списков).

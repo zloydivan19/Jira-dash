@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Icon from './Icon.jsx';
+import YaDiskCard from './YaDiskCard.jsx';
 
 export default function ConnectionPage({ settings, onSettingsChange, onFetchMyself, onConnected, onStartTour }) {
   const [status, setStatus] = useState(null);
@@ -73,6 +74,7 @@ export default function ConnectionPage({ settings, onSettingsChange, onFetchMyse
             {status === 'loading' ? 'Проверяем…' : 'Подключиться'}
           </button>
           {msg && <div className={`msg ${status === 'ok' ? 'ok' : 'err'}`}>{msg}</div>}
+          <YaDiskCard />
           <details>
             <summary>Где взять API-токен</summary>
             <ol>

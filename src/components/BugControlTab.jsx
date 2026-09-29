@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import YaDiskButton from './YaDiskButton.jsx';
 import { calcVersionShift, currentVersionNames, formatVersionShift } from '../hooks/useBugControl.js';
 
 const FLAG_COLORS = {
@@ -631,6 +632,7 @@ export default function BugControlTab({ issues, historyMap: rawHistoryMap, versi
             : null}
           {exportLabel || 'Экспорт Excel'}
         </button>
+        <YaDiskButton onExport={onExport} disabled={exporting || totalIssues === 0 || loadingHistory} style={{ fontSize: 12, padding: '6px 10px' }} />
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>

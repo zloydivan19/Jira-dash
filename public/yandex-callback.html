@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><title>PM Radar: Яндекс Диск</title></head>
+<body style="font-family: system-ui, sans-serif; padding: 24px; color: #545C6D">
+<p id="msg">Подключаем Яндекс Диск…</p>
+<script>
+  // Яндекс возвращает сюда ключ доступа в части адреса после «#». Передаём его в окно PM Radar и закрываемся.
+  (function () {
+    var h = new URLSearchParams(location.hash.slice(1));
+    var q = new URLSearchParams(location.search);
+    var msg = {
+      type: 'yadisk-oauth',
+      token: h.get('access_token'),
+      expiresIn: h.get('expires_in'),
+      state: h.get('state') || q.get('state'),
+      error: h.get('error') || q.get('error'),
+    };
+    if (window.opener) {
+      window.opener.postMessage(msg, location.origin);
+      window.close();
+    } else {
+      document.getElementById('msg').textContent = msg.token
+        ? 'Готово. Закройте это окно и вернитесь в PM Radar.'
+        : 'Не удалось подключить Яндекс Диск. Закройте окно и попробуйте ещё раз.';
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import XLSX from 'xlsx-js-style';
+import { saveFile } from './fileSink.js';
 
 const C = {
   headerBg:   '1F3864',
@@ -439,13 +440,7 @@ export async function exportTTM({ issues, stats, teamStats, settings }) {
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob  = new Blob([wbout], { type: 'application/octet-stream' });
-  const url   = URL.createObjectURL(blob);
-  const a     = document.createElement('a');
-  a.href = url; a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await saveFile(blob, fname);
 
   return { count: stats?.count ?? issues.length };
 }

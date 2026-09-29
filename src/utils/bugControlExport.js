@@ -1,4 +1,5 @@
 import XLSX from 'xlsx-js-style';
+import { saveFile } from './fileSink.js';
 import { calcVersionShift, currentVersionNames, formatVersionShift } from '../hooks/useBugControl.js';
 
 // ── Color palette ─────────────────────────────────────────────────────────────
@@ -363,14 +364,8 @@ export async function exportBugControl({ issues, historyMap, versionsMeta, setti
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob  = new Blob([wbout], { type: 'application/octet-stream' });
-  const url   = URL.createObjectURL(blob);
-  const a     = document.createElement('a');
   const fname = `Контроль_ошибок_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  a.href = url; a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await saveFile(blob, fname);
 
   return { count: issues.length };
 }

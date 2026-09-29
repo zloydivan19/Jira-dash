@@ -12,7 +12,7 @@ function ToastItem({ toast, removeToast }) {
   const s = styles[toast.type] || styles.info;
 
   useEffect(() => {
-    const t = setTimeout(() => removeToast(toast.id), 3000);
+    const t = setTimeout(() => removeToast(toast.id), toast.link ? 8000 : 3000);
     return () => clearTimeout(t);
   }, [toast.id, removeToast]);
 
@@ -25,7 +25,10 @@ function ToastItem({ toast, removeToast }) {
       animation: 'slideIn 0.2s ease',
     }}>
       <span style={{ color: s.iconColor, fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{s.icon}</span>
-      <span style={{ color: theme.textPrimary, fontSize: '13px', flex: 1 }}>{toast.message}</span>
+      <span style={{ color: theme.textPrimary, fontSize: '13px', flex: 1 }}>
+        {toast.message}
+        {toast.link && <> <a href={toast.link.href} target="_blank" rel="noreferrer" style={{ color: theme.accent, fontWeight: 600 }}>{toast.link.label}</a></>}
+      </span>
       <button onClick={() => removeToast(toast.id)}
         style={{ background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
         aria-label="Закрыть">×</button>

@@ -1,4 +1,5 @@
 import XLSX from 'xlsx-js-style';
+import { saveFile } from './fileSink.js';
 
 // Тот же стиль оформления, что и в остальных экспортах проекта
 // (см. bugControlExport.js / slaExport.js) — тёмно-синяя шапка, тонкие рамки.
@@ -61,7 +62,7 @@ function colWidth(col) {
  * Экспортирует текущую таблицу CR-реестра в .xlsx — с теми же колонками
  * и в том же порядке, что настроены на вкладке «Поля».
  */
-export function downloadXLSX(rows, columns = []) {
+export function downloadXLSX(rows, columns = [], baseName = 'CR_Запросы') {
   const headerRow = columns.map((c) => hdrCell(c.label));
 
   const dataRows = rows.map((row, idx) => {
@@ -103,13 +104,6 @@ export function downloadXLSX(rows, columns = []) {
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([wbout], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
   const date = new Date().toISOString().slice(0, 10);
-  link.href = url;
-  link.download = `CR_zaprosy_${date}.xlsx`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return saveFile(blob, `${baseName}_${date}.xlsx`);
 }

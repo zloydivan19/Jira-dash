@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import YaDiskButton from './YaDiskButton.jsx';
 import { computeStats, computeTeamStats } from '../hooks/useTTM.js';
 import { getPhaseMarker, formatDuration, fmtDaysPair, workingDays } from '../utils/changelog.js';
 
@@ -763,6 +764,7 @@ export default function TTMTab({ issues, stats, teamStats, loading, loadingChang
             : null}
           {exportLabel || 'Экспорт Excel'}
         </button>
+        <YaDiskButton onExport={onExport} disabled={exporting || totalIssues === 0} style={{ fontSize: 12, padding: '6px 10px' }} />
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>

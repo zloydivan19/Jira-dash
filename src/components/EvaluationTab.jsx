@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { exportSLAViolations } from '../utils/slaExport.js';
 import PingComposer from './PingComposer.jsx';
+import YaDiskButton from './YaDiskButton.jsx';
 import { EVAL_ACTIVE_STATUSES } from '../utils/evalStatuses.js';
 
 const GROUP_CONFIG = [
@@ -586,6 +587,7 @@ export default function EvaluationTab({ issues, slaMap, loadingIssues, loadingCh
             : null}
           {exportLabel}
         </button>
+        <YaDiskButton onExport={handleExportSLA} disabled={exporting} style={{ marginLeft: 8, fontSize: 12, padding: '6px 10px' }} />
 
         <button
           data-tour="eval-ping"
