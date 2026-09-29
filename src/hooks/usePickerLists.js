@@ -37,10 +37,9 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
   const [bugControlReporterOptions, setBugControlReporterOptions] = useState(() => readCache('pick_bug_control_reporters'));
   const [busy, setBusy] = useState({});
   const [progress, setProgress] = useState({});
-  const [background, setBackground] = useState(null); // { index, total, label } пока идёт фоновая загрузка
+  const [background, setBackground] = useState(null); // { keys, done } пока идёт фоновая загрузка
   const controllers = useRef({});
   const preloading = useRef(false);
-  const cancelBackground = useRef(false);
 
   const headers = () => ({
     'x-jira-url': settings.jiraUrl || '',
@@ -112,15 +111,16 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
   // Фоновая загрузка после подключения: по очереди, только отсутствующие или устаревшие (> 7 дней) списки.
   const preload = useCallback(async () => {
     if (preloading.current || !settings.jiraUrl || !settings.jiraToken) return;
-    const queue = ['clients', 'managers', 'crReporters', 'bugReporters', 'engineers'].filter((k) => !isFresh(SPECS[k].cacheKey));
-    if (!queue.length) return;
+    const keys = ['clients', 'managers', 'crReporters', 'bugReporters', 'engineers'].filter((k) => !isFresh(SPECS[k].cacheKey));
+    if (!keys.length) return;
     preloading.current = true;
-    cancelBackground.current = false;
+    setBackground({ keys, done: [] });
     try {
-      for (let i = 0; i < queue.length && !cancelBackground.current; i++) {
-        setBackground({ key: queue[i], index: i + 1, total: queue.length, title: SPECS[queue[i]].title });
-        await load(queue[i], true);
-      }
+      // Все списки грузятся одновременно; плашка показывает общий прогресс.
+      await Promise.all(keys.map(async (k) => {
+        await load(k, true);
+        setBackground((b) => (b ? { ...b, done: [...b.done, k] } : b));
+      }));
     } finally {
       setBackground(null);
       preloading.current = false;
@@ -130,7 +130,7 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
   return {
     allClients, managerOptions, crReporterOptions, engineerOptions, reporterOptions, bugControlReporterOptions,
     busy, progress, background, runLoad, stopLoad, cachedAt, preload,
-    stopBackground: () => { cancelBackground.current = true; if (background) stopLoad(background.key); },
+    stopBackground: () => { (background?.keys || []).forEach((k) => stopLoad(k)); },
     loadClients: () => load('clients'),
     loadManagers: () => load('managers'),
     loadCrReporters: () => load('crReporters'),
