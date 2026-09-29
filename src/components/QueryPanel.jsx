@@ -2,27 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Icon from './Icon.jsx';
 import { fmtDaysPair } from '../utils/changelog.js';
-import { collectDistinct } from '../utils/jiraDistinct.js';
 import { getInList, setInList, setManagers, getExtraKeys, setExtraKeys, parseKeys } from '../utils/jqlFilters.js';
 
 const DEV_PROJECTS = 'SRTZ, SRTB, SRTS, SR, HW, SCOC, SCOD';
 // CR живут в проекте CR (ключи CR-XXXX); Complex Project там же, но в TTM не участвует.
 const TTM_BASE = 'project = CR AND issuetype != "Complex Project"';
-
-// Списки для фильтров (авторы, менеджеры, клиенты…) долго собираются из Jira,
-// поэтому храним их в localStorage с датой и не перезагружаем при каждом открытии.
-function readCacheEntry(key) {
-  try {
-    const raw = localStorage.getItem(key) ?? sessionStorage.getItem(key);
-    const v = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(v)) return { list: v, at: null };
-    return v && Array.isArray(v.list) ? v : { list: [], at: null };
-  } catch { return { list: [], at: null }; }
-}
-function readCache(key) { return readCacheEntry(key).list; }
-function writeCache(key, value) {
-  try { localStorage.setItem(key, JSON.stringify({ list: value, at: new Date().toISOString() })); } catch {}
-}
 
 function fmtNum(n) { return n.toLocaleString('ru-RU'); }
 function fmtEta(sec) {
@@ -30,7 +14,7 @@ function fmtEta(sec) {
   return `${Math.round(sec / 60)} мин`;
 }
 
-function LoadProgress({ pr, onStop }) {
+export function LoadProgress({ pr, onStop }) {
   const pct = pr.total ? Math.min(99, Math.floor((pr.loaded / pr.total) * 100)) : null;
   const elapsed = (Date.now() - pr.started) / 1000;
   const eta = pr.total && pr.loaded > 0 && elapsed > 1 ? ((pr.total - pr.loaded) / (pr.loaded / elapsed)) : null;
@@ -57,27 +41,34 @@ export default function QueryPanel({
   onLoadEval, evalLoading, evalManagerFilter, onEvalManagerFilterChange, evalHasData,
   onLoadBugControl, bugControlLoading, bugControlHasData, bugControlSummary,
   onLoadTtm, ttmLoading, ttmHasData, ttmSummary,
+  lists,
 }) {
+  const {
+    allClients, managerOptions, crReporterOptions, engineerOptions, reporterOptions, bugControlReporterOptions,
+    busy, progress, runLoad, stopLoad, cachedAt,
+    loadClients, loadManagers, loadCrReporters, loadReporters, loadEngineers, loadBugControlReporters,
+  } = lists;
+  const clientOptions = allClients;
+  const bugControlClientOptions = allClients;
+  const bugsClientOptions = allClients;
+  const clientsLoading = !!busy.clients;
+  const bugControlClientsLoading = clientsLoading;
+  const bugsClientsLoading = clientsLoading;
+  const managersLoading = !!busy.managers;
+  const crReportersLoading = !!busy.crReporters;
+  const engineersLoading = !!busy.engineers;
+  const reportersLoading = !!busy.bugReporters;
+  const bugControlReportersLoading = !!busy.bcReporters;
+
   // CR Queries tab state
   const [clientSearch, setClientSearch] = useState('');
-  // Один общий список всех клиентов Jira для всех фильтров по клиентам (CR, ошибки, контроль ошибок, TTM).
-  const [allClients, setAllClients] = useState(() => {
-    const all = readCache('pick_clients_all');
-    return all.length ? all : [...new Set([...readCache('pick_clients_cr'), ...readCache('pick_bugs_clients'), ...readCache('pick_bug_control_clients')])].sort((a, b) => a.localeCompare(b, 'ru'));
-  });
-  const [clientsLoading, setClientsLoading] = useState(false);
-  const clientOptions = allClients;
 
   const [managerSearch, setManagerSearch] = useState('');
-  const [managerOptions, setManagerOptions] = useState(() => readCache('pick_managers'));
-  const [managersLoading, setManagersLoading] = useState(false);
 
   // Eval tab: separate manager selection
   const [evalSelectedManagers, setEvalSelectedManagers] = useState([]);
 
   const [crReporterSearch, setCrReporterSearch] = useState('');
-  const [crReporterOptions, setCrReporterOptions] = useState(() => readCache('pick_cr_reporters'));
-  const [crReportersLoading, setCrReportersLoading] = useState(false);
 
   const [loadingIssues, setLoadingIssues] = useState(false);
 
@@ -88,24 +79,14 @@ export default function QueryPanel({
   // Bugs tab state
   const [loadingBugs, setLoadingBugs] = useState(false);
   const [engineerSearch, setEngineerSearch] = useState('');
-  const [engineerOptions, setEngineerOptions] = useState(() => readCache('pick_engineers'));
-  const [engineersLoading, setEngineersLoading] = useState(false);
 
   const [reporterSearch, setReporterSearch] = useState('');
-  const [reporterOptions, setReporterOptions] = useState(() => readCache('pick_bugs_reporters'));
-  const [reportersLoading, setReportersLoading] = useState(false);
 
-  const [bugControlReporterOptions, setBugControlReporterOptions] = useState(() => readCache('pick_bug_control_reporters'));
-  const [bugControlReportersLoading, setBugControlReportersLoading] = useState(false);
   const [bugControlReporterSearch, setBugControlReporterSearch] = useState('');
 
-  const bugControlClientOptions = allClients;
-  const bugControlClientsLoading = clientsLoading;
   const [bugControlClientSearch, setBugControlClientSearch] = useState('');
 
   const [bugsClientSearch, setBugsClientSearch] = useState('');
-  const bugsClientOptions = allClients;
-  const bugsClientsLoading = clientsLoading;
 
 
   useEffect(() => {
@@ -151,67 +132,26 @@ export default function QueryPanel({
   });
 
   // ── CR tab: clients ──
-  // ── Загрузка списков для фильтров: общий запуск с прогрессом и остановкой ──
-  const [progress, setProgress] = useState({});
-  const controllers = React.useRef({});
-  const runLoad = async (key, { jql, field, kind, apply, setBusy, label }) => {
-    controllers.current[key]?.abort();
-    const ctrl = new AbortController();
-    controllers.current[key] = ctrl;
-    setBusy?.(true);
-    setProgress((m) => ({ ...m, [key]: { loaded: 0, total: null, found: 0, started: Date.now() } }));
-    try {
-      const { list, stopped } = await collectDistinct({
-        jql, field, kind, headers: credHeaders(), signal: ctrl.signal,
-        onProgress: (pr) => setProgress((m) => ({ ...m, [key]: pr })),
-      });
-      if (list.length || !stopped) apply(list);
-      if (stopped) addToast(`Загрузка остановлена, найдено ${list.length}`, 'info');
-      else if (!list.length) addToast(`Jira ничего не нашла по запросу: ${jql}`, 'error');
-    } catch {
-      addToast(`Не удалось загрузить ${label}`, 'error');
-    } finally {
-      setBusy?.(false);
-      setProgress((m) => { const n = { ...m }; delete n[key]; return n; });
-      if (controllers.current[key] === ctrl) delete controllers.current[key];
-    }
-  };
-  const stopLoad = (key) => controllers.current[key]?.abort();
-  const cachedAt = (cacheKey) => readCacheEntry(cacheKey).at;
-  const store = (cacheKey, setOptions) => (list) => { setOptions(list); writeCache(cacheKey, list); };
 
-  const loadClients = () => runLoad('clients', {
-    jql: 'cf[12601] is not EMPTY', field: 'customfield_12601', kind: 'value', setBusy: setClientsLoading, label: 'клиентов',
-    apply: (list) => { setAllClients(list); writeCache('pick_clients_all', list); onSettingsChange({ ttmKnownClients: list }); },
-  });
 
 
 
   // ── CR tab: reporters (авторы CR) ──
-  const loadCrReporters = () => runLoad('crReporters', { jql: 'cf[12606] is not EMPTY', field: 'reporter', kind: 'user', apply: store('pick_cr_reporters', setCrReporterOptions), setBusy: setCrReportersLoading, label: 'авторов' });
 
 
 
 
   // ── CR tab: managers ──
-  const loadManagers = () => runLoad('managers', { jql: 'cf[12606] is not EMPTY', field: 'customfield_12606', kind: 'user', apply: store('pick_managers', setManagerOptions), setBusy: setManagersLoading, label: 'менеджеров' });
 
 
 
   // ── Bugs tab: engineers ──
-  const loadEngineers = () => runLoad('engineers', { jql: `project in (${DEV_PROJECTS}) AND assignee is not EMPTY`, field: 'assignee', kind: 'user', apply: store('pick_engineers', setEngineerOptions), setBusy: setEngineersLoading, label: 'исполнителей' });
 
 
 
   // ── Bugs tab: reporters ──
-  const loadReporters = () => runLoad('bugReporters', { jql: `project in (${DEV_PROJECTS}) AND reporter is not EMPTY`, field: 'reporter', kind: 'user', apply: store('pick_bugs_reporters', setReporterOptions), setBusy: setReportersLoading, label: 'авторов' });
 
   // ── Bug Control tab: reporters ──
-  const loadBugControlReporters = () => runLoad('bcReporters', { jql: `${(() => {
-    const projects = (settings.bugControlProjects || '').split(',').map((x) => x.trim()).filter(Boolean);
-    const issueType = (settings.bugControlIssueType || 'Bug').trim();
-    return `${projects.length ? `project in (${projects.join(', ')}) AND ` : ''}${issueType ? `issuetype = "${issueType}" AND ` : ''}`;
-  })()}reporter is not EMPTY`, field: 'reporter', kind: 'user', apply: store('pick_bug_control_reporters', setBugControlReporterOptions), setBusy: setBugControlReportersLoading, label: 'авторов' });
 
   // ── Bug Control tab: clients ──
   const loadBugControlClients = loadClients;

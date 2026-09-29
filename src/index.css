@@ -294,6 +294,12 @@ svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentC
 .ping-preview { background: var(--t-bgChrome); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; color: var(--t-textPrimary); }
 .ping-preview-cap { display: block; font-size: 12px; color: var(--t-textMuted); margin-bottom: 4px; }
 
+/* ── Background list loading ───────────────────────────── */
+.bg-load { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 900; display: flex; align-items: center; gap: 10px; width: 380px; max-width: calc(100vw - 32px); padding: 10px 8px 10px 14px; background: var(--t-bgPage); border: 1px solid var(--t-border); border-radius: 10px; box-shadow: var(--t-shadowPop); }
+.bg-load > div { flex: 1; }
+.bg-load-title { font-size: 13px; font-weight: 600; color: var(--t-textPrimary); }
+.bg-load-sub { font-size: 12px; color: var(--t-textMuted); }
+
 /* ── Onboarding tour ───────────────────────────────────── */
 .tour { position: fixed; inset: 0; z-index: 10000; }
 .tour-catch { position: absolute; inset: 0; }

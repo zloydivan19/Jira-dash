@@ -14,6 +14,8 @@ import FieldsPage from './components/FieldsPage.jsx';
 import StatusStrip from './components/StatusStrip.jsx';
 import AttentionStrip from './components/AttentionStrip.jsx';
 import OnboardingTour from './components/OnboardingTour.jsx';
+import BackgroundLoad from './components/BackgroundLoad.jsx';
+import { usePickerLists } from './hooks/usePickerLists.js';
 import { useCrStatusDays } from './hooks/useCrStatusDays.js';
 import { attentionFlags, hasAttention } from './utils/crAttention.js';
 
@@ -95,6 +97,8 @@ export default function App() {
     const id = ++toastIdCounter;
     setToasts((prev) => [...prev, { id, message, type }]);
   }, []);
+
+  const lists = usePickerLists({ settings, addToast, onSettingsChange: updateSettings });
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -354,6 +358,15 @@ export default function App() {
   const showTable = isDataTab && currentStatus === 'success';
   const showCounter = isDataTab && (currentStatus === 'success' || currentStatus === 'empty');
 
+  // Как только есть связь с Jira — в фоне готовим списки для фильтров (клиенты, менеджеры, авторы…).
+  // При открытии сайта с сохранённым подключением сначала проверяем, что оно рабочее.
+  useEffect(() => {
+    if (settings.jiraUrl && settings.jiraEmail && settings.jiraToken && !userInfo) handleFetchMyself();
+  }, []);
+  useEffect(() => {
+    if (userInfo?.accountId) lists.preload();
+  }, [userInfo?.accountId]);
+
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     if (!fullscreen) return;
@@ -461,6 +474,7 @@ export default function App() {
           ttmLoading={ttm.loading}
           ttmHasData={ttm.issues.length > 0}
           ttmSummary={ttm.stats}
+          lists={lists}
         />
 
         {showTable && isCRActive && attentionVisible && (
@@ -546,6 +560,7 @@ export default function App() {
       )}
       <main className="shell-main">{page}</main>
       <Toast toasts={toasts} removeToast={removeToast} />
+      <BackgroundLoad lists={lists} />
       {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} onTabChange={changeTab} hasTable={crJira.status === 'success'} />}
     </div>
   );
