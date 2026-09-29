@@ -78,6 +78,15 @@ export function attentionInput(issue) {
 
 const ddmm = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
+// SLA оценки — 10 рабочих дней. 9-й день: почти нарушен, 10-й: последний шанс, с 11-го нарушен.
+function evalSla(d) {
+  const base = `Оценка ${d} / 10 р.д.`;
+  if (d > 10) return { level: 'bad', text: `${base}, SLA нарушен` };
+  if (d === 10) return { level: 'warn', text: `${base}, последний шанс успеть` };
+  if (d === 9) return { level: 'warn', text: `${base}, SLA почти нарушен` };
+  return { level: d > 5 ? 'warn' : 'ok', text: base };
+}
+
 // days: { evalDays, waitDays } из истории статусов (может ещё не загрузиться).
 export function attentionFlags(input, days, todayIso = new Date().toISOString().slice(0, 10)) {
   if (!input) return [];
@@ -85,7 +94,7 @@ export function attentionFlags(input, days, todayIso = new Date().toISOString().
   if (isEvalStatus(input.status)) {
     const d = days?.evalDays;
     if (d == null) out.push({ id: 'eval', level: 'info', text: 'На оценке' });
-    else out.push({ id: 'eval', level: d > 8 ? 'bad' : d > 5 ? 'warn' : 'ok', text: d > 8 ? `Оценка ${d} / 10 р.д., SLA нарушен` : `Оценка ${d} / 10 р.д.` });
+    else out.push({ id: 'eval', ...evalSla(d) });
   }
   if (isWaitingStatus(input.status)) {
     const d = days?.waitDays;
