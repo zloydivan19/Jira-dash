@@ -60,8 +60,13 @@ export default function QueryPanel({
 }) {
   // CR Queries tab state
   const [clientSearch, setClientSearch] = useState('');
-  const [clientOptions, setClientOptions] = useState(() => readCache('pick_clients_cr'));
+  // Один общий список всех клиентов Jira для всех фильтров по клиентам (CR, ошибки, контроль ошибок, TTM).
+  const [allClients, setAllClients] = useState(() => {
+    const all = readCache('pick_clients_all');
+    return all.length ? all : [...new Set([...readCache('pick_clients_cr'), ...readCache('pick_bugs_clients'), ...readCache('pick_bug_control_clients')])].sort((a, b) => a.localeCompare(b, 'ru'));
+  });
   const [clientsLoading, setClientsLoading] = useState(false);
+  const clientOptions = allClients;
 
   const [managerSearch, setManagerSearch] = useState('');
   const [managerOptions, setManagerOptions] = useState(() => readCache('pick_managers'));
@@ -94,13 +99,13 @@ export default function QueryPanel({
   const [bugControlReportersLoading, setBugControlReportersLoading] = useState(false);
   const [bugControlReporterSearch, setBugControlReporterSearch] = useState('');
 
-  const [bugControlClientOptions, setBugControlClientOptions] = useState(() => readCache('pick_bug_control_clients'));
-  const [bugControlClientsLoading, setBugControlClientsLoading] = useState(false);
+  const bugControlClientOptions = allClients;
+  const bugControlClientsLoading = clientsLoading;
   const [bugControlClientSearch, setBugControlClientSearch] = useState('');
 
   const [bugsClientSearch, setBugsClientSearch] = useState('');
-  const [bugsClientOptions, setBugsClientOptions] = useState(() => readCache('pick_bugs_clients'));
-  const [bugsClientsLoading, setBugsClientsLoading] = useState(false);
+  const bugsClientOptions = allClients;
+  const bugsClientsLoading = clientsLoading;
 
 
   useEffect(() => {
@@ -175,7 +180,10 @@ export default function QueryPanel({
   const cachedAt = (cacheKey) => readCacheEntry(cacheKey).at;
   const store = (cacheKey, setOptions) => (list) => { setOptions(list); writeCache(cacheKey, list); };
 
-  const loadClients = () => runLoad('crClients', { jql: 'cf[12606] = currentUser() AND cf[12601] is not EMPTY', field: 'customfield_12601', kind: 'value', apply: store('pick_clients_cr', setClientOptions), setBusy: setClientsLoading, label: 'клиентов' });
+  const loadClients = () => runLoad('clients', {
+    jql: 'cf[12601] is not EMPTY', field: 'customfield_12601', kind: 'value', setBusy: setClientsLoading, label: 'клиентов',
+    apply: (list) => { setAllClients(list); writeCache('pick_clients_all', list); onSettingsChange({ ttmKnownClients: list }); },
+  });
 
 
 
@@ -206,11 +214,7 @@ export default function QueryPanel({
   })()}reporter is not EMPTY`, field: 'reporter', kind: 'user', apply: store('pick_bug_control_reporters', setBugControlReporterOptions), setBusy: setBugControlReportersLoading, label: 'авторов' });
 
   // ── Bug Control tab: clients ──
-  const loadBugControlClients = () => runLoad('bcClients', { jql: `${(() => {
-    const projects = (settings.bugControlProjects || '').split(',').map((x) => x.trim()).filter(Boolean);
-    const issueType = (settings.bugControlIssueType || 'Bug').trim();
-    return `${projects.length ? `project in (${projects.join(', ')}) AND ` : ''}${issueType ? `issuetype = "${issueType}" AND ` : ''}`;
-  })()}cf[12601] is not EMPTY`, field: 'customfield_12601', kind: 'value', apply: store('pick_bug_control_clients', setBugControlClientOptions), setBusy: setBugControlClientsLoading, label: 'клиентов' });
+  const loadBugControlClients = loadClients;
 
   // ── TTM tab: teams and clients from CR (not from bugs) ──
   const [ttmTeamsLoading, setTtmTeamsLoading] = useState(false);
@@ -223,7 +227,7 @@ export default function QueryPanel({
     apply: (list) => onSettingsChange({ [settingKey]: list }), setBusy, label,
   });
   const loadTtmTeams = () => loadTtmFieldValues('customfield_12800', 12800, 'ttmKnownTeams', setTtmTeamsLoading, 'команды');
-  const loadTtmClients = () => loadTtmFieldValues('customfield_12601', 12601, 'ttmKnownClients', setTtmClientsLoading, 'клиентов');
+  const loadTtmClients = loadClients;
 
   function buildBugControlJql(s) {
     const parts = [];
@@ -290,7 +294,7 @@ export default function QueryPanel({
   }
 
   // ── Bugs tab: clients ──
-  const loadBugsClients = () => runLoad('bugClients', { jql: `project in (${DEV_PROJECTS}) AND cf[12601] is not EMPTY`, field: 'customfield_12601', kind: 'value', apply: store('pick_bugs_clients', setBugsClientOptions), setBusy: setBugsClientsLoading, label: 'клиентов' });
+  const loadBugsClients = loadClients;
 
 
 
@@ -621,13 +625,13 @@ export default function QueryPanel({
   // ── Фильтры, которые живут прямо в JQL ──
   const CR_FILTERS = [
     { pkey: 'crReporters', cacheKey: 'pick_cr_reporters', key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал CR', chip: 'Автор', options: crReporterOptions, onLoad: loadCrReporters, loading: crReportersLoading, search: crReporterSearch, setSearch: setCrReporterSearch, placeholder: 'Поиск автора' },
-    { pkey: 'crClients', cacheKey: 'pick_clients_cr', key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты из ваших CR', chip: 'Клиент', options: clientOptions, onLoad: loadClients, loading: clientsLoading, search: clientSearch, setSearch: setClientSearch, placeholder: 'Поиск клиента' },
+    { pkey: 'clients', cacheKey: 'pick_clients_all', key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Все клиенты Jira', chip: 'Клиент', options: clientOptions, onLoad: loadClients, loading: clientsLoading, search: clientSearch, setSearch: setClientSearch, placeholder: 'Поиск клиента' },
     { pkey: 'managers', cacheKey: 'pick_managers', key: 'manager', field: 'cf[12606]', manager: true, title: 'По менеджерам', subtitle: 'Пусто — ваши CR', chip: 'Менеджер', options: managerOptions, onLoad: loadManagers, loading: managersLoading, search: managerSearch, setSearch: setManagerSearch, placeholder: 'Поиск менеджера' },
   ];
   const BUG_FILTERS = [
     { pkey: 'bugReporters', cacheKey: 'pick_bugs_reporters', key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал задачу', chip: 'Автор', options: reporterOptions, onLoad: loadReporters, loading: reportersLoading, search: reporterSearch, setSearch: setReporterSearch, placeholder: 'Поиск автора' },
     { pkey: 'engineers', cacheKey: 'pick_engineers', key: 'assignee', field: 'assignee', title: 'По исполнителю', subtitle: 'Инженеры команд разработки', chip: 'Исполнитель', options: engineerOptions, onLoad: loadEngineers, loading: engineersLoading, search: engineerSearch, setSearch: setEngineerSearch, placeholder: 'Поиск исполнителя' },
-    { pkey: 'bugClients', cacheKey: 'pick_bugs_clients', key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Клиенты в задачах команд', chip: 'Клиент', options: bugsClientOptions, onLoad: loadBugsClients, loading: bugsClientsLoading, search: bugsClientSearch, setSearch: setBugsClientSearch, placeholder: 'Поиск клиента' },
+    { pkey: 'clients', cacheKey: 'pick_clients_all', key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Все клиенты Jira', chip: 'Клиент', options: bugsClientOptions, onLoad: loadBugsClients, loading: bugsClientsLoading, search: bugsClientSearch, setSearch: setBugsClientSearch, placeholder: 'Поиск клиента' },
   ];
   const writeFilter = (jqlKey, f, values) => {
     const cur = settings[jqlKey] || '';
@@ -830,7 +834,7 @@ export default function QueryPanel({
           {renderMultiSelect({
             title: 'Клиенты', subtitle: 'Пусто — все клиенты',
             options: bugControlClientOptions, selected: settings.bugControlClients || [],
-            onLoad: loadBugControlClients, loading: bugControlClientsLoading, pkey: 'bcClients', cacheKey: 'pick_bug_control_clients',
+            onLoad: loadBugControlClients, loading: bugControlClientsLoading, pkey: 'clients', cacheKey: 'pick_clients_all',
             searchVal: bugControlClientSearch, onSearch: setBugControlClientSearch,
             onToggle: (val) => onSettingsChange((s) => {
               const current = s.bugControlClients || [];
@@ -922,8 +926,8 @@ export default function QueryPanel({
               })}
               {renderMultiSelect({
                 title: 'Клиенты', subtitle: 'Ничего не выбрано — все клиенты',
-                options: settings.ttmKnownClients || [], selected: settings.ttmClients || [],
-                onLoad: loadTtmClients, loading: ttmClientsLoading, pkey: 'ttm-12601',
+                options: allClients.length ? allClients : (settings.ttmKnownClients || []), selected: settings.ttmClients || [],
+                onLoad: loadTtmClients, loading: clientsLoading, pkey: 'clients', cacheKey: 'pick_clients_all',
                 searchVal: ttmClientSearch, onSearch: setTtmClientSearch,
                 onToggle: (val) => onSettingsChange((s) => {
                   const current = s.ttmClients || [];
