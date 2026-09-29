@@ -33,7 +33,8 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
   const [managerOptions, setManagerOptions] = useState(() => readCache('pick_managers'));
   const [crReporterOptions, setCrReporterOptions] = useState(() => readCache('pick_cr_reporters'));
   const [engineerOptions, setEngineerOptions] = useState(() => readCache('pick_engineers'));
-  const [reporterOptions, setReporterOptions] = useState(() => readCache('pick_bugs_reporters'));
+  // Авторы всех ошибок во всей Jira (без ограничения по проектам).
+  const [reporterOptions, setReporterOptions] = useState(() => readCache('pick_bug_authors_all'));
   const [busy, setBusy] = useState({});
   const [progress, setProgress] = useState({});
   const [background, setBackground] = useState(null); // { keys, done } пока идёт фоновая загрузка
@@ -87,8 +88,8 @@ export function usePickerLists({ settings, addToast, onSettingsChange }) {
       jql: 'cf[12606] is not EMPTY', field: 'reporter', kind: 'user', apply: store('pick_cr_reporters', setCrReporterOptions),
     },
     bugReporters: {
-      cacheKey: 'pick_bugs_reporters', label: 'авторов', title: 'авторы ошибок',
-      jql: `project in (${DEV_PROJECTS}) AND reporter is not EMPTY`, field: 'reporter', kind: 'user', apply: store('pick_bugs_reporters', setReporterOptions),
+      cacheKey: 'pick_bug_authors_all', label: 'авторов', title: 'авторы ошибок',
+      jql: 'issuetype = Bug AND reporter is not EMPTY', field: 'reporter', kind: 'user', apply: store('pick_bug_authors_all', setReporterOptions),
     },
     engineers: {
       cacheKey: 'pick_engineers', label: 'исполнителей', title: 'исполнители',

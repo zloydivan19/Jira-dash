@@ -572,7 +572,7 @@ export default function QueryPanel({
     { pkey: 'managers', cacheKey: 'pick_managers', key: 'manager', field: 'cf[12606]', manager: true, title: 'По менеджерам', subtitle: 'Пусто — ваши CR', chip: 'Менеджер', options: managerOptions, onLoad: loadManagers, loading: managersLoading, search: managerSearch, setSearch: setManagerSearch, placeholder: 'Поиск менеджера' },
   ];
   const BUG_FILTERS = [
-    { pkey: 'bugReporters', cacheKey: 'pick_bugs_reporters', key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Кто создал задачу', chip: 'Автор', options: reporterOptions, onLoad: loadReporters, loading: reportersLoading, search: reporterSearch, setSearch: setReporterSearch, placeholder: 'Поиск автора' },
+    { pkey: 'bugReporters', cacheKey: 'pick_bug_authors_all', key: 'reporter', field: 'reporter', title: 'По автору', subtitle: 'Авторы ошибок во всей Jira', chip: 'Автор', options: reporterOptions, onLoad: loadReporters, loading: reportersLoading, search: reporterSearch, setSearch: setReporterSearch, placeholder: 'Поиск автора' },
     { pkey: 'engineers', cacheKey: 'pick_engineers', key: 'assignee', field: 'assignee', title: 'По исполнителю', subtitle: 'Инженеры команд разработки', chip: 'Исполнитель', options: engineerOptions, onLoad: loadEngineers, loading: engineersLoading, search: engineerSearch, setSearch: setEngineerSearch, placeholder: 'Поиск исполнителя' },
     { pkey: 'clients', cacheKey: 'pick_clients_all', key: 'client', field: 'cf[12601]', title: 'По клиентам', subtitle: 'Все клиенты Jira', chip: 'Клиент', options: bugsClientOptions, onLoad: loadBugsClients, loading: bugsClientsLoading, search: bugsClientSearch, setSearch: setBugsClientSearch, placeholder: 'Поиск клиента' },
   ];
@@ -762,9 +762,9 @@ export default function QueryPanel({
             </label>
           </div>
           {settings.bugControlReportersMode === 'list' && renderMultiSelect({
-            title: 'Авторы ошибок', subtitle: 'Для просмотра по нескольким людям',
+            title: 'Авторы ошибок', subtitle: 'Все авторы ошибок в Jira',
             options: bugControlReporterOptions, selected: (settings.bugControlReporters || []).map((r) => r.accountId),
-            onLoad: loadBugControlReporters, loading: bugControlReportersLoading, pkey: 'bugReporters', cacheKey: 'pick_bugs_reporters',
+            onLoad: loadBugControlReporters, loading: bugControlReportersLoading, pkey: 'bugReporters', cacheKey: 'pick_bug_authors_all',
             searchVal: bugControlReporterSearch, onSearch: setBugControlReporterSearch,
             onToggle: (id) => onSettingsChange((s) => {
               const current = s.bugControlReporters || [];
