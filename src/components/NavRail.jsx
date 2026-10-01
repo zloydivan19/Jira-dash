@@ -8,6 +8,7 @@ export const SECTIONS = [
   { id: 'eval',       label: 'Контроль оценки', icon: 'eval' },
   { id: 'bugControl', label: 'Контроль ошибок', icon: 'bug' },
   { id: 'ttm',        label: 'TTM анализ',      icon: 'ttm' },
+  { id: 'confluence', label: 'Confluence → Word', icon: 'doc' },
 ];
 
 export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCollapsed, userInfo, jiraUrl, onStartTour }) {
@@ -57,7 +58,7 @@ export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCol
           <span className="rail-collapse-ico" style={{ display: 'inline-flex' }}><Icon name="chevL" /></span>
           <span className="rail-lbl">{collapsed ? 'Развернуть меню' : 'Свернуть меню'}</span>
         </button>
-        <div className="rail-ver">v2.1.3, PM Fenix Team</div>
+        <div className="rail-ver">v2.1.4, PM Fenix Team</div>
       </div>
     </aside>
   );

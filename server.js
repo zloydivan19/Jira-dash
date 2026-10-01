@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { yadiskMe, yadiskList, yadiskMkdir, yadiskExists, yadiskUpload } from './lib/yadisk.js';
+import { confluencePage, confluenceAttachments, confluenceDownload, confluenceIssues } from './lib/confluence.js';
 
 dotenv.config();
 
@@ -54,6 +55,16 @@ app.post('/api/yadisk/upload', express.raw({ type: '*/*', limit: '50mb' }), asyn
 
 // GET /api/jira/search
 // GET /api/jira/count?jql= — примерное число задач по JQL (для прогресса загрузки списков).
+// Confluence того же сайта: страница, вложения в оригинале, задачи Jira со страницы.
+const sendConfluence = (res, r) => {
+  if (r.binary) { res.setHeader('Content-Type', r.contentType); return res.send(r.binary); }
+  res.status(r.status).json(r.data);
+};
+app.get('/api/confluence/page', async (req, res) => sendConfluence(res, await confluencePage(getCredentials(req), req.query.id)));
+app.get('/api/confluence/attachments', async (req, res) => sendConfluence(res, await confluenceAttachments(getCredentials(req), req.query.id)));
+app.get('/api/confluence/download', async (req, res) => sendConfluence(res, await confluenceDownload(getCredentials(req), req.query.path)));
+app.get('/api/confluence/issues', async (req, res) => sendConfluence(res, await confluenceIssues(getCredentials(req), req.query.keys)));
+
 app.get('/api/jira/count', async (req, res) => {
   const { url, auth } = getCredentials(req);
   try {

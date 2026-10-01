@@ -11,6 +11,7 @@ import NavRail from './components/NavRail.jsx';
 import QueryPanel from './components/QueryPanel.jsx';
 import ConnectionPage from './components/ConnectionPage.jsx';
 import FieldsPage from './components/FieldsPage.jsx';
+import ConfluenceExportPage from './components/ConfluenceExportPage.jsx';
 import StatusStrip from './components/StatusStrip.jsx';
 import AttentionStrip from './components/AttentionStrip.jsx';
 import OnboardingTour from './components/OnboardingTour.jsx';
@@ -417,6 +418,8 @@ export default function App() {
         onStartTour={() => { setFullscreen(false); setTourOpen(true); }}
         onConnected={() => setTimeout(() => changeTab('queries'), 600)} />
     );
+  } else if (activeTab === 'confluence') {
+    page = <ConfluenceExportPage settings={settings} addToast={addToast} />;
   } else if (activeTab === 'fields') {
     page = (
       <FieldsPage settings={settings} jiraFields={jiraFields} onFetchFields={handleFetchFields} addToast={addToast}
