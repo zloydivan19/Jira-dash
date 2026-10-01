@@ -19,7 +19,7 @@ export const handler = async (event) => {
   else if (op === 'attachments') r = await confluenceAttachments(creds, q.id);
   else if (op === 'issues') r = await confluenceIssues(creds, q.keys);
   else if (op === 'download') {
-    r = await confluenceDownload(creds, q.path);
+    r = await confluenceDownload(creds, q.path, q.page, q.att);
     if (r.binary) {
       // Ответ функции Netlify ограничен ~6 МБ (с base64 — около 4,5 МБ файла).
       if (r.binary.length > 4.4 * 1024 * 1024) return json(413, { error: 'Файл больше 4 МБ: на сайте его скачать нельзя, на корпоративном сервере ограничения нет' });

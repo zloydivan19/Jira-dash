@@ -54,6 +54,7 @@ export default function ConfluenceExportPage({ settings, addToast }) {
 
       const images = {};
       const failed = [];
+      const reasons = new Map();
       let bytes = 0;
       let done = 0;
       const total = refs.images.length;
@@ -64,13 +65,18 @@ export default function ConfluenceExportPage({ settings, addToast }) {
           const name = queue.shift();
           const a = byName.get(name) || byName.get(normName(name));
           try {
-            if (!a?.download) throw new Error('нет во вложениях страницы');
-            const r = await axios.get('/api/confluence/download', { params: { path: a.download }, headers, responseType: 'blob', timeout: 180000 });
+            if (!a || (!a.id && !a.download)) throw new Error('нет во вложениях страницы');
+            const r = await axios.get('/api/confluence/download', { params: { page: ref.id, att: a.id, path: a.download }, headers, responseType: 'blob', timeout: 180000 });
             images[name] = await prepareImage(r.data, a.mediaType);
             bytes += r.data.size || 0;
           } catch (e) {
             // Превью диаграммы draw.io может не быть — это не ошибка картинки со страницы.
-            if (a || !refs.diagrams.includes(name)) failed.push(name);
+            if (a || !refs.diagrams.includes(name)) {
+              failed.push(name);
+              let why = e.message;
+              if (e.response?.data instanceof Blob) { try { why = JSON.parse(await e.response.data.text()).error || why; } catch { /* оставляем общий текст */ } }
+              reasons.set(why, (reasons.get(why) || 0) + 1);
+            }
           }
           done += 1;
           setStep({ label: 'Скачиваем картинки в оригинальном качестве', done, total });
@@ -82,7 +88,10 @@ export default function ConfluenceExportPage({ settings, addToast }) {
       setStep({ label: 'Собираем документ Word…' });
       const { doc, warnings } = buildDocx({ page, body, images, issues: iss.issues || {}, jiraUrl: settings.jiraUrl });
       const blob = await packDocx(doc);
-      if (failed.length) warnings.unshift(`Не скачались картинки (${failed.length}): ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}. В документе на их месте стоит пометка.`);
+      if (failed.length) {
+        const why = [...reasons.entries()].map(([r, n]) => (reasons.size > 1 ? `${r} (${n})` : r)).join('; ');
+        warnings.unshift(`Не скачались картинки (${failed.length} из ${total}): ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}. Причина: ${why}. Вложений у страницы: ${(att.attachments || []).length}.`);
+      }
       if (iss.warning) warnings.push(`Названия задач Jira не подтянулись: ${iss.warning}`);
 
       const res = {

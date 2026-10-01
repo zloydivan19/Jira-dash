@@ -62,7 +62,7 @@ const sendConfluence = (res, r) => {
 };
 app.get('/api/confluence/page', async (req, res) => sendConfluence(res, await confluencePage(getCredentials(req), req.query.id)));
 app.get('/api/confluence/attachments', async (req, res) => sendConfluence(res, await confluenceAttachments(getCredentials(req), req.query.id)));
-app.get('/api/confluence/download', async (req, res) => sendConfluence(res, await confluenceDownload(getCredentials(req), req.query.path)));
+app.get('/api/confluence/download', async (req, res) => sendConfluence(res, await confluenceDownload(getCredentials(req), req.query.path, req.query.page, req.query.att)));
 app.get('/api/confluence/issues', async (req, res) => sendConfluence(res, await confluenceIssues(getCredentials(req), req.query.keys)));
 
 app.get('/api/jira/count', async (req, res) => {
