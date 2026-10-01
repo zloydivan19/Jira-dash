@@ -11,7 +11,7 @@ export const SECTIONS = [
   { id: 'confluence', label: 'Confluence → Word', icon: 'doc' },
 ];
 
-export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCollapsed, userInfo, jiraUrl, onStartTour }) {
+export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCollapsed, userInfo, jiraUrl, onStartTour, onOpenHistory }) {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme.id === 'dark';
   const host = (jiraUrl || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -46,6 +46,10 @@ export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCol
             {host || 'не настроено'}
           </span>
         </button>
+        <button className="rail-item" data-tour="history" onClick={onOpenHistory} title="Что менялось в каждой версии PM Radar">
+          <Icon name="history" />
+          <span className="rail-lbl">История версий</span>
+        </button>
         <button className="rail-item" data-tour="help" onClick={onStartTour} title="Короткий тур по PM Radar">
           <Icon name="help" />
           <span className="rail-lbl">Как пользоваться</span>
@@ -58,7 +62,7 @@ export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCol
           <span className="rail-collapse-ico" style={{ display: 'inline-flex' }}><Icon name="chevL" /></span>
           <span className="rail-lbl">{collapsed ? 'Развернуть меню' : 'Свернуть меню'}</span>
         </button>
-        <div className="rail-ver">v2.1.4, PM Fenix Team</div>
+        <button className="rail-ver" onClick={onOpenHistory} title="Открыть историю версий">v2.1.5, PM Fenix Team</button>
       </div>
     </aside>
   );

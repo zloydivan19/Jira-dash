@@ -12,6 +12,7 @@ import QueryPanel from './components/QueryPanel.jsx';
 import ConnectionPage from './components/ConnectionPage.jsx';
 import FieldsPage from './components/FieldsPage.jsx';
 import ConfluenceExportPage from './components/ConfluenceExportPage.jsx';
+import VersionHistory from './components/VersionHistory.jsx';
 import StatusStrip from './components/StatusStrip.jsx';
 import AttentionStrip from './components/AttentionStrip.jsx';
 import OnboardingTour from './components/OnboardingTour.jsx';
@@ -77,6 +78,20 @@ export default function App() {
   const attentionVisible = settings.crAttentionVisible !== false;
   const [attnFilter, setAttnFilter] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
+  // История версий — отдельная страница по адресу #history; «Назад» в браузере тоже возвращает в инструмент.
+  const [historyOpen, setHistoryOpen] = useState(() => window.location.hash === '#history');
+  const historyFromApp = React.useRef(false);
+  useEffect(() => {
+    const onHash = () => setHistoryOpen(window.location.hash === '#history');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const openHistory = () => { historyFromApp.current = true; window.location.hash = 'history'; };
+  const closeHistory = () => {
+    if (historyFromApp.current) { historyFromApp.current = false; window.history.back(); return; }
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    setHistoryOpen(false);
+  };
   // При самом первом открытии PM Radar тур запускается сам, дальше только по кнопке.
   useEffect(() => {
     try {
@@ -568,12 +583,14 @@ export default function App() {
     );
   }
 
+  if (historyOpen) return <VersionHistory onBack={closeHistory} />;
+
   return (
     <YaDiskProvider accountId={userInfo?.accountId} addToast={addToast}>
     <div className="shell">
       {!fullscreen && (
         <NavRail activeTab={activeTab} onTabChange={changeTab} collapsed={collapsed} onToggleCollapsed={toggleCollapsed}
-          userInfo={userInfo} jiraUrl={settings.jiraUrl}
+          userInfo={userInfo} jiraUrl={settings.jiraUrl} onOpenHistory={openHistory}
           onStartTour={() => { setFullscreen(false); setTourOpen(true); }} />
       )}
       <main className="shell-main">{page}</main>
