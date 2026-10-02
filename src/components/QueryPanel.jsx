@@ -288,7 +288,7 @@ export default function QueryPanel({
     { group: 'Мои задачи' },
     { label: 'Все мои задачи',             desc: 'Все задачи где вы PM',                    jql: 'cf[12606] = currentUser() ORDER BY created DESC' },
     { label: 'Мои открытые задачи',        desc: 'Только незакрытые',                       jql: 'cf[12606] = currentUser() AND statusCategory != Done ORDER BY created DESC' },
-    { label: 'Задачи в работе',            desc: 'In Progress + "CR в майке" + Приоритезированы', jql: 'cf[12606] = currentUser() AND (statusCategory = "In Progress" OR status in ("CR в майке", "Приоритезированы")) ORDER BY created DESC' },
+    { label: 'Задачи в работе',            desc: 'Все незакрытые, кроме черновиков и отложенных', jql: 'cf[12606] = currentUser() AND statusCategory != Done AND status not in ("Черновик", "Отложено", "PAUSE", "On hold") ORDER BY created DESC' },
     { label: 'Ожидают оценки',             desc: 'На модерации, оценке или у продакта (Product Feature)', jql: 'cf[12606] = currentUser() AND status in ("Awaiting Moderation", "На оценку", "Product Feature") ORDER BY created DESC' },
     { label: 'Созданы за 30 дней',         desc: 'Новые задачи за последний месяц',         jql: 'cf[12606] = currentUser() AND created >= -30d ORDER BY created DESC' },
     { label: 'Без аналитика',              desc: 'Нет назначенного аналитика',              jql: 'cf[12606] = currentUser() AND assignee is EMPTY AND statusCategory != Done ORDER BY created DESC' },
