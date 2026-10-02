@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { jiraVersions } from '../../lib/jiraVersions.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +43,7 @@ export const handler = async (event) => {
   const rawPath = event.path || '';
   const endpoint = rawPath.includes('changelog') ? 'changelog'
     : rawPath.includes('comment')  ? 'comment'
+    : rawPath.includes('versions') ? 'versions'
     : rawPath.includes('count')    ? 'count'
     : rawPath.includes('search')   ? 'search'
     : rawPath.includes('fields')   ? 'fields'
@@ -50,6 +52,11 @@ export const handler = async (event) => {
 
   try {
     let response;
+
+    if (endpoint === 'versions') {
+      const r = await jiraVersions({ url: jiraUrl, auth }, (event.queryStringParameters || {}).ids);
+      return json(r.status, r.data);
+    }
 
     if (endpoint === 'count') {
       const { jql = '' } = event.queryStringParameters || {};

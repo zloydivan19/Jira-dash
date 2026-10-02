@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { yadiskMe, yadiskList, yadiskMkdir, yadiskExists, yadiskUpload } from './lib/yadisk.js';
+import { jiraVersions } from './lib/jiraVersions.js';
 import { confluencePage, confluenceAttachments, confluenceDownload, confluenceIssues } from './lib/confluence.js';
 
 dotenv.config();
@@ -127,6 +128,12 @@ app.get('/api/jira/fields', async (req, res) => {
     }
     res.status(500).json({ error: err.message || 'Internal server error' });
   }
+});
+
+// GET /api/jira/versions?ids=1,2 — карточки релизов (даты старта и выпуска)
+app.get('/api/jira/versions', async (req, res) => {
+  const r = await jiraVersions(getCredentials(req), req.query.ids);
+  res.status(r.status).json(r.data);
 });
 
 // GET /api/jira/myself

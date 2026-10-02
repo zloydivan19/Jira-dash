@@ -27,6 +27,7 @@ import { attentionFlags, hasAttention } from './utils/crAttention.js';
 const ATTENTION_COLUMN = { id: '_attention', label: 'Внимание', type: 'attention' };
 import Icon from './components/Icon.jsx';
 import DashboardTable from './components/DashboardTable.jsx';
+import { useVersionInfo } from './hooks/useVersionInfo.js';
 import EvaluationTab from './components/EvaluationTab.jsx';
 import Toast from './components/Toast.jsx';
 
@@ -385,6 +386,10 @@ export default function App() {
   };
 
   const showTable = isDataTab && currentStatus === 'success';
+  // Разбивка таблицы по релизам — отдельно для CR и для Задач/Ошибок.
+  const releaseTab = isCRActive ? 'queries' : isBugsActive ? 'bugs' : null;
+  const releaseOn = !!(releaseTab && settings.releaseGrouping?.[releaseTab]);
+  const versionInfo = useVersionInfo(currentIssues, releaseOn, settings);
   const showCounter = isDataTab && (currentStatus === 'success' || currentStatus === 'empty');
 
   // Как только есть связь с Jira — в фоне готовим списки для фильтров (клиенты, менеджеры, авторы…).
@@ -487,6 +492,10 @@ export default function App() {
           onSearch={setSearch}
           fullscreen={fullscreen}
           onToggleFullscreen={() => setFullscreen((v) => !v)}
+          releases={releaseTab ? {
+            on: releaseOn,
+            toggle: () => updateSettings((s) => ({ releaseGrouping: { ...(s.releaseGrouping || {}), [releaseTab]: !releaseOn } })),
+          } : null}
           attention={isCRActive ? {
             on: attentionVisible,
             toggle: () => { setAttnFilter(null); updateSettings({ crAttentionVisible: !attentionVisible }); },
@@ -574,6 +583,8 @@ export default function App() {
               columns={currentColumns}
               columnFilters={currentFilters}
               onFilterChange={currentOnFilterChange}
+              groupByRelease={releaseOn}
+              versionInfo={versionInfo}
             />
           ) : (
             <EmptyState status={currentStatus} error={currentError} onRetry={handleRetry} />

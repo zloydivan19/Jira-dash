@@ -72,7 +72,7 @@ export function useJira(storageKey = null, { attention = false } = {}) {
     setError(null);
     setIssues([]);
 
-    const fixedFields = ['summary', 'status', 'created'];
+    const fixedFields = ['summary', 'status', 'created', 'fixVersions'];
     // 'issueKey' — не настоящее поле Jira (это issue.key), запрашивать его в fields не нужно.
     const dynamicFields = columns.map((c) => c.id).filter((id) => id && id !== 'issueKey' && !id.startsWith('_'));
     const allFields = [...new Set([...fixedFields, ...dynamicFields, ...(attention ? ATTENTION_FIELDS : [])])];
@@ -106,6 +106,7 @@ export function useJira(storageKey = null, { attention = false } = {}) {
 
       const extracted = allRaw.map((issue) => {
         const row = extractIssueData(issue, columns, credentials.jiraUrl);
+        row._versions = (issue.fields?.fixVersions || []).map((v) => ({ id: v.id, name: v.name, releaseDate: v.releaseDate || null, released: !!v.released }));
         if (!attention) return row;
         const input = attentionInput(issue);
         row._attnInput = input;

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { groupByRelease, PHASE_LABEL } from '../utils/releaseGroups.js';
 import { createPortal } from 'react-dom';
 import StatusBadge from './StatusBadge.jsx';
 import { useTheme } from '../contexts/ThemeContext.jsx';
@@ -156,7 +157,10 @@ function FilterDropdown({ col, allIssues, selected, onChange, onClose, anchorRec
   );
 }
 
-export default function DashboardTable({ issues, allIssues, columns = [], columnFilters = {}, onFilterChange }) {
+const plural = (n, one, few, many) => { const m10 = n % 10; const m100 = n % 100; if (m10 === 1 && m100 !== 11) return one; if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few; return many; };
+
+export default function DashboardTable({ issues, allIssues, columns = [], columnFilters = {}, onFilterChange, groupByRelease: grouped = false, versionInfo = {} }) {
+  const [collapsed, setCollapsed] = useState(() => new Set());
   const { theme } = useTheme();
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
@@ -221,57 +225,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
   // "Отправлены на согласование") visually did nothing.
   const totalWidth = allColumns.reduce((sum, col) => sum + getWidth(col), 0);
 
-  return (
-    <div style={{ overflow: 'auto', width: '100%', height: '100%' }}>
-      <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: totalWidth + 'px', minWidth: '100%', fontSize: '13.5px', tableLayout: 'fixed' }}>
-        <colgroup>
-          {allColumns.map((col) => <col key={col.id} style={{ width: getWidth(col) + 'px' }} />)}
-        </colgroup>
-        <thead data-tour="table-head">
-          <tr>
-            {allColumns.map((col, ci) => {
-              const isFiltered = (columnFilters[col.id]?.length ?? 0) > 0;
-              const isOpen = openFilter === col.id;
-              return (
-                <th key={col.id} style={{
-                  padding: ci === 0 ? '10px 6px 10px 20px' : '10px 6px 10px 12px', textAlign: col.type === 'number' ? 'right' : 'left',
-                  background: theme.bgThead,
-                  color: isFiltered ? theme.accent : theme.textMuted,
-                  fontWeight: 600, fontSize: '12.5px', userSelect: 'none', verticalAlign: 'bottom',
-                  borderBottom: `1px solid ${isFiltered ? theme.borderActive : theme.border}`,
-                  position: 'sticky', top: 0, zIndex: 1, overflow: 'hidden',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
-                    <span onClick={() => handleSort(col)} title="Сортировать" style={{ cursor: 'pointer', flex: 1, wordBreak: 'break-word', lineHeight: 1.3, color: sortKey === col.id ? theme.textPrimary : undefined }}>
-                      {col.label}
-                      {sortKey === col.id && <span style={{ marginLeft: '4px' }}>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                    </span>
-                    <button
-                      onClick={(e) => handleFilterClick(e, col.id)}
-                      title={isFiltered ? 'Фильтр включён' : 'Фильтр по значениям'}
-                      style={{ cursor: 'pointer', color: isFiltered ? theme.accent : theme.filterIconDim, padding: '1px', borderRadius: '4px', background: isOpen || isFiltered ? theme.accentSoft : 'transparent', border: 0, flexShrink: 0, display: 'inline-flex' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = theme.accent)}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = isFiltered ? theme.accent : theme.filterIconDim)}
-                    ><Icon name="chevD" size={15} /></button>
-                    <div className="col-resizer" onMouseDown={(e) => startResize(e, col.id)} onClick={(e) => e.stopPropagation()} title="Потяните, чтобы изменить ширину колонки" />
-                  </div>
-                  {isOpen && filterAnchor && (
-                    <FilterDropdown
-                      col={col} allIssues={allIssues || issues}
-                      selected={columnFilters[col.id] || []}
-                      onChange={onFilterChange}
-                      onClose={() => { setOpenFilter(null); setFilterAnchor(null); }}
-                      anchorRect={filterAnchor}
-                      theme={theme}
-                    />
-                  )}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((row, idx) => (
+  const renderRow = (row, idx) => (
             <tr
               key={row.issueKey || idx}
               style={{ background: theme.bgRowEven }}
@@ -288,6 +242,11 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                       onMouseEnter={(e) => (e.target.style.textDecoration = 'underline')}
                       onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
                     >{row.issueKey}</a>
+                    {(row._versions || []).length > 1 && (
+                      <span className="multi-rel" title={`Реализуется в нескольких релизах: ${row._versions.map((v) => v.name).join(', ')}. Выход — в последнем.`}>
+                        в {row._versions.length} релизах
+                      </span>
+                    )}
                   </td>
                 );
                 if (col.id === 'issuelinks') return (
@@ -339,7 +298,87 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
                 );
               })}
             </tr>
-          ))}
+  );
+
+  const releaseGroups = grouped ? groupByRelease(sorted, versionInfo) : [];
+  const shortDate = (d) => (d ? d.split('-').reverse().join('.') : '');
+  const groupHeader = (g) => {
+    const open = !collapsed.has(g.key);
+    const attn = g.rows.filter((r) => (r._attentionFlags || []).some((f) => f.level === 'bad' || f.level === 'warn')).length;
+    const multi = g.rows.filter((r) => (r._versions || []).length > 1).length;
+    const when = g.phase === 'none' ? 'задачи без версии исправления'
+      : [g.startDate && g.releaseDate ? `${shortDate(g.startDate)} – ${shortDate(g.releaseDate)}` : g.releaseDate ? `выпуск ${shortDate(g.releaseDate)}` : 'дата выпуска не задана',
+        g.daysLeft != null && g.phase !== 'released' ? (g.daysLeft > 0 ? `через ${g.daysLeft} дн.` : g.daysLeft === 0 ? 'сегодня' : `${-g.daysLeft} дн. назад`) : null].filter(Boolean).join(' · ');
+    const toggle = () => setCollapsed((prev) => { const next = new Set(prev); if (next.has(g.key)) next.delete(g.key); else next.add(g.key); return next; });
+    return (
+      <tr key={`rel-${g.key}`} className="rel-head" data-phase={g.phase}>
+        <td colSpan={allColumns.length}>
+          <button className="rel-head-btn" onClick={toggle} aria-expanded={open} title={open ? 'Свернуть релиз' : 'Развернуть релиз'}>
+            <span className="rel-caret"><Icon name={open ? 'chevD' : 'chevR'} size={15} /></span>
+            <span className="rel-name">{g.name}</span>
+            <span className="rel-phase">{PHASE_LABEL[g.phase]}</span>
+            <span className="rel-when">{when}</span>
+            <span className="rel-count">{g.rows.length} {plural(g.rows.length, 'задача', 'задачи', 'задач')}</span>
+            {multi > 0 && <span className="rel-multi" title="Задачи, которые реализуются в нескольких релизах и выходят в этом">{multi} в нескольких релизах</span>}
+            {attn > 0 && <span className="chip bad"><i />{attn} {plural(attn, 'требует', 'требуют', 'требуют')} внимания</span>}
+            {g.description && !/^Release\s/i.test(g.description) && <span className="rel-desc">{g.description}</span>}
+          </button>
+        </td>
+      </tr>
+    );
+  };
+
+  return (
+    <div style={{ overflow: 'auto', width: '100%', height: '100%' }}>
+      <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: totalWidth + 'px', minWidth: '100%', fontSize: '13.5px', tableLayout: 'fixed' }}>
+        <colgroup>
+          {allColumns.map((col) => <col key={col.id} style={{ width: getWidth(col) + 'px' }} />)}
+        </colgroup>
+        <thead data-tour="table-head">
+          <tr>
+            {allColumns.map((col, ci) => {
+              const isFiltered = (columnFilters[col.id]?.length ?? 0) > 0;
+              const isOpen = openFilter === col.id;
+              return (
+                <th key={col.id} style={{
+                  padding: ci === 0 ? '10px 6px 10px 20px' : '10px 6px 10px 12px', textAlign: col.type === 'number' ? 'right' : 'left',
+                  background: theme.bgThead,
+                  color: isFiltered ? theme.accent : theme.textMuted,
+                  fontWeight: 600, fontSize: '12.5px', userSelect: 'none', verticalAlign: 'bottom',
+                  borderBottom: `1px solid ${isFiltered ? theme.borderActive : theme.border}`,
+                  position: 'sticky', top: 0, zIndex: 1, overflow: 'hidden',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
+                    <span onClick={() => handleSort(col)} title="Сортировать" style={{ cursor: 'pointer', flex: 1, wordBreak: 'break-word', lineHeight: 1.3, color: sortKey === col.id ? theme.textPrimary : undefined }}>
+                      {col.label}
+                      {sortKey === col.id && <span style={{ marginLeft: '4px' }}>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    </span>
+                    <button
+                      onClick={(e) => handleFilterClick(e, col.id)}
+                      title={isFiltered ? 'Фильтр включён' : 'Фильтр по значениям'}
+                      style={{ cursor: 'pointer', color: isFiltered ? theme.accent : theme.filterIconDim, padding: '1px', borderRadius: '4px', background: isOpen || isFiltered ? theme.accentSoft : 'transparent', border: 0, flexShrink: 0, display: 'inline-flex' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = theme.accent)}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = isFiltered ? theme.accent : theme.filterIconDim)}
+                    ><Icon name="chevD" size={15} /></button>
+                    <div className="col-resizer" onMouseDown={(e) => startResize(e, col.id)} onClick={(e) => e.stopPropagation()} title="Потяните, чтобы изменить ширину колонки" />
+                  </div>
+                  {isOpen && filterAnchor && (
+                    <FilterDropdown
+                      col={col} allIssues={allIssues || issues}
+                      selected={columnFilters[col.id] || []}
+                      onChange={onFilterChange}
+                      onClose={() => { setOpenFilter(null); setFilterAnchor(null); }}
+                      anchorRect={filterAnchor}
+                      theme={theme}
+                    />
+                  )}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {grouped ? releaseGroups.flatMap((g) => [groupHeader(g), ...(collapsed.has(g.key) ? [] : g.rows.map(renderRow))]) : sorted.map(renderRow)}
         </tbody>
       </table>
     </div>

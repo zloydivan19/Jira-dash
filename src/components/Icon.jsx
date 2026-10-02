@@ -12,6 +12,8 @@ const PATHS = {
   user: <><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3 3.4-4.6 6.2-4.6s5.3 1.6 6.2 4.6" /></>,
   chevL: <path d="M12 5.5 7.5 10l4.5 4.5" />,
   chevD: <path d="M6 8.5l4 4 4-4" />,
+  chevR: <path d="M8.5 6l4 4-4 4" />,
+  release: <><rect x="3" y="4.5" width="14" height="12" rx="2" /><path d="M3 8.5h14M7 3v3M13 3v3M6.5 12h2M11.5 12h2" /></>,
   chevU: <path d="M6 11.5l4-4 4 4" />,
   expand: <path d="M4 8V4h4M16 8V4h-4M4 12v4h4M16 12v4h-4" />,
   shrink: <path d="M8 4v4H4M12 4v4h4M8 16v-4H4M12 16v-4h4" />,

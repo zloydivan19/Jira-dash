@@ -35,7 +35,7 @@ export function LoadProgress({ pr, onStop }) {
 export default function QueryPanel({
   settings, onSettingsChange, onLoadCR, onLoadBugs, addToast,
   columns, columnsBugs, activeTab, onTabChange,
-  search, onSearch, fullscreen, onToggleFullscreen, attention,
+  search, onSearch, fullscreen, onToggleFullscreen, attention, releases,
   crHasData, bugsHasData,
   onLoadEval, evalLoading, evalManagerFilter, onEvalManagerFilterChange, evalHasData,
   onLoadBugControl, bugControlLoading, bugControlHasData, bugControlSummary,
@@ -1111,6 +1111,12 @@ export default function QueryPanel({
             <button className={`btn ghost${attention.on ? ' on' : ''}`} data-tour="attention" onClick={attention.toggle} aria-pressed={attention.on}
               title={attention.on ? 'Скрыть колонку «Внимание» и сводку' : 'Показать колонку «Внимание» и сводку'}>
               <Icon name="flag" />Внимание
+            </button>
+          )}
+          {releases && (
+            <button className={`btn ghost${releases.on ? ' on' : ''}`} data-tour="releases" onClick={releases.toggle} aria-pressed={releases.on}
+              title={releases.on ? 'Показать обычным списком' : 'Разбить задачи по релизам'}>
+              <Icon name="release" />По релизам
             </button>
           )}
           {isQueryTab && (

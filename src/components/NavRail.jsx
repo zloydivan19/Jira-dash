@@ -62,7 +62,7 @@ export default function NavRail({ activeTab, onTabChange, collapsed, onToggleCol
           <span className="rail-collapse-ico" style={{ display: 'inline-flex' }}><Icon name="chevL" /></span>
           <span className="rail-lbl">{collapsed ? 'Развернуть меню' : 'Свернуть меню'}</span>
         </button>
-        <button className="rail-ver" onClick={onOpenHistory} title="Открыть историю версий">v2.1.5, PM Fenix Team</button>
+        <button className="rail-ver" onClick={onOpenHistory} title="Открыть историю версий">v2.1.6, PM Fenix Team</button>
       </div>
     </aside>
   );
