@@ -302,6 +302,23 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
 
   const releaseGroups = grouped ? groupByRelease(sorted, versionInfo) : [];
   const shortDate = (d) => (d ? d.split('-').reverse().join('.') : '');
+  const groupsBar = () => {
+    const allClosed = releaseGroups.length > 0 && releaseGroups.every((g) => collapsed.has(g.key));
+    const allOpen = releaseGroups.every((g) => !collapsed.has(g.key));
+    const n = releaseGroups.filter((g) => g.phase !== 'none').length;
+    return (
+      <tr key="rel-bar" className="rel-bar">
+        <td colSpan={allColumns.length}>
+          <div className="rel-bar-in">
+            <span>{n} {plural(n, 'релиз', 'релиза', 'релизов')}</span>
+            <button className="btn ghost" disabled={allClosed} onClick={() => setCollapsed(new Set(releaseGroups.map((g) => g.key)))}><Icon name="chevR" size={14} />Свернуть все</button>
+            <button className="btn ghost" disabled={allOpen} onClick={() => setCollapsed(new Set())}><Icon name="chevD" size={14} />Развернуть все</button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   const groupHeader = (g) => {
     const open = !collapsed.has(g.key);
     const attn = g.rows.filter((r) => (r._attentionFlags || []).some((f) => f.level === 'bad' || f.level === 'warn')).length;
@@ -316,7 +333,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
           <button className="rel-head-btn" onClick={toggle} aria-expanded={open} title={open ? 'Свернуть релиз' : 'Развернуть релиз'}>
             <span className="rel-caret"><Icon name={open ? 'chevD' : 'chevR'} size={15} /></span>
             <span className="rel-name">{g.name}</span>
-            <span className="rel-phase">{PHASE_LABEL[g.phase]}</span>
+            {g.phase !== 'none' && <span className="rel-phase">{PHASE_LABEL[g.phase]}</span>}
             <span className="rel-when">{when}</span>
             <span className="rel-count">{g.rows.length} {plural(g.rows.length, 'задача', 'задачи', 'задач')}</span>
             {multi > 0 && <span className="rel-multi" title="Задачи, которые реализуются в нескольких релизах и выходят в этом">{multi} в нескольких релизах</span>}
@@ -378,7 +395,7 @@ export default function DashboardTable({ issues, allIssues, columns = [], column
           </tr>
         </thead>
         <tbody>
-          {grouped ? releaseGroups.flatMap((g) => [groupHeader(g), ...(collapsed.has(g.key) ? [] : g.rows.map(renderRow))]) : sorted.map(renderRow)}
+          {grouped ? [groupsBar(), ...releaseGroups.flatMap((g) => [groupHeader(g), ...(collapsed.has(g.key) ? [] : g.rows.map(renderRow))])] : sorted.map(renderRow)}
         </tbody>
       </table>
     </div>
